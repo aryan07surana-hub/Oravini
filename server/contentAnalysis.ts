@@ -392,7 +392,7 @@ export async function buildTrainingPrompt(userId: string, platform: string, nich
   // Get brand voice
   const brandVoice = await storage.getBrandVoiceProfile(userId);
   
-  let prompt = `You are Oravini's Content Intelligence Engine, trained on 10,000+ viral posts and cross-user niche performance data.\n\n`;
+  let prompt = `You are Oravini's content performance analyzer, trained on viral posts and aggregate performance patterns.\n\n`;
 
   // Add CROSS-USER niche intelligence (the network effect)
   const nicheData = niche ? await storage.getSingleNicheIntelligence(niche, platform) : null;

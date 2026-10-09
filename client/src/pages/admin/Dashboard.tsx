@@ -59,8 +59,8 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 const AI_FEATURE_LABELS: Record<string, string> = {
   ai_ideas: "Content Ideas",
+  ai_coach: "Content Coach",
   hashtag_suggestions: "Hashtags",
-  ai_coach: "AI Coach",
   carousel: "Carousel",
   carousel_image: "Carousel Image",
   ai_report: "Content Report",

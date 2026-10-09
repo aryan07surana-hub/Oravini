@@ -28,7 +28,6 @@ import {
 import { format, getMonth, getYear, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { ContentIntelligenceInsights } from "@/components/ContentIntelligenceInsights";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"];
@@ -1450,15 +1449,6 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
             </div>
           )}
 
-          <ContentIntelligenceInsights
-            postId={post.id}
-            postTitle={post.title || "Untitled"}
-            views={post.views || 0}
-            likes={post.likes || 0}
-            comments={post.comments || 0}
-            saves={post.saves || 0}
-            platform={platform}
-          />
         </CardContent>
       </Card>
       <MetricsUpdateDialog post={post} clientId={clientId} platform={platform} open={metricsOpen} onClose={() => setMetricsOpen(false)} />
@@ -2517,7 +2507,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         if (data.imported > 0 && data.postIds && data.postIds.length > 0) {
           try {
             await apiRequest("POST", "/api/content/bulk-analyze", { postIds: data.postIds });
-            toast({ title: `${data.imported} posts imported & analyzed!`, description: "Content Intelligence ran on all posts. Check each post for viral insights." });
+            toast({ title: `${data.imported} posts imported & analyzed!`, description: "Analysis completed for all posts. Check each post for performance insights." });
           } catch {
             toast({ title: `${data.imported} posts imported!`, description: "Real stats pulled directly from Instagram." });
           }

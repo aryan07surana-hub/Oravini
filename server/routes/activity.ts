@@ -2,19 +2,13 @@ import type { Express, Request, Response } from "express";
 import { db } from "../storage";
 import { userActivityEvents } from "../../shared/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
-import { aiChat } from "../aiService";
 
 /* ─── Human-readable feature labels ─── */
 const FEATURE_LABELS: Record<string, string> = {
   "/": "Dashboard",
   "/ai-ideas": "AI Content Ideas",
-  "/ai-coach": "AI Coach",
-  "/niche-intelligence": "Niche Intelligence",
-  "/knowledge-graph": "Knowledge Graph",
-  "/vault": "Cortex Vault",
   "/competitor-study": "Competitor Study",
   "/carousel-studio": "Carousel Studio",
-  "/content-intelligence": "Content Intelligence",
   "/analytics": "Analytics",
   "/dm-automation": "DM Automation",
   "/dm-hub": "DM Hub",
@@ -118,95 +112,6 @@ export function registerActivityRoutes(
       });
     } catch (err: any) {
       console.error("[activity/summary]", err);
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  /* ─── Generate vault note from activity ─── */
-  app.post("/api/activity/vault-synthesis", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req.user as any).id;
-      const days = Number(req.body.days) || 14;
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-      const events = await db
-        .select()
-        .from(userActivityEvents)
-        .where(and(eq(userActivityEvents.userId, userId), gte(userActivityEvents.createdAt, since)))
-        .orderBy(desc(userActivityEvents.createdAt))
-        .limit(400);
-
-      if (!events.length) {
-        return res.json({
-          title: `Behavior Insights — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-          content: `# Behavior Insights\n\nNo activity recorded in the last ${days} days.\n`,
-        });
-      }
-
-      // Build frequency map
-      const featureCounts: Record<string, number> = {};
-      const actionCounts: Record<string, number> = {};
-      const hourCounts: Record<number, number> = {};
-      const sessionIds = new Set<string>();
-
-      for (const e of events) {
-        if (e.feature) featureCounts[e.feature] = (featureCounts[e.feature] ?? 0) + 1;
-        if (e.action) actionCounts[e.action] = (actionCounts[e.action] ?? 0) + 1;
-        if (e.createdAt) hourCounts[e.createdAt.getHours()] = (hourCounts[e.createdAt.getHours()] ?? 0) + 1;
-        if (e.sessionId) sessionIds.add(e.sessionId);
-      }
-
-      const topFeatures = Object.entries(featureCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([f, c]) => `${FEATURE_LABELS[f] ?? f}: ${c} times`);
-
-      const peakHour = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
-      const peakHourLabel = peakHour
-        ? `${Number(peakHour[0]) > 12 ? Number(peakHour[0]) - 12 + "pm" : peakHour[0] + "am"}`
-        : "unknown";
-
-      const unusedFeatures = Object.values(FEATURE_LABELS)
-        .filter(label => !Object.entries(featureCounts).some(([f]) => (FEATURE_LABELS[f] ?? f) === label))
-        .slice(0, 6);
-
-      const prompt = `You are analyzing a content creator's behavior on the Oravini platform to generate strategic insights for their Cortex second brain vault.
-
-ACTIVITY DATA (last ${days} days):
-- Total events: ${events.length}
-- Sessions: ${sessionIds.size}
-- Active days: ${new Set(events.map(e => e.createdAt?.toISOString().split("T")[0])).size}
-- Peak usage hour: ${peakHourLabel}
-
-TOP FEATURES USED:
-${topFeatures.join("\n")}
-
-TOP ACTIONS:
-${Object.entries(actionCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([a, c]) => `${a}: ${c}`).join("\n")}
-
-UNUSED FEATURES (opportunities):
-${unusedFeatures.join(", ")}
-
-Write a strategic vault note in Markdown that:
-1. **Behavior Patterns** — what does their usage tell us about their content strategy focus?
-2. **Strengths** — tools they're mastering
-3. **Blind Spots** — valuable features they're not using and WHY they should
-4. **Peak Performance Window** — their best time to create
-5. **This Week's Priority** — one specific action to take based on behavior
-6. **Cortex Insight** — a sharp, non-obvious observation about their creative habits
-
-Be specific, insightful, and actionable. Reference actual tool names. This note should feel like a smart mentor who watched them work.`;
-
-      const content = await aiChat("", prompt, { maxTokens: 1600, temperature: 0.6 });
-      const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
-      res.json({
-        title: `Behavior Insights — ${today}`,
-        folder: "Daily",
-        content,
-      });
-    } catch (err: any) {
-      console.error("[activity/vault-synthesis]", err);
       res.status(500).json({ message: err.message });
     }
   });

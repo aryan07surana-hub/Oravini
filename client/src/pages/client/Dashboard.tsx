@@ -71,7 +71,7 @@ function getDailyQuote() {
 
 const TOOL_LABELS: Record<string, string> = {
   ai_ideas: "Content Ideas",
-  ai_coach: "AI Coach",
+  ai_coach: "Content Coach",
   carousel: "Carousel Studio",
   competitor: "Competitor Study",
   ai_report: "AI Report",
@@ -85,11 +85,10 @@ const TOOL_LABELS: Record<string, string> = {
 ───────────────────────────────────────────── */
 const ALL_QUICK_TOOLS = [
   { href: "/ai-ideas",              label: "Content Ideas",        desc: "AI-generated hooks & scripts",      icon: Sparkles,       gradient: "from-[#d4b461]/20 to-[#d4b461]/5",    iconBg: "bg-[#d4b461]/15",    iconColor: "#d4b461",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
-  { href: "/ai-coach",              label: "AI Coach",             desc: "Personalised content coaching",     icon: Bot,            gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15",  iconColor: "#34d399",  struggles: ["Building confidence on camera", "Staying consistent"] },
+  { href: "/ai-coach",              label: "Content Coach",        desc: "Improve hooks, drafts & CTAs",       icon: MessageCircle,  gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15", iconColor: "#34d399", struggles: ["Low engagement on posts", "Knowing what content to create"] },
   { href: "/video-editor",          label: "Video Editor",         desc: "Edit & enhance your videos",        icon: Clapperboard,   gradient: "from-violet-500/20 to-violet-500/5",  iconBg: "bg-violet-500/15",   iconColor: "#a78bfa",  struggles: ["Editing and production quality"] },
   { href: "/competitor-study",      label: "Competitor Study",     desc: "Deep-dive competitor analysis",     icon: ScanSearch,     gradient: "from-blue-500/20 to-blue-500/5",      iconBg: "bg-blue-500/15",     iconColor: "#60a5fa",  struggles: ["Growing my followers", "Standing out in a crowded niche"] },
   { href: "/carousel-studio",       label: "Carousel Studio",      desc: "Design scroll-stopping carousels",  icon: ImagePlay,      gradient: "from-pink-500/20 to-pink-500/5",      iconBg: "bg-pink-500/15",     iconColor: "#f472b6",  struggles: ["Low engagement on posts"] },
-  { href: "/content-intelligence",  label: "Content Intelligence", desc: "AI brain that learns your style",   icon: Brain,          gradient: "from-cyan-500/20 to-cyan-500/5",      iconBg: "bg-cyan-500/15",     iconColor: "#22d3ee",  struggles: ["Coming up with content ideas", "Getting views / reach"] },
   { href: "/dm-automation",         label: "DM Automation",        desc: "Automate & manage your DMs",        icon: MessageCircle,  gradient: "from-indigo-500/20 to-indigo-500/5",  iconBg: "bg-indigo-500/15",   iconColor: "#818cf8",  struggles: ["Growing my followers", "Converting followers to clients"] },
 ];
 
@@ -915,130 +914,6 @@ function CityClockCard({ city, timezone, flag, color }: { city: string; timezone
 }
 
 /* ─────────────────────────────────────────────
-   NICHE INTELLIGENCE WIDGET
-───────────────────────────────────────────── */
-function NicheIntelligenceWidget() {
-  const { data, isLoading } = useQuery<any>({
-    queryKey: ["/api/niche-intelligence/my"],
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-
-  const intelligence = data?.intelligence;
-  const trends = data?.trends || [];
-
-  if (!intelligence && !isLoading) return null;
-  if (!intelligence) return null;
-
-  const healthScore = intelligence.healthScore ?? 0;
-  const healthLabel = intelligence.healthLabel ?? "No Data";
-  const healthColor = healthScore >= 80 ? "#34d399" : healthScore >= 60 ? GOLD : healthScore >= 40 ? "#fb923c" : "#f87171";
-  const niche = intelligence.niche || "your niche";
-
-  return (
-    <div className="rounded-2xl border border-zinc-800 overflow-hidden" style={{ background: "rgba(255,255,255,0.015)" }}>
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-            <Activity className="w-3.5 h-3.5" style={{ color: GOLD }} />
-          </div>
-          <p className="text-sm font-bold text-foreground">Niche Intelligence</p>
-          {intelligence && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500">
-              {intelligence.totalUsers} creators · {intelligence.totalPosts} posts
-            </span>
-          )}
-        </div>
-        <Link href="/niche-intelligence" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
-          Deep dive <ArrowRight className="w-3 h-3" />
-        </Link>
-      </div>
-
-      {isLoading ? (
-        <div className="p-5 space-y-3">
-          <div className="h-4 bg-zinc-800 rounded animate-pulse w-3/4" />
-          <div className="h-4 bg-zinc-800 rounded animate-pulse w-1/2" />
-          <div className="h-4 bg-zinc-800 rounded animate-pulse w-2/3" />
-        </div>
-      ) : (
-        <div className="p-5">
-          {/* Health score + benchmark row */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold" style={{ background: `${healthColor}15`, border: `1px solid ${healthColor}30`, color: healthColor }}>
-              <Activity className="w-3 h-3" />
-              {healthScore}/100 · {healthLabel}
-            </div>
-          </div>
-          {/* Main benchmark stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            {[
-              { label: "Avg Engagement", value: `${intelligence.avgEngagementRate.toFixed(1)}%`, sub: `${niche} avg`, color: "#34d399" },
-              { label: "Avg Viral Score", value: intelligence.avgViralScore.toFixed(1), sub: "/10", color: "#a78bfa" },
-              { label: "Avg Views", value: intelligence.avgViews >= 1000 ? `${(intelligence.avgViews / 1000).toFixed(1)}K` : intelligence.avgViews, sub: "per post", color: "#60a5fa" },
-              { label: "Trend (30d)", value: intelligence.trend30d > 0 ? `+${intelligence.trend30d.toFixed(1)}%` : intelligence.trend30d < 0 ? `${intelligence.trend30d.toFixed(1)}%` : "Stable", sub: intelligence.trend30d > 0 ? "Rising" : intelligence.trend30d < 0 ? "Declining" : "Flat", color: intelligence.trend30d > 0 ? "#34d399" : intelligence.trend30d < 0 ? "#f87171" : GOLD },
-            ].map(({ label, value, sub, color }) => (
-              <div key={label} className="flex flex-col items-center justify-center py-3 px-2 rounded-xl" style={{ background: `${color}08`, border: `1px solid ${color}18` }}>
-                <p className="text-xl font-bold text-foreground" style={{ color }}>{value}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
-                <p className="text-[9px] text-zinc-600 mt-0.5">{sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Top performing patterns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {intelligence.topHookType && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.15)" }}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.12)" }}>
-                  <Zap className="w-4 h-4" style={{ color: GOLD }} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Top Hook Type</p>
-                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{intelligence.topHookType}</p>
-                </div>
-              </div>
-            )}
-            {intelligence.topContentType && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.15)" }}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(167,139,250,0.12)" }}>
-                  <Layers className="w-4 h-4" style={{ color: "#a78bfa" }} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Top Content Type</p>
-                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{intelligence.topContentType}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Trending signals */}
-          {trends.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5">
-                <Flame className="w-3 h-3" style={{ color: "#fb923c" }} />
-                Trending Signals
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {trends.slice(0, 4).map((t: any, i: number) => (
-                  <span key={i} className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full" style={{
-                    background: t.momentum === "spiking" ? "rgba(251,146,60,0.15)" : t.momentum === "up" ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
-                    border: `1px solid ${t.momentum === "spiking" ? "rgba(251,146,60,0.3)" : t.momentum === "up" ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.08)"}`,
-                    color: t.momentum === "spiking" ? "#fb923c" : t.momentum === "up" ? "#34d399" : "rgba(255,255,255,0.5)",
-                  }}>
-                    {t.momentum === "spiking" ? "🔥" : t.momentum === "up" ? "↑" : "→"}
-                    {t.trendValue}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
    CREATOR TIPS
 ───────────────────────────────────────────── */
 const CREATOR_TIPS = [
@@ -1069,7 +944,7 @@ const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string 
   "Dealing with algorithm changes":    { action: "Track your IG follower count and engagement rate daily — spot trend drops before they compound.",        href: "/tracking/content/instagram",      tool: "IG Growth Tracker" },
   "Building a personal brand identity":{ action: "Generate your complete brand kit — colours, fonts, voice, and positioning in one session.",             href: "/brand-kit-builder",      tool: "Brand Kit Builder" },
   "Knowing what content to create":    { action: "Generate a 30-day content plan with hooks, formats, and a posting cadence built for your niche.",       href: "/content-calendar",       tool: "Content Calendar" },
-  "Getting views / reach":             { action: "Analyse your top-performing content with Content Intelligence and double down on what works.",           href: "/content-intelligence",   tool: "Content Intelligence" },
+  "Getting views / reach":             { action: "Review your top-performing posts and double down on the formats and hooks that work.",                 href: "/tracking/content",       tool: "Content Tracker" },
   "Building confidence on camera":     { action: "Generate camera-friendly scripts with natural delivery cues — practice with the words, not just ideas.", href: "/ai-ideas",               tool: "AI Content Ideas" },
   "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-editor",           tool: "AI Video Editor" },
 };
@@ -1946,12 +1821,12 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
 ───────────────────────────────────────────── */
 function TierHeroBanner({
   plan, firstName, goal, lifetimeTotalActions, contentPostCount,
-  streak, monthActions, weekHistory, nicheIntel, projectTracker, tasks,
+  streak, monthActions, weekHistory, projectTracker, tasks,
 }: {
   plan: string; firstName: string; goal: any; lifetimeTotalActions: number;
   contentPostCount: number; streak: number; monthActions: number;
   weekHistory: { date: string; creditsUsed: number; actions: number }[];
-  nicheIntel?: any; projectTracker?: any; tasks?: any[];
+  projectTracker?: any; tasks?: any[];
 }) {
 
   /* ── T1 FREE ── */
@@ -2083,12 +1958,10 @@ function TierHeroBanner({
 
   /* ── T3 GROWTH ── */
   if (plan === "growth") {
-    const intelligence  = nicheIntel?.intelligence;
-    const avgEngagement = intelligence?.avgEngagementRate != null ? `${intelligence.avgEngagementRate.toFixed(1)}%` : "—";
-    const avgViralScore = intelligence?.avgViralScore != null ? intelligence.avgViralScore.toFixed(1) : "—";
-    const trend30d      = intelligence?.trend30d ?? null;
-    const trendLabel    = trend30d === null ? "—" : trend30d > 0 ? `+${trend30d.toFixed(1)}%` : `${trend30d.toFixed(1)}%`;
-    const trendColor    = trend30d === null ? GOLD : trend30d > 0 ? "#34d399" : "#f87171";
+    const avgEngagement = `${contentPostCount}`;
+    const avgViralScore = `${monthActions}`;
+    const trendLabel    = `${streak}d`;
+    const trendColor    = streak > 0 ? "#34d399" : GOLD;
 
     return (
       <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)", border: "1px solid rgba(212,180,97,0.25)" }}>
@@ -2104,9 +1977,9 @@ function TierHeroBanner({
 
             <div className="grid grid-cols-3 gap-3 mb-4">
               {[
-                { label: "Niche Avg Engagement", value: avgEngagement, color: "#34d399" },
-                { label: "Avg Viral Score",       value: avgViralScore, color: "#a78bfa" },
-                { label: "30-Day Trend",          value: trendLabel,    color: trendColor },
+                { label: "Content Posts", value: avgEngagement, color: "#34d399" },
+                { label: "Monthly Actions", value: avgViralScore, color: "#a78bfa" },
+                { label: "Current Streak", value: trendLabel, color: trendColor },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-xl p-3.5 text-center" style={{ background: `${color}0d`, border: `1px solid ${color}22` }}>
                   <p className="text-2xl font-black" style={{ color }}>{value}</p>
@@ -2119,7 +1992,6 @@ function TierHeroBanner({
               <span className="flex items-center gap-1.5"><Flame className="w-3 h-3" style={{ color: "#fb923c" }} />{streak > 0 ? `${streak}-day streak` : "No streak yet"}</span>
               <span className="w-1 h-1 rounded-full bg-zinc-700" />
               <span>{monthActions} actions this month</span>
-              {intelligence?.niche && <><span className="w-1 h-1 rounded-full bg-zinc-700" /><span className="capitalize">{intelligence.niche}</span></>}
             </div>
           </div>
 
@@ -2331,14 +2203,6 @@ export default function ClientDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: nicheIntelData } = useQuery<any>({
-    queryKey: ["/api/niche-intelligence/my"],
-    enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-
   const markAllRead = useMutation({
     mutationFn: () => apiRequest("POST", "/api/notifications/read-all"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
@@ -2502,7 +2366,6 @@ export default function ClientDashboard() {
               streak={streak}
               monthActions={monthActions}
               weekHistory={weekHistory}
-              nicheIntel={nicheIntelData}
               projectTracker={projectTracker}
               tasks={tasks}
             />
@@ -2786,9 +2649,6 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
-
-          {/* ── NICHE INTELLIGENCE ── */}
-          <NicheIntelligenceWidget />
 
           {/* ── COMMUNITY PULSE ── */}
           <CommunityPulse />

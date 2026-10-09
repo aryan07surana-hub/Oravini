@@ -88,7 +88,6 @@ export default function AdminToolHeatmap() {
       carousel_image: "Carousel Images",
       competitor: "Competitor Analysis",
       competitor_reels: "Reel Comparison",
-      niche_analysis: "Niche Intelligence",
       methodology: "Content DNA",
       hashtag_suggestions: "Hashtag Suggestions",
       steal_strategy: "Steal Strategy",

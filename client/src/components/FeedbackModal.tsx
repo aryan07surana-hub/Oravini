@@ -29,10 +29,10 @@ const COMPLETED_OPTIONS = [
 
 const USEFUL_FEATURE_OPTIONS = [
   "AI Content Ideas",
+  "Content Coach",
   "Carousel Studio",
   "Competitor Study",
   "Content Calendar",
-  "AI Coach / Jarvis",
   "Sessions Hub",
   "Lead Magnet Generator",
   "Brand Kit Builder",

@@ -116,7 +116,6 @@ export default function Apply() {
               {[
                 { icon: "🧠", title: "AI Content Strategy", desc: "Personalized content pillars, hooks, and ideas generated from your niche and audience — so you always know what to create." },
                 { icon: "📊", title: "Instagram & YouTube Analytics", desc: "Auto-synced tracking of your posts, reels, and videos with competitor analysis to show what's working in your space." },
-                { icon: "⚡", title: "AI Content Coach", desc: "On-demand coaching for content scripts, captions, hooks, and strategy — available whenever you need it." },
                 { icon: "🎬", title: "AI Video Editor", desc: "Upload raw footage and get a polished, platform-optimized video back. No editing skills required." },
                 { icon: "🎯", title: "Competitor Intelligence", desc: "See exactly what's performing for top accounts in your niche, so you can model what works without guessing." },
                 { icon: "🚀", title: "Done-With-You Strategy", desc: "For Elite members: direct collaboration on your content system, offers, and growth strategy with our team." },

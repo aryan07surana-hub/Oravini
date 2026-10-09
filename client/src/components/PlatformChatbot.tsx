@@ -201,11 +201,11 @@ function getPageMeta(pathname: string): PageMeta {
       { category: "Competitors", qs: ["How do I track a competitor?", "What metrics matter most?"] },
     ],
   };
-  if (pathname.startsWith("/ai-ideas") || pathname.startsWith("/ai-coach") || pathname.startsWith("/content-intelligence") || pathname.startsWith("/niche-intelligence")) return {
+  if (pathname.startsWith("/ai-ideas") || pathname.startsWith("/ai-coach")) return {
     label: "Content Tools",
     greeting: "Content tools — generating ideas, improving what you've written, or researching your niche?",
     questions: [
-      { category: "Ideas & research", qs: ["How do I generate content ideas for my niche?", "How does Niche Intelligence work?"] },
+      { category: "Ideas & research", qs: ["How do I generate content ideas for my niche?", "How do I find stronger content angles?"] },
       { category: "Writing", qs: ["How do I improve my content with AI Coach?", "How do I write a viral hook?"] },
     ],
   };
@@ -231,14 +231,6 @@ function getPageMeta(pathname: string): PageMeta {
     questions: [
       { category: "Contacts & deals", qs: ["How do I add a contact to the CRM?", "How do I set up a deal pipeline?", "How do I import contacts from CSV?"] },
       { category: "Tracking", qs: ["How do I log a call or meeting?", "How do I filter contacts by tag?"] },
-    ],
-  };
-  if (pathname.startsWith("/meetings")) return {
-    label: "Meetings",
-    greeting: "Meetings — setting up your booking page, managing upcoming meetings, or sending reminders?",
-    questions: [
-      { category: "Setup", qs: ["How do I set up a booking page?", "How do I share my booking link?", "How do I set my availability?"] },
-      { category: "Managing", qs: ["How do I cancel or reschedule a meeting?", "Do clients get automatic reminders?"] },
     ],
   };
   if (pathname.startsWith("/tools")) return {

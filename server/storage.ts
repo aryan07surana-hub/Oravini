@@ -80,7 +80,7 @@ import {
   type VideoViewerProfile, type InsertVideoViewerProfile, videoViewerProfiles,
   type UserFeedback, type InsertUserFeedback,
   webinarContacts, videoAnalyticsEvents, userFeedback,
-  // Content Intelligence Engine
+  // Content performance analysis
   hookLibrary, winningPatterns, brandVoiceProfiles, contentCalendars, contentTemplates,
   platformTrainingData, funnelStageTraining,
   type HookLibrary, type InsertHookLibrary,
@@ -2037,7 +2037,7 @@ class DatabaseStorage implements IStorage {
     return { views: allViews.length, submissions: allSubs.length, emailCaptures, conversionRate, countries, devices, dailyStats };
   }
 
-  // ── Meetings Notetaker ──────────────────────────────────────────────────────
+  // ── Meeting records ─────────────────────────────────────────────────────────
   async getMeetings(userId: string): Promise<Meeting[]> {
     return db.select().from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt));
   }

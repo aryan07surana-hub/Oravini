@@ -17,12 +17,8 @@ function twilioClient() {
   return twilio(accountSid, authToken);
 }
 
-async function skillsPrefix(userId: string, base: string): Promise<string> {
-  try {
-    const { buildSkillsPrompt } = await import("../skillsEngine");
-    const block = await buildSkillsPrompt(userId, { category: "sms" });
-    return block ? `${block}\n\n${base}` : base;
-  } catch { return base; }
+async function skillsPrefix(_userId: string, base: string): Promise<string> {
+  return base;
 }
 
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {

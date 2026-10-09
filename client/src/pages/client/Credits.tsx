@@ -51,7 +51,6 @@ const TOOL_COSTS = [
     border: "rgba(96,165,250,0.2)",
     tools: [
       { icon: Target,       name: "Competitor Analysis",     cost: 12, desc: "Full 9-section deep-dive competitor report" },
-      { icon: Search,       name: "Niche Intelligence",      cost: 12, desc: "Complete niche analysis with 9 sections" },
       { icon: Scissors,     name: "Reel vs Reel Compare",    cost: 5,  desc: "Head-to-head comparison of two reels" },
       { icon: Flame,        name: "Steal Strategy Plan",     cost: 10, desc: "30-day content plan from competitor's playbook" },
       { icon: Dna,          name: "Content DNA Analysis",    cost: 7,  desc: "Reverse-engineers a creator's methodology" },
@@ -81,7 +80,7 @@ const TOOL_COSTS = [
     bg: "rgba(52,211,153,0.08)",
     border: "rgba(52,211,153,0.2)",
     tools: [
-      { icon: Brain,        name: "AI Content Coach",        cost: 2,  desc: "Per message in the AI coaching chat" },
+      { icon: MessageSquare,name: "Content Coach",          cost: 2,  desc: "Improves drafts, hooks, structure, and calls to action" },
       { icon: Zap,          name: "Virality Tester",         cost: 4,  desc: "Scores your content for viral potential" },
       { icon: Zap,          name: "Viral Hooks",             cost: 2,  desc: "Generates scroll-stopping hook variations" },
       { icon: Wand2,        name: "Script Rewrite",          cost: 2,  desc: "Rewrites your script for better performance" },
@@ -107,7 +106,6 @@ const TOOL_COSTS = [
     border: "rgba(251,146,60,0.2)",
     tools: [
       { icon: Instagram,    name: "IG Growth Tracker Scan",  cost: 1,  desc: "Per follower snapshot scan" },
-      { icon: BarChart2,    name: "Jarvis AI",               cost: 2,  desc: "Per message with Jarvis assistant" },
     ],
   },
 ];
@@ -130,7 +128,8 @@ export default function Credits() {
       monthly_reset: "Monthly Refill", period_reset: "Period Refill",
       plan_activated: "Plan Activated", bonus_added: "Bonus Credits Added",
       referral_bonus: "Referral Bonus", welcome_bonus: "Welcome Bonus",
-      ai_ideas: "AI Content Ideas", ai_coach: "AI Coach",
+      ai_ideas: "AI Content Ideas",
+      ai_coach: "Content Coach",
       competitor: "Competitor Analysis", ai_report: "Content Report",
       virality: "Virality Tester", hashtag_suggestions: "Hashtag Suggestions",
       carousel: "Carousel Studio", carousel_image: "Carousel Image",
@@ -141,7 +140,6 @@ export default function Credits() {
       clip_finder: "Clip Finder", ig_tracker: "IG Tracker Scan",
       analyse: "Content Analysis", methodology: "Content DNA",
       competitor_reels: "Reel Comparison", steal_strategy: "Steal Strategy",
-      niche_analysis: "Niche Intelligence", jarvis: "Jarvis AI",
     };
     return map[type] || type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   };

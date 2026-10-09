@@ -2,9 +2,8 @@ import { Link, useLocation } from "wouter";
 import { trackPageView } from "@/hooks/use-track-activity";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
-import PlatformChatbot from "@/components/PlatformChatbot";
-import SkillPanel from "@/components/ui/SkillPanel";
 import NotificationCenter from "@/components/NotificationCenter";
+import PlatformChatbot from "@/components/PlatformChatbot";
 import CompetitorActivityBell from "@/components/CompetitorActivityBell";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -14,10 +13,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, BookOpen, BrainCircuit, LayoutTemplate, Globe
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, MonitorPlay, Workflow, Database, Mail, Smartphone, LayoutTemplate, Globe
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -181,28 +179,6 @@ function SidebarReferralWidget() {
   );
 }
 
-function SoonBadge() {
-  return (
-    <span style={{
-      background: `${GOLD}18`,
-      border: `1px solid ${GOLD}44`,
-      borderRadius: 10,
-      padding: "1px 7px",
-      color: GOLD,
-      fontSize: 9,
-      fontWeight: 700,
-      letterSpacing: 0.8,
-      textTransform: "uppercase" as const,
-      flexShrink: 0,
-    }}>Soon</span>
-  );
-}
-
-const comingSoonItems = [
-  { label: "Jarvis AI", icon: Bot },
-  { label: "Notetaker", icon: NotebookPen },
-];
-
 const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
@@ -220,9 +196,7 @@ const topNavItems = [
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
   { href: "/pages-hub", label: "Pages & Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
-  { href: "/vault", label: "Cortex Vault", icon: BookOpen },
   { href: "/mentor-kit", label: "MentorKit", icon: LayoutTemplate },
-  { href: "/skills", label: "Skills", icon: BrainCircuit },
   { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
@@ -353,35 +327,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
 
-              {/* Content Intelligence — AI-powered content analysis */}
-              <Link
-                href="/content-intelligence"
-                data-testid="nav-content-intelligence"
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${location === "/content-intelligence"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-              >
-                <Sparkles className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1">Content Intelligence</span>
-                {location !== "/content-intelligence" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-              </Link>
-
-              {/* Niche Intelligence — Cross-user niche performance data */}
-              <Link
-                href="/niche-intelligence"
-                data-testid="nav-niche-intelligence"
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${location === "/niche-intelligence"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-              >
-                <Activity className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1">Niche Intelligence</span>
-                {location !== "/niche-intelligence" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-              </Link>
             </div>
 
 
@@ -407,25 +352,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   </Link>
                 );
               })}
-            </div>
-
-            {/* ── Coming Soon ── */}
-            <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Coming Soon</p>
-              <div className="space-y-1">
-                {comingSoonItems.map(({ label, icon: Icon }) => (
-                  <div
-                    key={label}
-                    data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
-                    style={{ opacity: 0.4 }}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                    <SoonBadge />
-                  </div>
-                ))}
-              </div>
             </div>
 
           </nav>
@@ -511,10 +437,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           </main>
         </div>
 
-        <FocusMusicPlayer />
         {!isAdmin && <UpgradeModal />}
         {!isAdmin && <PlatformChatbot />}
-        {!isAdmin && <SkillPanel />}
       </div>
     </>
   );

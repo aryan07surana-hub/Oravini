@@ -8,14 +8,13 @@ export const PLAN_CONFIG = {
 
 export const ACTION_COSTS: Record<string, { cost: number; label: string; level: "light" | "medium" | "heavy" }> = {
   ai_ideas:           { cost: 5,  label: "AI Content Ideas",       level: "light"  },
-  ai_coach:           { cost: 2,  label: "AI Coach",               level: "light"  },
+  ai_coach:           { cost: 2,  label: "Content Coach",          level: "light"  },
   carousel:           { cost: 5,  label: "Carousel",               level: "medium" },
   carousel_image:     { cost: 3,  label: "Carousel Image",         level: "light"  },
   ai_report:          { cost: 8,  label: "Content Report",         level: "medium" },
   competitor:         { cost: 12, label: "Competitor Analysis",    level: "heavy"  },
   competitor_reels:   { cost: 5,  label: "Reel Comparison",        level: "medium" },
   steal_strategy:     { cost: 10, label: "Steal Strategy",         level: "heavy"  },
-  niche_analysis:     { cost: 12, label: "Niche Intelligence",     level: "heavy"  },
   methodology:        { cost: 7,  label: "Content DNA",            level: "medium" },
   lead_magnet:        { cost: 6,  label: "Lead Magnet",            level: "medium" },
   story:              { cost: 2,  label: "Story Generator",        level: "light"  },
@@ -33,7 +32,6 @@ export const ACTION_COSTS: Record<string, { cost: number; label: string; level: 
   analyse:            { cost: 4,  label: "Content Analyser",       level: "medium" },
   ig_tracker:         { cost: 1,  label: "IG Tracker Scan",        level: "light"  },
   hashtag_suggestions:{ cost: 1,  label: "Hashtag Suggestions",    level: "light"  },
-  jarvis:             { cost: 2,  label: "Jarvis AI",              level: "light"  },
 };
 
 export type PlanKey = keyof typeof PLAN_CONFIG;

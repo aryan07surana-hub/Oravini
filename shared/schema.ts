@@ -586,7 +586,7 @@ export const formViews = pgTable("form_views", {
 });
 export type FormView = typeof formViews.$inferSelect;
 
-// ── Meetings Notetaker ─────────────────────────────────────────────────────────
+// ── Meeting records ────────────────────────────────────────────────────────────
 export const meetings = pgTable("meetings", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

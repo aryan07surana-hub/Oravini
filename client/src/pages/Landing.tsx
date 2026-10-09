@@ -384,7 +384,7 @@ function PricingSection() {
       border: "rgba(52,211,153,0.25)",
       highlight: false,
       credits: "500 credits / month",
-      features: ["Everything in Tier 3", "500 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
+      features: ["Everything in Tier 3", "500 AI credits/month", "AI Video Editor", "DM Tracker", "SOP Generator", "AI Content Planner", "Direct team messaging"],
       limitations: [],
       cta: "Get Tier 4",
       link: "/login?tab=register",
@@ -752,7 +752,7 @@ export default function Landing() {
             <div style={{ marginTop: 40, textAlign: "center", background: `${GOLD}08`, border: `1px solid ${GOLD}22`, borderRadius: 14, padding: "22px 32px", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
               <span style={{ fontSize: 20 }}>🚀</span>
               <span style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
-                Plus <strong style={{ color: GOLD }}>tons more tools dropping soon</strong> — DM Tracker, AI Video Editor, Advanced Analytics, AI Content Coach, and more.
+                Plus <strong style={{ color: GOLD }}>more tools for growing your business</strong> — DM Tracker, AI Video Editor, Advanced Analytics, and more.
               </span>
             </div>
           </FadeIn>

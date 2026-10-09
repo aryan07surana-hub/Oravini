@@ -7,7 +7,7 @@ import { Activity, Users, Zap, TrendingUp } from "lucide-react";
 
 const TOOL_LABELS: Record<string, string> = {
   ai_ideas: "AI Content Ideas",
-  ai_coach: "AI Content Coach",
+  ai_coach: "Content Coach",
   ai_report: "AI Content Report",
   carousel: "Carousel Studio",
   carousel_image: "Carousel Image Gen",

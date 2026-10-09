@@ -302,7 +302,6 @@ const FEATURES = [
   { icon: "🔥", title: "Virality Testing", desc: "Score your script before posting. See exactly what's weak, what's strong, and how to make it go viral.", tag: "AI Scoring" },
   { icon: "📊", title: "Content Tracking", desc: "Automatically log reels, views, and comments. Generate detailed performance reports with one click.", tag: "Auto-Logging" },
   { icon: "🎨", title: "AI Design Studio", desc: "Create professional carousels, lead magnets, SOPs, and Instagram story sequences in minutes.", tag: "4 Tools" },
-  { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Coming Soon" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
   { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
@@ -395,14 +394,14 @@ const TIER_RESULTS: Record<number, { name: string; tagline: string; price: strin
     name: "Tier 3 — Growth",
     tagline: "You're ready to stop guessing and start growing with a real system.",
     price: "$49/mo",
-    features: ["250 AI credits / month", "Competitor Analysis", "Niche Intelligence Engine", "ICP Builder", "Audience Psychology Map", "No watermarks"],
+    features: ["250 AI credits / month", "Competitor Analysis", "ICP Builder", "Audience Psychology Map", "No watermarks"],
     accent: GOLD,
   },
   4: {
     name: "Tier 4 — Pro",
     tagline: "You need the full toolkit — video, coaching, planning, and automation.",
     price: "$59/mo",
-    features: ["500 AI credits / month", "Full Video Marketing Suite", "AI Content Coach", "AI Content Planner", "DM Tracker", "AI Voice Dialer — 200 calls/month", "Priority support"],
+    features: ["500 AI credits / month", "Full Video Marketing Suite", "AI Content Planner", "DM Tracker", "AI Voice Dialer — 200 calls/month", "Priority support"],
     accent: "#34d399",
   },
   5: {
@@ -576,8 +575,8 @@ function PricingQuiz({ onClose, onGoToPricing }: { onClose: () => void; onGoToPr
 const PRICING_TIERS = [
   { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
   { tier: "Tier 2", name: "Starter", price: "$19", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
-  { tier: "Tier 3", name: "Growth", price: "$49", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "AI Voice Dialer — 200 calls/month", "Webinar → Lead CRM → AI Follow-up", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 3", name: "Growth", price: "$49", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "AI Voice Dialer — 200 calls/month", "Webinar → Lead CRM → AI Follow-up", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Follower Growth Chart ─────────────────────────────────────────────────────
@@ -1405,7 +1404,6 @@ export default function OraviniLanding() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                     {[
                       { icon: "✨", label: "AI Ideas",   color: GOLD,      bg: "rgba(212,180,97,0.12)" },
-                      { icon: "🤖", label: "AI Coach",   color: "#34d399", bg: "rgba(52,211,153,0.1)" },
                       { icon: "🎬", label: "Video Edit", color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
                       { icon: "🕵️", label: "Competitor", color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
                     ].map(({ icon, label, color, bg }) => (

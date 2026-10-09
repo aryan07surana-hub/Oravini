@@ -244,13 +244,13 @@ PLANS & WHAT'S INCLUDED
 
 FREE — Dashboard, limited AI Ideas, limited Content Coach, community read-only. No scheduling, no email/SMS, no video hosting, no webinars.
 
-STARTER — SMS Marketing (full), Video Marketing (hosting + webinars), AI Design, Carousel Studio, Story Generator, Lead Magnet, Content Analyser, Content Intelligence, Niche Intelligence, Clip Finder, Oravini Recorder, AI Video Editor, DM Automation, Community (full), all schedulers (Twitter/LinkedIn/YouTube/Instagram), tracking (Instagram + YouTube), AI Ideas + Content Coach (full), Brand Kit Builder, ICP Builder, Audience Psychology Map.
+STARTER — SMS Marketing (full), Video Marketing (hosting + webinars), AI Design, Carousel Studio, Story Generator, Lead Magnet, Content Analyser, Clip Finder, Oravini Recorder, AI Video Editor, DM Automation, Community (full), all schedulers (Twitter/LinkedIn/YouTube/Instagram), tracking (Instagram + YouTube), AI Ideas + Content Coach (full), Brand Kit Builder, ICP Builder, Audience Psychology Map.
 
 GROWTH — Everything Starter + Email Marketing & Workflows (campaigns, automations, Gmail connect), unified Scheduling hub (/scheduling), CRM lite, more credits.
 
 PRO — Everything Growth + advanced analytics, priority support, higher credit limits, more automation steps.
 
-ELITE — Everything Pro + full CRM Suite, Calls/Dialer, Project Tracker (/project-tracker), Documents (/documents), Elite Portal (/portal), Jarvis AI (/jarvis), 1-on-1 sessions, unlimited/near-unlimited credits.
+ELITE — Everything Pro + full CRM Suite, Calls/Dialer, Project Tracker (/project-tracker), Documents (/documents), Elite Portal (/portal), 1-on-1 sessions, unlimited/near-unlimited credits.
 
 Upgrade: /select-plan or Settings → Your Settings → Plan.
 
@@ -337,10 +337,6 @@ Content Analyser (/content-analyser) — Analyse any Instagram or YouTube accoun
 - YouTube: /content-analyser/youtube
 - Instagram: /content-analyser/instagram
 
-Content Intelligence (/content-intelligence) — Rising topics, trending audio, viral formats. Use before creating to ride trends.
-
-Niche Intelligence (/niche-intelligence) — Deep niche research: pain points, content pillars, competitor gaps, monetization angles, keyword opportunities.
-
 Virality Tester — Paste hook/script → get virality score, hook strength, emotional pull, shareability. Iterate until high.
 
 ━━ DESIGN STUDIO ━━
@@ -402,10 +398,6 @@ Contact database, deal pipeline (Kanban + list), activity log, tags/segments, CS
 
 Outbound calls from browser. Call recording, voicemail drop, call notes, outcome tracking. Auto-logs to CRM.
 
-━━ MEETINGS (/meetings) ━━
-
-Create meeting types, set availability, share /book/[slug]. Clients self-book. Auto confirmation + reminder emails.
-
 ━━ PROJECT TRACKER (/project-tracker) — Elite Only ━━
 
 Projects, tasks, subtasks, due dates, priorities, status tracking, timeline view.
@@ -413,10 +405,6 @@ Projects, tasks, subtasks, due dates, priorities, status tracking, timeline view
 ━━ DOCUMENTS (/documents) — Elite Only ━━
 
 Rich text documents. Templates. Share via link (view-only or edit). Collaborative.
-
-━━ JARVIS (/jarvis) — Elite Only ━━
-
-Full platform-aware AI assistant. Write copy, plan content, draft emails, research, create scripts. Remembers context across conversation.
 
 ━━ ELITE PORTAL (/portal) — Elite Only ━━
 
@@ -463,8 +451,8 @@ FULL PLATFORM WORKFLOWS
 
 WORKFLOW A — Content Creator (posting consistently)
 1. ICP Builder → define audience
-2. Content Intelligence → find this week's trends
-3. AI Ideas → generate 10 ideas from trends + ICP
+2. Tracking → review your recent winners and strongest formats
+3. AI Ideas → generate 10 ideas from those insights + ICP
 4. Content Coach → write + score each piece
 5. AI Design / Carousel Studio → create visuals
 6. Scheduling → schedule a week of content in one sitting

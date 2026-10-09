@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "Welcome to Oravini",
-    description: "I'm your AI guide. I'll walk you through every tool — Content Ideas, Content Coach, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, IG Growth Tracker, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how each one works. Takes about 3 minutes.",
+    description: "I'll walk you through Oravini's core tools — Content Ideas, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, Tracking, Competitor Study, Credits, and Settings.",
     position: "center",
   },
   {
@@ -35,7 +35,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: '[data-tour="quick-tools"]',
     title: "Quick Tools — Your Launchpad",
-    description: "These three cards give you one-click access to your most-used AI tools. Content Ideas, Content Coach, and Video Editor are the core of the platform — everything you need to create, refine, and scale your content is behind these three buttons.",
+    description: "These cards give you one-click access to your most-used tools for creating, publishing, and tracking content.",
     position: "top",
     tip: "Bookmark your dashboard. You'll come back here to start every content session.",
   },
@@ -74,42 +74,6 @@ const TOUR_STEPS: TourStep[] = [
     title: "Content Ideas — Generate",
     description: "Hit Generate and the AI searches for what's performing in your niche right now, applies your audience and goal settings, and returns 6 ready-to-use ideas with hooks, captions, and posting tips. You can also paste your Instagram or YouTube profile URL at the top to get ideas personalised to your existing content.",
     position: "top",
-  },
-
-  // ── Content Coach ──────────────────────────────────────────────────────────
-  {
-    id: "coach-header",
-    route: "/ai-coach",
-    target: '[data-tour="coach-header"]',
-    title: "Content Coach — Overview",
-    description: "Content Coach is your personal AI mentor. It can review scripts and give detailed feedback, help you build your brand identity, create a 90-day growth roadmap, analyse a competitor's content, or just answer any question about your content strategy in real time.",
-    position: "bottom",
-  },
-  {
-    id: "coach-modes",
-    route: "/ai-coach",
-    target: '[data-tour="coach-modes"]',
-    title: "Content Coach — Coaching Modes",
-    description: "These modes change how the coach operates. Chat is open-ended conversation. Script Review pastes and analyses your script. Competitor Analysis studies a competitor URL. Brand Builder creates your brand positioning and bio. Roadmap Generator gives you a step-by-step plan. Switch modes depending on what you need in that session.",
-    position: "right",
-    tip: "Start with Brand Builder on your first session — it sets the foundation everything else builds on.",
-  },
-  {
-    id: "coach-sessions",
-    route: "/ai-coach",
-    target: '[data-tour="coach-sessions"]',
-    title: "Content Coach — Saved Sessions",
-    description: "Every coaching conversation is automatically saved here. Click any session to restore it and pick up exactly where you left off. You can rename sessions to keep them organised — one session per content type, campaign, or goal works well.",
-    position: "right",
-  },
-  {
-    id: "coach-chat",
-    route: "/ai-coach",
-    target: '[data-tour="coach-chat-input"]',
-    title: "Content Coach — Chat Input",
-    description: "Type anything here and the coach responds instantly. Ask for hook improvements, post caption rewrites, feedback on your bio, advice on your posting frequency — anything content and growth related. The coach remembers the full conversation context so you can have a proper back-and-forth dialogue.",
-    position: "top",
-    tip: "Paste a script you wrote and type 'be brutal' — the coach will tell you exactly what's not working and why.",
   },
 
   // ── Video Editor ──────────────────────────────────────────────────────────
@@ -271,7 +235,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "You are ready — let's go",
-    description: "That's the full Oravini platform. The workflow is simple: generate ideas → refine with the coach → create content → track results → study competitors → repeat. Start with Content Ideas or drop a script into the Content Coach right now. You can restart this tour anytime from your dashboard.",
+    description: "That's the core Oravini workflow: generate ideas → create content → track results → study competitors → repeat. You can restart this tour anytime from your dashboard.",
     position: "center",
   },
 ];
@@ -307,34 +271,6 @@ const PAGE_TOURS: Record<string, TourStep[]> = {
     },
   ],
 
-  "ai-coach": [
-    {
-      id: "pt-coach-1", route: "/ai-coach", target: '[data-tour="coach-header"]',
-      title: "AI Content Coach — Overview",
-      description: "This is your personal AI mentor. It reviews scripts, builds your brand positioning, creates 90-day growth roadmaps, analyses competitors, and answers any content strategy question in real time. Every conversation is saved and restorable.",
-      position: "bottom",
-    },
-    {
-      id: "pt-coach-2", route: "/ai-coach", target: '[data-tour="coach-modes"]',
-      title: "Coaching Modes",
-      description: "Chat is open conversation. Script Review pastes and analyses your content. Competitor Analysis studies a handle or URL. Brand Builder creates your positioning, bio, and pillars. Roadmap Generator gives you a step-by-step 90-day plan. Switch modes based on what you need each session.",
-      position: "right",
-      tip: "Start with Brand Builder on your first session — it sets the foundation everything else builds on.",
-    },
-    {
-      id: "pt-coach-3", route: "/ai-coach", target: '[data-tour="coach-sessions"]',
-      title: "Saved Sessions",
-      description: "Every coaching conversation is automatically saved here the moment you send your first message. Click any session to restore it and pick up exactly where you left off. Sessions are organised by mode — so your Brand Builder work stays separate from your Script Review sessions.",
-      position: "right",
-    },
-    {
-      id: "pt-coach-4", route: "/ai-coach", target: '[data-tour="coach-chat-input"]',
-      title: "Chat with Your Coach",
-      description: "Type anything here — ask for a hook rewrite, paste a script for brutal feedback, request a posting strategy, or ask 'why isn't my content growing?' The coach holds the full conversation context so you can have a real back-and-forth. Press Enter or click Send.",
-      position: "top",
-      tip: "Paste a script and type 'be brutal' — the coach will tell you exactly what's broken and how to fix it.",
-    },
-  ],
 
   "video-editor": [
     {

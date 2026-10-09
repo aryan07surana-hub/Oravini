@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { CustomCursor, GlobalBackground } from "@/components/GlobalUI";
-import { JarvisProvider } from "@/contexts/JarvisContext";
 import { TourProvider } from "@/components/ui/TourGuide";
 import CookieBanner from "@/components/CookieBanner";
 import NotFound from "@/pages/not-found";
@@ -79,7 +78,6 @@ import Credits from "@/pages/client/Credits";
 import PlanSettings from "@/pages/client/PlanSettings";
 import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
-import NicheIntelligence from "@/pages/client/NicheIntelligence";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
 import ICPBuilder from "@/pages/client/ICPBuilder";
 import SOPGenerator from "@/pages/client/SOPGenerator";
@@ -100,13 +98,9 @@ import BioTemplates from "@/pages/client/BioTemplates";
 import BioCompetitor from "@/pages/client/BioCompetitor";
 import FormResponses from "@/pages/client/FormResponses";
 import FormsCRM from "@/pages/client/FormsCRM";
-import MeetingsHub from "@/pages/client/MeetingsHub";
-import NewMeeting from "@/pages/client/NewMeeting";
-import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import VideoClipEditor from "@/pages/client/VideoClipEditor";
 import ScreenRecorder from "@/pages/client/ScreenRecorder";
-import SkillsPage from "@/pages/client/Skills";
 import RepurposePage from "@/pages/client/Repurpose";
 import HookLibraryPage from "@/pages/client/HookLibrary";
 import CaptionWriterPage from "@/pages/client/CaptionWriter";
@@ -123,10 +117,7 @@ import ClipFinder from "@/pages/client/ClipFinder";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
 import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
-import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
-import ContentIntelligence from "@/pages/ContentIntelligence";
-import ContentIntelHub from "@/pages/client/ContentIntelHub";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
 import ClientCRM from "@/pages/client/CRM";
 import LandingPages from "@/pages/client/LandingPages";
@@ -143,8 +134,6 @@ import FunnelDomain from "@/pages/client/FunnelDomain";
 import PublicFunnelDomain from "@/pages/public/PublicFunnelDomain";
 import PublicFunnelStep from "@/pages/public/PublicFunnelStep";
 import ClientScheduling from "@/pages/client/Scheduling";
-import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
-import Vault from "@/pages/client/Vault";
 import Analytics from "@/pages/client/Analytics";
 import MentorKit from "@/pages/client/MentorKit";
 import MentorKitNew from "@/pages/client/MentorKitNew";
@@ -301,14 +290,12 @@ function Router() {
       <Route path="/ai-design">{() => <Guard component={AIDesign} />}</Route>
       <Route path="/lead-magnet">{() => <Guard component={LeadMagnetGenerator} />}</Route>
       <Route path="/story-generator">{() => <Guard component={InstagramStoryGenerator} />}</Route>
-      <Route path="/niche-intelligence">{() => <Guard component={NicheIntelligence} />}</Route>
       <Route path="/brand-kit-builder">{() => <Guard component={BrandKitBuilder} />}</Route>
       <Route path="/icp-builder">{() => <Guard component={ICPBuilder} />}</Route>
       <Route path="/audience-psychology-map">{() => <Guard component={AudiencePsychologyMap} />}</Route>
       <Route path="/sop-generator">{() => <Guard component={SOPGenerator} />}</Route>
       <Route path="/ai-content-planner">{() => <Guard component={AIContentPlanner} />}</Route>
       <Route path="/ai-coach">{() => <Guard component={AIContentCoach} />}</Route>
-      <Route path="/jarvis">{() => <Guard component={Jarvis} />}</Route>
       <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
       <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
@@ -370,17 +357,9 @@ function Router() {
       <Route path="/tools/bio-generator/competitor">{() => <Guard component={BioCompetitor} />}</Route>
       <Route path="/tools/bio-generator">{() => <Guard component={BioGeneratorHub} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
-      <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
-      <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
-      <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
-      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
-      <Route path="/content-hub">{() => <Guard component={ContentIntelHub} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
       <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
-      <Route path="/knowledge-graph">{() => <Guard component={KnowledgeGraph} />}</Route>
-      <Route path="/vault">{() => <Guard component={Vault} />}</Route>
-      <Route path="/skills">{() => <Guard component={SkillsPage} />}</Route>
       <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
@@ -451,15 +430,13 @@ export default function App() {
   return (
     <ErrorBoundary>
       <TooltipProvider>
-        <JarvisProvider>
-          <TourProvider>
-            <Toaster />
-            <GlobalBackground />
-            <CustomCursor />
-            <CookieBanner />
-            <Router />
-          </TourProvider>
-        </JarvisProvider>
+        <TourProvider>
+          <Toaster />
+          <GlobalBackground />
+          <CustomCursor />
+          <CookieBanner />
+          <Router />
+        </TourProvider>
       </TooltipProvider>
     </ErrorBoundary>
   );

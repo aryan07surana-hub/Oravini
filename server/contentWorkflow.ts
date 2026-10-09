@@ -4,7 +4,7 @@
  */
 
 import { storage } from "./storage";
-import { buildTrainingPrompt } from "./contentIntelligence";
+import { buildTrainingPrompt } from "./contentAnalysis";
 
 // ── FUNNEL STAGE SKILLS ────────────────────────────────────────────────────
 export const FUNNEL_SKILLS = {
@@ -363,8 +363,7 @@ export async function analyzeContentBatch(params: {
   const results = [];
 
   for (const post of posts) {
-    // Import from contentIntelligence
-    const { calculateViralScore, extractHook, classifyHookType, analyzeContentStructure } = await import("./contentIntelligence");
+    const { calculateViralScore, extractHook, classifyHookType, analyzeContentStructure } = await import("./contentAnalysis");
 
     const viralScore = calculateViralScore(post.views, post.likes, post.comments, post.saves);
     const hook = extractHook(post.title);

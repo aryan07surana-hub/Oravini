@@ -61,7 +61,7 @@ const PLANS = [
     accentColor: "#34d399",
     cardBg: "rgba(52,211,153,0.05)",
     cardBorder: "rgba(52,211,153,0.22)",
-    features: ["Everything in Tier 3", "700 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
+    features: ["Everything in Tier 3", "700 AI credits/month", "AI Video Editor", "DM Tracker", "SOP Generator", "AI Content Planner", "Direct team messaging"],
   },
   {
     slug: "elite",
@@ -134,7 +134,6 @@ const SURVEY_QUESTIONS = [
       "AI Content Ideas",
       "Competitor Study",
       "Carousel Studio",
-      "AI Coach",
       "Video Editor",
       "None of the above",
     ],

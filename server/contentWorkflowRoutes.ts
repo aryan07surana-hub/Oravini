@@ -23,7 +23,7 @@ import {
   calculateContentScore,
   getViralBreakdowns,
   searchViralBreakdowns
-} from "./contentIntelligence";
+} from "./contentAnalysis";
 
 const router = Router();
 

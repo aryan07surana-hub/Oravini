@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { captureToVault } from "@/lib/vault";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -510,7 +509,7 @@ function AIStudioModal({ recording, onClose }: { recording: Recording; onClose: 
   const tabs = [
     { id: "summary" as const, icon: Wand2, label: "AI Summary" },
     { id: "captions" as const, icon: Subtitles, label: "Captions" },
-    { id: "coach" as const, icon: Trophy, label: "AI Coach" },
+    { id: "coach" as const, icon: Trophy, label: "Performance Review" },
     { id: "trim" as const, icon: Scissors, label: "Smart Trim" },
     { id: "translate" as const, icon: Languages, label: "Translate" },
     { id: "repurpose" as const, icon: Sparkles, label: "Repurpose" },
@@ -1395,13 +1394,6 @@ export default function ScreenRecorder() {
     },
     onSuccess: (_data: any, vars: { blob: Blob; title: string; description: string }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/screen-recordings"] });
-      const title = vars.title || `Recording ${new Date().toLocaleString()}`;
-      captureToVault(
-        'recording',
-        title,
-        `Screen recording saved.\n\n${vars.description ? `**Description:** ${vars.description}` : ''}`,
-        { recorded: new Date().toISOString().slice(0, 10) }
-      );
       setPreviewUrl(null);
       setRecordedBlob(null);
       setRecordingTitle("");

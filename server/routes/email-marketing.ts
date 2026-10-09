@@ -21,12 +21,8 @@ function requirePlan(req: Request, res: Response): boolean {
   return true;
 }
 
-async function skillsPrefix(userId: string, base: string): Promise<string> {
-  try {
-    const { buildSkillsPrompt } = await import("../skillsEngine");
-    const block = await buildSkillsPrompt(userId, { category: "email" });
-    return block ? `${block}\n\n${base}` : base;
-  } catch { return base; }
+async function skillsPrefix(_userId: string, base: string): Promise<string> {
+  return base;
 }
 
 import { aiChat, aiChatJson } from "../aiService";

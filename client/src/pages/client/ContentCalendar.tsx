@@ -90,7 +90,7 @@ export default function ContentCalendar() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           <Sparkles className="w-8 h-8 text-yellow-500" />
-          Content Intelligence Engine
+          Content Performance
         </h1>
         <p className="text-gray-400">
           Generate a month of content trained on 10,000+ viral posts. No generic AI bullshit.

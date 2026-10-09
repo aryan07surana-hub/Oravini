@@ -1,6 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { captureToVault } from "@/lib/vault";
-import SkillQuickBar from "@/components/ui/SkillQuickBar";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -543,13 +541,6 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
                   </button>
                 )}
 
-                {/* Inline skill quick-actions */}
-                <div className="pt-1 border-t border-border/50">
-                  <SkillQuickBar
-                    topic={idea.title || idea.concept || ""}
-                    content={idea.captionStarter || idea.concept || ""}
-                  />
-                </div>
               </div>
             )}
           </div>
@@ -1296,10 +1287,10 @@ export default function AIIdeas() {
   const [publishIdea, setPublishIdea] = useState<ContentIdea | null>(null);
   const qc = useQueryClient();
 
-  // Auto-run ref — set when Jarvis navigates here with autoRun=true
+  // Auto-run ref for prefilled idea generation
   const autoRunRef = useRef(false);
 
-  // Pre-fill from Jarvis navigation (URL params)
+  // Pre-fill from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const p = params.get("platform");
@@ -1335,14 +1326,6 @@ export default function AIIdeas() {
       const exists = prev.some(i => i.title === idea.title);
       const next = exists ? prev.filter(i => i.title !== idea.title) : [idea, ...prev];
       saveLikedStorage(platform, next);
-      if (!exists) {
-        captureToVault(
-          'content_idea',
-          idea.title,
-          `## Hook\n${idea.hook ?? ''}\n\n## Caption Starter\n${idea.captionStarter ?? ''}\n\n## CTA\n${idea.cta ?? ''}`,
-          { platform, format: idea.format ?? '', angle: idea.angle ?? '' }
-        );
-      }
       return next;
     });
   };
@@ -1489,7 +1472,7 @@ export default function AIIdeas() {
     }
   };
 
-  // Auto-run: when Jarvis navigates here with autoRun=true + prefills niche, trigger generate
+  // Auto-run when URL parameters request generation
   useEffect(() => {
     if (autoRunRef.current && niche.trim()) {
       autoRunRef.current = false;

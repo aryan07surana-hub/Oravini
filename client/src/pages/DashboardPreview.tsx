@@ -25,7 +25,6 @@ const SIDEBAR_ITEMS = [
   { icon: Search,          label: "Competitor Study" },
   { icon: Sparkles,        label: "Content Ideas" },
   { icon: Palette,         label: "Design Studio" },
-  { icon: Bot,             label: "Content Coach" },
   { icon: BarChart,        label: "Content Analyser" },
   { icon: Clapperboard,    label: "Video Editor" },
   { icon: Mic,             label: "Oravini Recorder" },
@@ -33,8 +32,6 @@ const SIDEBAR_ITEMS = [
   { icon: MonitorPlay,     label: "Video Marketing" },
   { icon: Layers,          label: "Pages & Funnels" },
   { icon: MessageCircle,   label: "DM Automation" },
-  { icon: Archive,         label: "Cortex Vault" },
-  { icon: BookOpen,        label: "Skills" },
   { icon: BarChart2,       label: "Analytics" },
   { icon: Mail,            label: "Email & Workflows" },
   { icon: MessageSquare,   label: "SMS Marketing" },
@@ -440,44 +437,6 @@ function DesignStudioView({ nav, lockAction }: { nav: (p: string) => void; lockA
             <span style={{ fontSize: 9.5, color: t.color, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Lock style={{ width: 9, height: 9 }} /> Unlock to use</span>
           </div>
         ))}
-      </div>
-      <LockedCTA nav={nav} />
-    </>
-  );
-}
-
-/* Content Coach */
-function ContentCoachView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
-  const msgs = [
-    { role: "ai",   text: "Hey! I'm your AI Content Coach. What content challenge are you working through today?" },
-    { role: "user", text: "I'm struggling to stay consistent with posting. I keep running out of ideas." },
-    { role: "ai",   text: "That's the #1 problem creators face. Here's what works: Build a Content Triad — 1 educational post, 1 relatable post, and 1 proof post per week. Want me to generate a 30-day content plan for your niche?" },
-  ];
-  return (
-    <>
-      <SectionHeader eyebrow="AI · Coaching" title="Content Coach" sub="Your AI coach that helps you think, strategise and grow faster" />
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden", marginBottom: 14 }}>
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <p style={{ fontSize: 12, fontWeight: 800, color: "#fff", margin: 0 }}>Session · Content Consistency</p>
-        </div>
-        <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {msgs.map((m, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, flexDirection: m.role === "user" ? "row-reverse" : "row" }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: m.role === "ai" ? `${GOLD}18` : "rgba(99,102,241,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
-                {m.role === "ai" ? "🤖" : "👤"}
-              </div>
-              <div style={{ maxWidth: "75%", padding: "11px 14px", borderRadius: 12, background: m.role === "ai" ? "rgba(255,255,255,0.04)" : "rgba(99,102,241,0.15)", border: `1px solid ${m.role === "ai" ? "rgba(255,255,255,0.07)" : "rgba(99,102,241,0.25)"}` }}>
-                <p style={{ fontSize: 12.5, color: m.role === "ai" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.8)", margin: 0, lineHeight: 1.6 }}>{m.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 10 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 14px" }}>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", margin: 0 }}>Type your message...</p>
-          </div>
-          <LockBtn label="Send" lockAction={lockAction} icon={Send} style={{ padding: "10px 16px" }} />
-        </div>
       </div>
       <LockedCTA nav={nav} />
     </>
@@ -1583,161 +1542,6 @@ function ClipFinderView({ nav, lockAction }: { nav: (p: string) => void; lockAct
   );
 }
 
-/* Cortex Vault */
-function CortexVaultView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
-  const [tab, setTab] = useState<"resources"|"saved"|"templates">("resources");
-  return (
-    <>
-      <SectionHeader eyebrow="Knowledge" title="Cortex Vault" sub="Your saved resources, swipe file, templates and research — all in one place" />
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        {[{id:"resources",label:"📚 Resources"},{id:"saved",label:"🔖 Swipe File"},{id:"templates",label:"📋 Templates"}].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab === "resources" && <>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {[
-            { emoji: "📘", title: "Content Strategy Playbook",     desc: "47-page complete guide",              color: GOLD,      tag: "Guide"     },
-            { emoji: "🎯", title: "ICP Research Framework",        desc: "Step-by-step audience research",      color: "#60a5fa", tag: "Framework" },
-            { emoji: "📊", title: "Viral Content Formula",         desc: "Breakdown of 500 viral posts",        color: "#34d399", tag: "Research"  },
-            { emoji: "🔥", title: "Hook Library (200+ hooks)",     desc: "Proven hooks by content type",        color: "#f472b6", tag: "Swipe"     },
-            { emoji: "💌", title: "Email Sequence Templates",      desc: "7 done-for-you sequences",            color: "#a78bfa", tag: "Templates" },
-            { emoji: "📹", title: "VSL Script Framework",          desc: "High-converting VSL structure",       color: "#fb923c", tag: "Script"    },
-          ].map(r => (
-            <div key={r.title} onClick={lockAction} style={{ background: `${r.color}08`, border: `1px solid ${r.color}20`, borderRadius: 14, padding: "16px", cursor: "pointer" }}
-              onMouseEnter={e => (e.currentTarget.style.background = `${r.color}15`)}
-              onMouseLeave={e => (e.currentTarget.style.background = `${r.color}08`)}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 22 }}>{r.emoji}</span>
-                <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: `${r.color}15`, color: r.color, fontWeight: 700 }}>{r.tag}</span>
-              </div>
-              <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{r.title}</p>
-              <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.38)", margin: 0 }}>{r.desc}</p>
-            </div>
-          ))}
-        </div>
-      </>}
-
-      {tab === "saved" && <>
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-            <Search style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Search your swipe file...</span>
-          </div>
-          <LockBtn label="+ Save Item" lockAction={lockAction} style={{ padding: "10px 16px" }} />
-        </div>
-        {[
-          { title: "@alexhormozi carousel on offer creation",   type: "Post",   platform: "IG",  saved: "Jul 12", color: "#f472b6" },
-          { title: "Gary Vee hook: 'Nobody cares about you'",  type: "Hook",   platform: "TW",  saved: "Jul 10", color: GOLD      },
-          { title: "MrBeast thumbnail split-test breakdown",   type: "Video",  platform: "YT",  saved: "Jul 8",  color: "#f87171" },
-          { title: "Webinar CTA that converted at 14%",        type: "Script", platform: "Email",saved: "Jul 6", color: "#34d399" },
-          { title: "Competitor's top performing email subject", type: "Email",  platform: "Email",saved: "Jul 4", color: "#60a5fa" },
-        ].map(s => (
-          <div key={s.title} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
-            <span style={{ fontSize: 9, padding: "3px 8px", borderRadius: 999, background: `${s.color}14`, color: s.color, fontWeight: 700, flexShrink: 0, border: `1px solid ${s.color}25` }}>{s.type}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</p>
-              <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{s.platform} · Saved {s.saved}</p>
-            </div>
-          </div>
-        ))}
-      </>}
-
-      {tab === "templates" && <>
-        {[
-          { cat: "📧 Email Templates",      count: 23, desc: "Welcome, nurture, sales & re-engagement",  color: "#60a5fa" },
-          { cat: "📱 Caption Templates",    count: 47, desc: "Instagram, LinkedIn, Twitter formats",      color: GOLD      },
-          { cat: "📄 DM Scripts",           count: 18, desc: "Cold DM, reply, booking scripts",          color: "#34d399" },
-          { cat: "🎬 Video Scripts",        count: 12, desc: "Hook, body, CTA frameworks",               color: "#a78bfa" },
-          { cat: "📊 Pitch Decks",          count: 6,  desc: "Brand deal, sponsorship, partnership",     color: "#f472b6" },
-        ].map(t => (
-          <div key={t.cat} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 18px", borderRadius: 13, border: `1px solid ${t.color}22`, background: `${t.color}07`, marginBottom: 10, cursor: "pointer" }}
-            onMouseEnter={e => (e.currentTarget.style.background = `${t.color}14`)}
-            onMouseLeave={e => (e.currentTarget.style.background = `${t.color}07`)}>
-            <span style={{ fontSize: 20 }}>{t.cat.split(" ")[0]}</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{t.cat.split(" ").slice(1).join(" ")}</p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", margin: 0 }}>{t.desc}</p>
-            </div>
-            <span style={{ fontSize: 18, fontWeight: 900, color: t.color }}>{t.count}</span>
-          </div>
-        ))}
-      </>}
-      <LockedCTA nav={nav} />
-    </>
-  );
-}
-
-/* Skills */
-function SkillsView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
-  const [tab, setTab] = useState<"courses"|"progress">("courses");
-  const courses = [
-    { title: "Content Mastery Bootcamp",        modules: 12, duration: "6h 40m", level: "Beginner",     progress: 0,   color: GOLD,      emoji: "📱" },
-    { title: "Webinar That Converts",           modules: 8,  duration: "4h 20m", level: "Intermediate", progress: 0,   color: "#60a5fa", emoji: "📺" },
-    { title: "6-Figure Funnel Blueprint",       modules: 10, duration: "5h 15m", level: "Advanced",     progress: 0,   color: "#34d399", emoji: "🚀" },
-    { title: "DM Sales Mastery",                modules: 6,  duration: "3h 10m", level: "Intermediate", progress: 0,   color: "#a78bfa", emoji: "💬" },
-    { title: "Brand Identity From Scratch",     modules: 9,  duration: "4h 50m", level: "Beginner",     progress: 0,   color: "#f472b6", emoji: "🎨" },
-    { title: "AI Tools for Creators",           modules: 7,  duration: "3h 30m", level: "All levels",   progress: 0,   color: "#fb923c", emoji: "🤖" },
-  ];
-  return (
-    <>
-      <SectionHeader eyebrow="Learning" title="Skills & Learning" sub="Expert-led courses and training built into your dashboard" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
-        {[{label:"Courses Available",value:"24",color:GOLD},{label:"Total Hours",value:"120+",color:"#60a5fa"},{label:"Certificates",value:"6",color:"#34d399"}].map(s => <StatCard key={s.label} {...s} />)}
-      </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        {[{id:"courses",label:"All Courses"},{id:"progress",label:"My Progress"}].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab === "courses" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {courses.map(c => (
-            <div key={c.title} style={{ background: `${c.color}08`, border: `1px solid ${c.color}20`, borderRadius: 14, padding: "16px", cursor: "pointer" }}
-              onClick={lockAction}
-              onMouseEnter={e => (e.currentTarget.style.background = `${c.color}15`)}
-              onMouseLeave={e => (e.currentTarget.style.background = `${c.color}08`)}>
-              <p style={{ fontSize: 24, margin: "0 0 10px" }}>{c.emoji}</p>
-              <p style={{ fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "0 0 5px", lineHeight: 1.4 }}>{c.title}</p>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)" }}>📚 {c.modules} modules</span>
-                <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)" }}>⏱ {c.duration}</span>
-              </div>
-              <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: `${c.color}15`, color: c.color, fontWeight: 700 }}>{c.level}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {tab === "progress" && <>
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "24px", textAlign: "center", marginBottom: 16 }}>
-          <p style={{ fontSize: 36, margin: "0 0 12px" }}>🎓</p>
-          <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: "0 0 8px" }}>Start your first course</p>
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", margin: "0 0 20px" }}>Pick any course above and begin learning. Progress is tracked automatically.</p>
-          <button onClick={() => setTab("courses")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color: "#000", fontWeight: 800, fontSize: 13, border: "none", borderRadius: 10, padding: "11px 24px", cursor: "pointer" }}>Browse Courses →</button>
-        </div>
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.14em" }}>Certifications Available</p>
-          {[
-            { name: "Certified Content Creator",   color: GOLD      },
-            { name: "Certified Funnel Builder",    color: "#34d399" },
-            { name: "Certified Email Marketer",    color: "#60a5fa" },
-          ].map(cert => (
-            <div key={cert.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-              <span style={{ fontSize: 16 }}>🏆</span>
-              <p style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.55)", margin: 0 }}>{cert.name}</p>
-              <span style={{ marginLeft: "auto", fontSize: 9.5, color: cert.color, fontWeight: 700 }}>Locked</span>
-            </div>
-          ))}
-        </div>
-      </>}
-      <LockedCTA nav={nav} />
-    </>
-  );
-}
-
 /* SMS Marketing */
 function SmsMarketingView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
   const [tab, setTab] = useState<"campaigns"|"contacts">("campaigns");
@@ -1859,7 +1663,6 @@ function SectionView({ section, nav, lockAction }: { section: string; nav: (p: s
     case "Competitor Study":   return <CompetitorView {...p} />;
     case "Content Ideas":      return <ContentIdeasView {...p} />;
     case "Design Studio":      return <DesignStudioView {...p} />;
-    case "Content Coach":      return <ContentCoachView {...p} />;
     case "Content Analyser":   return <ContentAnalyserView {...p} />;
     case "Video Editor":       return <VideoEditorView {...p} />;
     case "Oravini Recorder":   return <OraviniRecorderView {...p} />;
@@ -1867,8 +1670,6 @@ function SectionView({ section, nav, lockAction }: { section: string; nav: (p: s
     case "Video Marketing":    return <VideoMarketingView {...p} />;
     case "Pages & Funnels":    return <FunnelsView {...p} />;
     case "DM Automation":      return <DmAutomationView {...p} />;
-    case "Cortex Vault":       return <CortexVaultView {...p} />;
-    case "Skills":             return <SkillsView {...p} />;
     case "Analytics":          return <AnalyticsView {...p} />;
     case "Email & Workflows":  return <EmailWorkflowsView {...p} />;
     case "SMS Marketing":      return <SmsMarketingView {...p} />;
