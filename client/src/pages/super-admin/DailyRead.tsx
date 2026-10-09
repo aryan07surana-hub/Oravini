@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
   BookOpenCheck, Plus, Trash2, ArrowLeft, ChevronRight,
-  ChevronLeft, BookOpen, Clock, Sparkles, X, ShieldCheck,
+  ChevronLeft, BookOpen, Clock, Sparkles, X, ShieldCheck, Target,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -26,6 +26,17 @@ const TIME_OPTIONS = [
   { label: "5 min", minutes: 5, cards: 3 },
   { label: "10 min", minutes: 10, cards: 6 },
   { label: "30 min", minutes: 30, cards: 15 },
+];
+
+const GOALS = [
+  "I want to reach $100k per month.",
+  "I want to live in the Czech Republic, play football, and work on my business full time.",
+  "I want to retire my parents.",
+  "I want to have a really good personal brand and inspire millions to follow their dreams.",
+  "I want to have multiple sources of income and scale my software and consulting company to over six figures a month.",
+  "I want to help my brother scale his company to six figures MRR.",
+  "I want to be in the best shape and form of my life—to be really fit and healthy.",
+  "At the end of the day, I just want my parents to be proud of me and be happy.",
 ];
 
 type View = "library" | "book" | "pick-time" | "reading" | "compulsory";
@@ -381,6 +392,36 @@ export default function DailyRead() {
               </Button>
             </div>
           </div>
+
+          <section className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                style={{ background: `${GOLD}1f`, color: GOLD }}
+              >
+                <Target className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: GOLD }}>
+                  My North Star
+                </p>
+                <h2 className="text-lg font-bold text-foreground">The Goals I Want to Achieve</h2>
+              </div>
+            </div>
+            <div className="grid gap-3 p-5 md:grid-cols-2">
+              {GOALS.map((goal, index) => (
+                <div key={goal} className="flex gap-3 rounded-xl border border-border/70 bg-background/40 p-4">
+                  <span
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{ background: `${GOLD}1f`, color: GOLD }}
+                  >
+                    {index + 1}
+                  </span>
+                  <p className="text-sm font-medium leading-relaxed text-foreground/90">{goal}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* ── Compulsory section ── */}
           <div className="mb-8">
