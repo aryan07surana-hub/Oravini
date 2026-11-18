@@ -6,6 +6,7 @@ import {
   ChevronDown, ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
+import { getUtmParams } from "@/lib/utm";
 
 const GOLD = "#d4b461";
 const BG = "#040406";
@@ -109,7 +110,7 @@ function MarketingSection({ section, accent, slug }: { section: any; accent: str
       const r = await fetch(`/api/lp/${slug}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone }),
+        body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, ...getUtmParams() }),
       });
       if (!r.ok) throw new Error("Failed");
       setSubmitted(true);

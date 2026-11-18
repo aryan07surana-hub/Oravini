@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { FunnelWebinarBlock, useFunnelWebinar } from "@/components/funnel/FunnelWebinarBlock";
+import { getUtmParams } from "@/lib/utm";
 import { Loader2, ArrowRight, CheckCircle, Star, Play, Timer, DollarSign, X, Shield, Sparkles, ChevronDown } from "lucide-react";
 
 const BG = "#040406";
@@ -52,7 +53,7 @@ function Section({ section, accent, funnelSlug, stepSlug }: { section: any; acce
       const r = await fetch(`/api/f/${funnelSlug}/${stepSlug}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...getUtmParams() }),
       });
       const data = await r.json();
       if (data.nextSlug) nav(`/f/${data.funnelSlug}/${data.nextSlug}`);
@@ -552,11 +553,13 @@ function WebinarStepContent({ funnelSlug, step, sections, accent }: { funnelSlug
 
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
-export default function PublicFunnelStep() {
+export default function PublicFunnelStep({ notFound }: { notFound?: React.ReactNode } = {}) {
   const [match1, params1] = useRoute("/f/:slug");
   const [match2, params2] = useRoute("/f/:slug/:stepSlug");
   const funnelSlug = (params1?.slug || params2?.slug) ?? "";
   const stepSlug = params2?.stepSlug;
+  // Remember UTM params from the entry URL so a later opt-in step can still send them.
+  useEffect(() => { getUtmParams(); }, []);
 
   const { data, isLoading, isError } = useQuery<{ funnel: any; step: any }>({
     queryKey: [`/api/f/${funnelSlug}/${stepSlug || ""}`],
@@ -574,6 +577,8 @@ export default function PublicFunnelStep() {
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#d4b461" }} />
     </div>
   );
+
+  if ((isError || !data) && notFound) return <>{notFound}</>;
 
   if (isError || !data) return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: BG }}>

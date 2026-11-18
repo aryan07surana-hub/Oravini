@@ -212,9 +212,9 @@ STARTER — SMS Marketing (full), Video Marketing (hosting + webinars), AI Desig
 
 GROWTH — Everything Starter + Email Marketing & Workflows (campaigns, automations, Gmail connect), unified Scheduling hub (/scheduling), CRM lite, more credits.
 
-PRO — Everything Growth + advanced analytics, priority support, higher credit limits, more automation steps.
+PRO — Everything Growth + Video Marketing Suite included free (video hosting, webinars, VSL pages), advanced analytics, priority support, higher credit limits, more automation steps.
 
-ELITE — Everything Pro + full CRM Suite, Calls/Dialer, Project Tracker (/project-tracker), Documents (/documents), Elite Portal (/portal), 1-on-1 sessions, unlimited/near-unlimited credits.
+ELITE — Everything Pro + full CRM Suite, Project Tracker (/project-tracker), Documents (/documents), Elite Portal (/portal), 1-on-1 sessions, unlimited/near-unlimited credits.
 
 Upgrade: /select-plan or Settings → Your Settings → Plan.
 
@@ -356,11 +356,7 @@ Bio Generator (/tools/bio-generator) — Generate, improve, use templates, compe
 
 ━━ CRM (/crm) — Elite Only ━━
 
-Contact database, deal pipeline (Kanban + list), activity log, tags/segments, CSV import/export, email logging. Integrated with Dialer.
-
-━━ CALLS / DIALER — Elite Only ━━
-
-Outbound calls from browser. Call recording, voicemail drop, call notes, outcome tracking. Auto-logs to CRM.
+Contact database, deal pipeline (Kanban + list), activity log, tags/segments, CSV import/export, email logging.
 
 ━━ PROJECT TRACKER (/project-tracker) — Elite Only ━━
 
@@ -430,7 +426,7 @@ WORKFLOW B — Coach / Course Seller (webinar funnel)
 4. Go live → use polls and Q&A to engage
 5. Post-webinar: replay auto-available, follow-up email with offer
 6. Attendees enter email nurture automation (value → value → offer → offer)
-7. Hot leads → call via Dialer (Elite) or book via Meetings
+7. Hot leads → book a call via Meetings
 8. Track in CRM pipeline
 
 WORKFLOW C — Agency / Local Business (lead generation machine)
@@ -600,7 +596,7 @@ async function fetchUserAccountSnapshot(userId: string): Promise<string> {
   if (u.plan === "free") flags.push("FREE PLAN: gently suggest upgrading to Starter when relevant features come up");
   if (!["growth","pro","elite"].includes(u.plan)) flags.push("NO EMAIL ACCESS: Email Marketing requires Growth+ plan");
   if (!["starter","growth","pro","elite"].includes(u.plan)) flags.push("NO SMS ACCESS: SMS Marketing requires Starter+ plan");
-  if (!["elite"].includes(u.plan)) flags.push("NO CRM/DIALER/DOCS/PORTAL: these are Elite-only");
+  if (!["elite"].includes(u.plan)) flags.push("NO CRM/DOCS/PORTAL: these are Elite-only");
   if (smsN !== null && (smsN?.n ?? 0) === 0 && ["starter","growth","pro","elite"].includes(u.plan)) flags.push("HAS SMS ACCESS BUT NO PHONE NUMBER: guide to provision one first");
   if (emG !== null && (emG?.n ?? 0) === 0 && ["growth","pro","elite"].includes(u.plan)) flags.push("HAS EMAIL ACCESS BUT GMAIL NOT CONNECTED: recommend connecting it");
   if (vid !== null && (vid?.total ?? 0) === 0 && ["starter","growth","pro","elite"].includes(u.plan)) flags.push("HAS VIDEO ACCESS BUT 0 VIDEOS UPLOADED: encourage first upload");

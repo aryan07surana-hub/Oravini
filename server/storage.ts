@@ -1427,13 +1427,16 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── Landing Leads (CRM) ────────────────────────────────────────────────────
+  // These helpers serve Oravini's own platform leads only (owner_id IS NULL).
+  // Leads captured on users' marketing landing pages carry owner_id and live in
+  // the owner's CRM; they must not be matched/updated/listed here.
   async createLandingLead(data: InsertLandingLead): Promise<LandingLead> {
     const [row] = await db.insert(landingLeads).values(data).returning();
     return row;
   }
 
   async getLandingLeadByEmail(email: string): Promise<LandingLead | undefined> {
-    const [row] = await db.select().from(landingLeads).where(eq(landingLeads.email, email));
+    const [row] = await db.select().from(landingLeads).where(and(eq(landingLeads.email, email), isNull(landingLeads.ownerId)));
     return row;
   }
 
@@ -1443,7 +1446,7 @@ class DatabaseStorage implements IStorage {
   }
 
   async getAllLandingLeads(): Promise<LandingLead[]> {
-    return await db.select().from(landingLeads).orderBy(desc(landingLeads.createdAt));
+    return await db.select().from(landingLeads).where(isNull(landingLeads.ownerId)).orderBy(desc(landingLeads.createdAt));
   }
 
   // ── Onboarding Surveys ─────────────────────────────────────────────────────
@@ -4319,12 +4322,15 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── AI Call Quota ─────────────────────────────────────────────────────────
-  // Pro (Tier 4): 200 calls/month included. Elite: unlimited.
+  // The AI Voice Dialer is no longer offered on any plan (surface removed from the
+  // client). Pro previously included 200 calls/month; that allowance is now 0 so
+  // the dormant /api/dialer endpoints cannot spend AI calls for Pro accounts.
+  // Elite keeps its existing limit; data and tables are untouched.
   // Top-up packs add bonus calls that carry over (never reset).
   // After monthly allowance exhausted, bonus calls consumed first before blocking.
 
   private readonly AI_CALL_QUOTA: Record<string, number> = {
-    free: 0, starter: 0, growth: 0, pro: 200, elite: 9999,
+    free: 0, starter: 0, growth: 0, pro: 0, elite: 9999,
   };
 
   private currentMonthKey(): string {

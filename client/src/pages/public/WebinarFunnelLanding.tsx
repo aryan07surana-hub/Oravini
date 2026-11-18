@@ -5,6 +5,7 @@ import { formatIST } from "@shared/webinarFunnel";
 import {
   GOLD, Countdown, PublicLoading, PublicShell, WebinarNotFound, useCountdown, usePublicWebinar,
 } from "@/components/webinar-funnel/shared";
+import { getUtmParams } from "@/lib/utm";
 
 const inputStyle = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", outline: "none" };
 const regKey = (slug: string) => `oravini:webinar-registered:${slug}`;
@@ -47,7 +48,7 @@ export default function WebinarFunnelLanding() {
       const res = await fetch(`/api/webinar-funnels/${encodeURIComponent(webinar.slug)}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, ...getUtmParams() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Registration failed. Please try again.");
