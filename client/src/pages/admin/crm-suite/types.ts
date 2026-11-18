@@ -155,8 +155,11 @@ export function formatMoney(cents: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
 }
 
-export function timeAgo(iso: string | Date): string {
-  const d = typeof iso === "string" ? new Date(iso) : iso;
+export function timeAgo(iso: string | Date | null | undefined): string {
+  // Defensive: a missing/invalid timestamp must never white-screen the CRM.
+  if (!iso) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const diff = Date.now() - d.getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "just now";

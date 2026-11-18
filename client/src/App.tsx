@@ -284,6 +284,18 @@ function HostGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Shown at /f/:slug when the slug is neither a published form nor an active funnel. */
+function PublicSlugNotFound() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="text-center">
+        <p className="text-gray-900 font-bold text-xl mb-2">Page not found</p>
+        <p className="text-gray-500 text-sm">This link is not available.</p>
+      </div>
+    </div>
+  );
+}
+
 function Router() {
   return <HostGate><AppRoutes /></HostGate>;
 }
@@ -308,7 +320,11 @@ function AppRoutes() {
       <Route path="/select-plan" component={SelectPlan} />
       <Route path="/verify-phone" component={VerifyPhone} />
       <Route path="/onboarding" component={Onboarding} />
-      <Route path="/f/:slug">{() => <PublicForm />}</Route>
+      {/* /f/:slug is shared by forms (forms.slug) and funnel roots (funnels.slug) — two
+          separate tables. Forms keep priority so every existing form link renders exactly
+          as before; only when the forms API 404s do we fall through to the funnel's first
+          step. Funnel steps (/f/:slug/:stepSlug) are routed further down. */}
+      <Route path="/f/:slug">{() => <PublicForm fallback={<PublicFunnelStep notFound={<PublicSlugNotFound />} />} />}</Route>
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
       <Route path="/cancel/:bookingId">{() => <CancelBooking />}</Route>
       <Route path="/reschedule/:bookingId">{() => <RescheduleBooking />}</Route>
@@ -372,7 +388,6 @@ function AppRoutes() {
       <Route path="/pages/:funnelId/step/:stepId">{() => <Guard component={FunnelStepBuilder} />}</Route>
       <Route path="/domains">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>
-      <Route path="/f/:slug">{() => <PublicFunnelStep />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>

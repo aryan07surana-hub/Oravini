@@ -368,6 +368,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       );
       CREATE INDEX IF NOT EXISTS idx_fdomains_domain ON funnel_custom_domains(domain);
 
+      CREATE TABLE IF NOT EXISTS funnel_chat_usage (
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day DATE NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, day)
+      );
+
       CREATE TABLE IF NOT EXISTS domain_registrations (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -8370,7 +8377,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
           FROM users WHERE role = 'client' AND created_at >= NOW() - INTERVAL '12 months'
           GROUP BY month ORDER BY month
         `),
-        pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads`),
+        pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads WHERE owner_id IS NULL`),
         pool.query(`
           SELECT COUNT(*)::int AS total, ROUND(AVG(overall_rating)::numeric, 1) AS avg_rating,
             COUNT(CASE WHEN nps_score >= 9 THEN 1 END) AS promoters,
@@ -8388,7 +8395,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         pool.query(`SELECT COALESCE(SUM(monthly_credits + bonus_credits)::int, 0) AS total_credits FROM credit_balances`),
         pool.query(`SELECT platform, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY platform ORDER BY count DESC`),
         pool.query(`SELECT field, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY field ORDER BY count DESC LIMIT 10`),
-        pool.query(`SELECT source, COUNT(*)::int AS count FROM landing_leads GROUP BY source ORDER BY count DESC`),
+        pool.query(`SELECT source, COUNT(*)::int AS count FROM landing_leads WHERE owner_id IS NULL GROUP BY source ORDER BY count DESC`),
         pool.query(`
           SELECT COUNT(*)::int AS total_posts, COALESCE(SUM(views)::int, 0) AS total_views,
             COALESCE(SUM(likes)::int, 0) AS total_likes, COALESCE(SUM(comments)::int, 0) AS total_comments
@@ -10969,6 +10976,17 @@ Rules:
         if (!already) {
           await db.insert(webinarFunnelRegistrations).values({ webinarId: funnel.id, name, email, phone: phone || null });
         }
+        // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
+        captureLeadToCrmInBackground({
+          userId: funnel.userId,
+          email, name, phone,
+          source: "webinar",
+          tags: ["webinar-registrant", `webinar:${funnel.slug}`],
+          activityTitle: already ? `Re-registered for webinar "${funnel.title}"` : `Registered for webinar "${funnel.title}"`,
+          activityBody: `Scheduled for ${funnel.scheduledAt.toISOString()}`,
+          context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
+          utm: pickUtm(req.body),
+        });
         res.status(already ? 200 : 201).json({ success: true });
       } catch (e: any) {
         console.error("[webinar-funnels] register error:", e.message);
@@ -16690,33 +16708,62 @@ Rules:
   // Public: record lead capture from marketing landing page
   app.post("/api/lp/:slug/lead", async (req: Request, res: Response) => {
     try {
-      const { name, email, phone } = req.body;
-      // email is required; name is optional (email-only opt-in forms)
-      if (!email || !/^\S+@\S+\.\S+$/.test(String(email))) return res.status(400).json({ message: "A valid email is required" });
+      const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+      // Phone is optional: the form may not collect it.
+      const phone = typeof req.body?.phone === "string" && req.body.phone.trim() ? req.body.phone.trim().slice(0, 32) : null;
+      // Name is optional: Page Studio / template forms can be email-only.
+      if (!email) return res.status(400).json({ message: "Email required" });
+      if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: "Enter a valid email" });
       const { rows } = await pool.query(
         "SELECT id, user_id, title, slug FROM marketing_landing_pages WHERE slug = $1 AND published = true",
         [p(req.params.slug)]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      // CRM: attach the lead to the landing page owner's contacts (fire-and-forget)
+      const page = rows[0];
+
+      // Persist the lead, deduped per (page owner, email). A repeat submission updates the
+      // existing row (latest name/source, keeps a known phone) instead of failing.
+      let inserted = false;
+      try {
+        const { rows: up } = await pool.query(
+          `INSERT INTO landing_leads (owner_id, name, email, phone, source)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT ((COALESCE(owner_id, '')), email) DO UPDATE SET
+             name   = EXCLUDED.name,
+             phone  = COALESCE(EXCLUDED.phone, landing_leads.phone),
+             source = EXCLUDED.source
+           RETURNING (xmax = 0) AS inserted`,
+          [page.user_id, name, email, phone, `lp:${page.slug}`]
+        );
+        inserted = up[0]?.inserted === true;
+      } catch (dbErr: any) {
+        console.error(`[lp-lead] landing_leads write failed for page ${page.id} (${page.slug}):`, dbErr?.code, dbErr?.message);
+        return res.status(500).json({ message: "Could not save your details. Please try again." });
+      }
+
+      // Only count genuinely new leads so repeat submissions don't inflate the page counter.
+      if (inserted) {
+        await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [page.id]);
+      }
+      // CRM: attach the lead to the landing page owner's contacts (fire-and-forget;
+      // crm capture upserts per owner+email, so repeats add an activity, not a contact).
       captureLeadToCrmInBackground({
-        userId: rows[0].user_id,
+        userId: page.user_id,
         email, name, phone,
         source: "landing",
-        tags: ["landing-lead", `lp:${rows[0].slug}`],
-        activityTitle: `Submitted landing page "${rows[0].title || rows[0].slug}"`,
-        context: { landingPageId: rows[0].id, landingPageSlug: rows[0].slug },
+        tags: ["landing-lead", `lp:${page.slug}`],
+        activityTitle: inserted
+          ? `Submitted landing page "${page.title || page.slug}"`
+          : `Re-submitted landing page "${page.title || page.slug}"`,
+        context: { landingPageId: page.id, landingPageSlug: page.slug },
         utm: pickUtm(req.body),
       });
-      await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [rows[0].id]);
-      try {
-        await pool.query(
-          "INSERT INTO landing_leads (name, email, phone, source) VALUES ($1, $2, $3, $4)",
-          [name || "", email, phone || null, `lp:${p(req.params.slug)}`]
-        );
-      } catch {}
       res.json({ ok: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error(`[lp-lead] lead capture failed for slug ${req.params.slug}:`, err?.message);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -17122,6 +17169,365 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Funnel chat copilot ─────────────────────────────────────────────────────
+  // Lovable-style editing: the user chats, the AI returns the updated funnel
+  // (steps + sections) and we persist it in one transaction.
+
+  const FUNNEL_CHAT_DAILY_LIMIT = 30;
+  const FUNNEL_STEP_TYPES = ["landing", "sales", "upsell", "downsell", "order_bump", "thank_you", "confirmation", "webinar"];
+  const FUNNEL_OFFER_TYPES = ["sales", "upsell", "downsell"];
+  const FUNNEL_SECTION_SCHEMAS: Record<string, string> = {
+    hero: `{headline, subheadline, ctaText, badge?}`,
+    video: `{caption, videoUrl}`,
+    benefits: `{title, items: string[]}`,
+    testimonials: `{testimonials: [{name, role, quote}]}`,
+    pricing: `{pricingTitle, price, originalPrice, pricingFeatures: string[], ctaText}`,
+    faq: `{faqs: [{question, answer}]}`,
+    cta: `{headline, subtext, ctaText, ctaUrl?}`,
+    form: `{formTitle, formSubtext, buttonText, fields: ["name","email"]}`,
+    countdown: `{countdownTitle, targetDate: "YYYY-MM-DDTHH:mm"}`,
+    bio: `{name, role, bio}`,
+    guarantee: `{title, body, badgeText}`,
+    order_bump: `{title, description, price, ctaText}`,
+    urgency_bar: `{text, subtext}`,
+    stats: `{label, stats: [{number, desc}]}`,
+    press: `{label, logos: string[]}`,
+    comparison: `{title, headers: string[], rows: string[][]}`,
+    two_step_form: `{headline, buttonText, formTitle, buttonText2, fields: ["name","email"]}`,
+    image: `{src, alt, caption}`,
+    sticky_cta: `{text, ctaText, showAfterScroll}`,
+    exit_intent: `{headline, body, ctaText, dismissText}`,
+    divider: `{}`,
+  };
+
+  const newSectionId = () => Math.random().toString(36).slice(2, 10);
+
+  /** Validate sections, keep valid ids, give new/duplicate ones a fresh id. */
+  function normalizeFunnelSections(input: any, fallback: any[]): any[] {
+    if (!Array.isArray(input)) return fallback;
+    const seen = new Set<string>();
+    return input
+      .filter((s: any) => s && typeof s === "object" && typeof s.type === "string")
+      .map((s: any) => {
+        let id = typeof s.id === "string" && s.id.trim() && !s.id.startsWith("new") ? s.id : newSectionId();
+        if (seen.has(id)) id = newSectionId();
+        seen.add(id);
+        return { ...s, id, data: s.data && typeof s.data === "object" ? s.data : {} };
+      });
+  }
+
+  /**
+   * Replace a funnel's steps with `incoming` (ordered) in a single transaction.
+   * - existing ids → UPDATE (slug never changes)
+   * - unknown ids  → INSERT (chat: fresh id; snapshot: reuse id/slug when safe)
+   * - existing steps missing from `incoming` → DELETE when allowDelete, else kept in place
+   * Routing ids may reference temporary ids of new steps; they're remapped, and
+   * dangling references are cleared.
+   */
+  async function applyFunnelSteps(
+    funnelId: string,
+    incoming: any[],
+    opts: { mode: "chat" | "snapshot"; allowDelete: boolean },
+  ): Promise<any[]> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: existing } = await client.query(
+        "SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position ASC FOR UPDATE", [funnelId],
+      );
+      const existingById = new Map<string, any>(existing.map((s: any) => [s.id, s]));
+
+      type Planned = { src: any; prev: any | null; id: string | null; tempId: string | null };
+      const plan: Planned[] = [];
+      const used = new Set<string>();
+      for (const src of incoming) {
+        if (!src || typeof src !== "object") continue;
+        const sid = typeof src.id === "string" ? src.id : null;
+        if (sid && existingById.has(sid)) {
+          if (used.has(sid)) continue;
+          used.add(sid);
+          plan.push({ src, prev: existingById.get(sid), id: sid, tempId: null });
+        } else {
+          if (src.unchanged) continue; // stub for a step that doesn't exist — ignore
+          plan.push({ src, prev: null, id: null, tempId: sid });
+        }
+      }
+      // Keep omitted steps at (roughly) their original position unless deletion is allowed.
+      if (!opts.allowDelete) {
+        existing.forEach((s: any, i: number) => {
+          if (used.has(s.id)) return;
+          plan.splice(Math.min(i, plan.length), 0, { src: { id: s.id, unchanged: true }, prev: s, id: s.id, tempId: null });
+          used.add(s.id);
+        });
+      }
+      if (plan.length === 0) throw new Error("The update would remove every step — ignored.");
+
+      // Insert new steps
+      const idMap = new Map<string, string>();
+      const existingCanvasX = existing.map((s: any) => Number(s.canvas_x) || 0);
+      let nextCanvasX = Math.max(0, ...existingCanvasX) + 320;
+      const hasLayout = existing.some((s: any) => Number(s.canvas_x) || Number(s.canvas_y));
+      for (let i = 0; i < plan.length; i++) {
+        const p = plan[i];
+        if (p.id) continue;
+        const src = p.src;
+        const type = FUNNEL_STEP_TYPES.includes(src.type) ? src.type : "landing";
+        let reuseId: string | null = null;
+        let slug = `${type.replace(/_/g, "-")}-${i + 1}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+        let canvasX = 0, canvasY = 0;
+        if (opts.mode === "snapshot") {
+          if (p.tempId) {
+            const { rows: clash } = await client.query("SELECT 1 FROM funnel_steps WHERE id = $1", [p.tempId]);
+            if (!clash[0]) reuseId = p.tempId;
+          }
+          if (typeof src.slug === "string" && src.slug.trim()) {
+            const { rows: slugClash } = await client.query(
+              "SELECT 1 FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnelId, src.slug],
+            );
+            if (!slugClash[0]) slug = src.slug;
+          }
+          canvasX = Number(src.canvas_x) || 0;
+          canvasY = Number(src.canvas_y) || 0;
+        } else if (hasLayout) {
+          const before = plan[i - 1]?.prev;
+          canvasX = nextCanvasX;
+          canvasY = before ? Number(before.canvas_y) || 0 : 0;
+          nextCanvasX += 320;
+        }
+        const { rows } = await client.query(
+          `INSERT INTO funnel_steps (id, funnel_id, name, type, slug, position, sections, color_scheme, canvas_x, canvas_y)
+           VALUES (COALESCE($1, gen_random_uuid()::varchar), $2, $3, $4, $5, $6, '[]', $7, $8, $9) RETURNING *`,
+          [reuseId, funnelId, String(src.name || "New Step").slice(0, 120), type, slug, i,
+           typeof src.color_scheme === "string" ? src.color_scheme : "gold", canvasX, canvasY],
+        );
+        p.id = rows[0].id;
+        p.prev = null;
+        if (p.tempId) idMap.set(p.tempId, rows[0].id);
+      }
+
+      const finalIds = new Set(plan.map(p => p.id as string));
+      if (opts.allowDelete) {
+        const toDelete = existing.filter((s: any) => !finalIds.has(s.id)).map((s: any) => s.id);
+        if (toDelete.length) {
+          await client.query("DELETE FROM funnel_steps WHERE funnel_id = $1 AND id = ANY($2)", [funnelId, toDelete]);
+        }
+      }
+
+      // Resolve final values (incl. routing) for every step
+      const resolveRef = (v: any): string | null => {
+        if (typeof v !== "string" || !v) return null;
+        const real = idMap.get(v) ?? v;
+        return finalIds.has(real) ? real : null;
+      };
+      const finals = plan.map((p, i) => {
+        const src = p.src;
+        const prev = p.prev;
+        const stub = !!src.unchanged && !!prev;
+        const pick = (key: string) => (!stub && key in src ? src[key] : prev ? prev[key] : null);
+        const type = !stub && FUNNEL_STEP_TYPES.includes(src.type) ? src.type : (prev?.type || "landing");
+        const rawPrice = pick("price");
+        const cleanPrice = rawPrice === null || rawPrice === undefined ? "" : String(rawPrice).replace(/[^0-9.]/g, "");
+        const price = rawPrice === null || rawPrice === undefined || rawPrice === "" ? null
+          : cleanPrice && Number.isFinite(Number(cleanPrice)) ? Number(cleanPrice) : (prev?.price ?? null);
+        const rawProduct = pick("product_name");
+        return {
+          id: p.id as string,
+          isNew: !prev,
+          name: String((!stub && src.name) || prev?.name || "New Step").slice(0, 120),
+          type,
+          sections: stub ? prev.sections : normalizeFunnelSections(src.sections, prev?.sections || []),
+          price,
+          product_name: rawProduct === null || rawProduct === undefined || rawProduct === "" ? null : String(rawProduct).slice(0, 200),
+          color_scheme: (!stub && typeof src.color_scheme === "string" && src.color_scheme) || prev?.color_scheme || "gold",
+          position: i,
+          next_step_id: resolveRef(pick("next_step_id")),
+          yes_step_id: resolveRef(pick("yes_step_id")),
+          no_step_id: resolveRef(pick("no_step_id")),
+          canvas_x: opts.mode === "snapshot" && "canvas_x" in src ? Number(src.canvas_x) || 0 : null,
+          canvas_y: opts.mode === "snapshot" && "canvas_y" in src ? Number(src.canvas_y) || 0 : null,
+        };
+      });
+
+      // Chat: wire new steps into the flow if the AI didn't.
+      if (opts.mode === "chat") {
+        finals.forEach((s, i) => {
+          if (!s.isNew) return;
+          const referenced = finals.some(o => o.id !== s.id && [o.next_step_id, o.yes_step_id, o.no_step_id].includes(s.id));
+          const before = finals[i - 1];
+          const after = finals[i + 1];
+          if (!referenced && before) {
+            if (FUNNEL_OFFER_TYPES.includes(before.type)) {
+              if (!before.yes_step_id || before.yes_step_id === after?.id) before.yes_step_id = s.id;
+            } else if (before.next_step_id === after?.id && after) {
+              before.next_step_id = s.id;
+            }
+          }
+          if (FUNNEL_OFFER_TYPES.includes(s.type) && !s.yes_step_id && !s.no_step_id && after) {
+            s.yes_step_id = after.id;
+            s.no_step_id = after.id;
+          }
+        });
+      }
+
+      for (const s of finals) {
+        await client.query(
+          `UPDATE funnel_steps SET
+             name = $1, type = $2, sections = $3, price = $4, product_name = $5, color_scheme = $6,
+             position = $7, next_step_id = $8, yes_step_id = $9, no_step_id = $10,
+             canvas_x = COALESCE($11, canvas_x), canvas_y = COALESCE($12, canvas_y), updated_at = now()
+           WHERE id = $13 AND funnel_id = $14`,
+          [s.name, s.type, JSON.stringify(s.sections), s.price, s.product_name, s.color_scheme,
+           s.position, s.next_step_id, s.yes_step_id, s.no_step_id, s.canvas_x, s.canvas_y, s.id, funnelId],
+        );
+      }
+      await client.query("UPDATE funnels SET updated_at = now() WHERE id = $1", [funnelId]);
+      await client.query("COMMIT");
+
+      const { rows: result } = await pool.query(
+        "SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position ASC", [funnelId],
+      );
+      return result;
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Atomically take one chat message from today's quota. Admins are uncapped. */
+  async function takeFunnelChatQuota(user: any): Promise<boolean> {
+    if (user.role === "admin") return true;
+    const { rows } = await pool.query(
+      `INSERT INTO funnel_chat_usage (user_id, day, count) VALUES ($1, CURRENT_DATE, 1)
+       ON CONFLICT (user_id, day) DO UPDATE SET count = funnel_chat_usage.count + 1
+       WHERE funnel_chat_usage.count < $2
+       RETURNING count`,
+      [user.id, FUNNEL_CHAT_DAILY_LIMIT],
+    );
+    return rows.length > 0;
+  }
+
+  async function refundFunnelChatQuota(user: any) {
+    if (user.role === "admin") return;
+    await pool.query(
+      "UPDATE funnel_chat_usage SET count = GREATEST(count - 1, 0) WHERE user_id = $1 AND day = CURRENT_DATE",
+      [user.id],
+    ).catch(() => {});
+  }
+
+  app.post("/api/funnels/:id/chat", requireAuth, aiFeature("funnel-chat"), async (req, res) => {
+    const user = req.user as any;
+    let quotaTaken = false;
+    try {
+      const { message, selectedStepId } = req.body || {};
+      if (typeof message !== "string" || !message.trim()) return res.status(400).json({ message: "Message required" });
+      if (message.length > 4000) return res.status(400).json({ message: "Message is too long (max 4000 characters)" });
+
+      const { rows: f } = await pool.query("SELECT * FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(404).json({ message: "Funnel not found" });
+      const funnel = f[0];
+
+      if (!(await takeFunnelChatQuota(user))) {
+        return res.status(429).json({
+          message: `You've used all ${FUNNEL_CHAT_DAILY_LIMIT} funnel copilot messages for today. Your limit resets at midnight UTC — your funnel is saved, and you can keep editing it manually in the meantime.`,
+        });
+      }
+      quotaTaken = true;
+
+      const { rows: steps } = await pool.query(
+        "SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position ASC", [funnel.id],
+      );
+      const selectedStep = typeof selectedStepId === "string" ? steps.find((s: any) => s.id === selectedStepId) : null;
+
+      const promptSteps = steps.map((s: any) => ({
+        id: s.id, name: s.name, type: s.type, slug: s.slug,
+        price: s.price === null ? null : Number(s.price), product_name: s.product_name,
+        next_step_id: s.next_step_id, yes_step_id: s.yes_step_id, no_step_id: s.no_step_id,
+        sections: s.sections || [],
+      }));
+
+      const systemPrompt = `You are an elite direct-response copywriter and funnel editor inside a visual funnel builder.
+Edit the funnel based on the user's natural-language request.
+Return ONLY valid JSON (no markdown, no code fences) in exactly this shape:
+{"steps": [...], "reply": "...", "changes": ["..."]}
+
+Rules for "steps":
+- List EVERY step of the funnel, in the desired order.
+- For a step you did NOT change, return only {"id": "<existing id>", "unchanged": true}.
+- For a step you changed, return the FULL step: {"id","name","type","price","product_name","next_step_id","yes_step_id","no_step_id","sections":[{"id","type","data"}]} including ALL its sections (changed and unchanged), in order.
+- Keep existing step ids and section ids exactly. Never change slugs.
+- New sections get an id starting with "new-" (e.g. "new-faq-1"). New steps get an id starting with "new-" (e.g. "new-upsell-1").
+- Only remove a step when the user explicitly asks; a removed step is simply left out of the list.
+- Allowed step types: ${FUNNEL_STEP_TYPES.join(", ")}.
+- Routing: offer steps (sales, upsell, downsell) use yes_step_id / no_step_id; other steps use next_step_id. Reference steps by id (use the "new-" id for steps you add) and update the surrounding steps' routing so new steps sit in the flow.
+- Section types and their "data" shape:
+${Object.entries(FUNNEL_SECTION_SCHEMAS).map(([k, v]) => `  ${k}: ${v}`).join("\n")}
+- Write real, specific, persuasive copy that matches this funnel's offer, audience and voice. NO placeholders, no lorem ipsum, no [brackets].
+- Make the smallest change that satisfies the request. Do not rewrite copy the user didn't ask about.
+
+"reply": 1-2 friendly sentences summarising what you did.
+"changes": one short string per concrete edit, e.g. "Sales Page › Hero: punchier headline".
+If the request is only a question or can't be done, return every step as unchanged, answer in "reply", and use "changes": [].`;
+
+      const userPrompt = `Funnel: "${funnel.name}"
+${selectedStep
+  ? `The user currently has the step "${selectedStep.name}" (id ${selectedStep.id}) selected. Scope your edits to THAT step only, unless the request clearly asks for a funnel-wide change (e.g. "all pages", "add a step", "every headline").`
+  : "No step is selected — apply the request wherever it fits best in the funnel."}
+
+Current steps (in order):
+${JSON.stringify(promptSteps)}
+
+Request: "${message.trim()}"`;
+
+      const parseResult = (raw: string) => {
+        const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (!parsed || !Array.isArray(parsed.steps)) throw new Error("Response missing steps array");
+        return parsed;
+      };
+
+      let result: any;
+      try {
+        result = parseResult(await _aiChatJson(systemPrompt, userPrompt, { maxTokens: 8000, temperature: 0.5 }));
+      } catch (firstErr: any) {
+        console.warn("[funnel-chat] first attempt failed, retrying:", firstErr.message);
+        result = parseResult(await _aiChatJson(
+          systemPrompt,
+          `${userPrompt}\n\nIMPORTANT: Your previous answer was not valid JSON in the required shape. Return ONLY the JSON object {"steps": [...], "reply": "...", "changes": [...]}.`,
+          { maxTokens: 8000, temperature: 0.3 },
+        ));
+      }
+
+      // Guard against the model silently dropping steps: only delete when asked.
+      const wantsRemoval = /\b(remove|delete|drop|get rid|cut|eliminate|replace|merge|combine)\b/i.test(message);
+      const updatedSteps = await applyFunnelSteps(funnel.id, result.steps, { mode: "chat", allowDelete: wantsRemoval });
+
+      res.json({
+        steps: updatedSteps,
+        reply: typeof result.reply === "string" && result.reply.trim() ? result.reply : "Done!",
+        changes: Array.isArray(result.changes) ? result.changes.filter((c: any) => typeof c === "string").slice(0, 30) : [],
+      });
+    } catch (err: any) {
+      if (quotaTaken) await refundFunnelChatQuota(user);
+      console.error("[funnel-chat] error:", err.message);
+      res.status(500).json({ message: "The copilot couldn't apply that edit, so nothing was changed. Please try again or rephrase your request." });
+    }
+  });
+
+  // Replace all steps wholesale (used by the chat copilot's Undo)
+  app.post("/api/funnels/:id/steps/snapshot", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(404).json({ message: "Funnel not found" });
+      const { steps } = req.body || {};
+      if (!Array.isArray(steps) || steps.length === 0) return res.status(400).json({ message: "steps array required" });
+      const updated = await applyFunnelSteps(String(req.params.id), steps, { mode: "snapshot", allowDelete: true });
+      res.json({ steps: updated });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // ── Custom Domain resolution (public, no auth) ─────────────────────────────
 
   app.get("/api/public/domain/:domain", async (req, res) => {
@@ -17247,10 +17653,21 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
   app.post("/api/f/:slug/:stepSlug/lead", async (req, res) => {
     try {
       const { name, email, phone } = req.body;
+      if (!email || typeof email !== "string" || !email.trim()) return res.status(400).json({ message: "Email required" });
       const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1", [req.params.slug]);
       if (!funnels[0]) return res.status(404).json({ message: "Not found" });
       const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
       if (!steps[0]) return res.status(404).json({ message: "Not found" });
+      // Persist the opt-in first; if it fails, surface it instead of counting a lead we didn't store.
+      try {
+        await pool.query(
+          "INSERT INTO funnel_contacts (funnel_id, step_id, email, name, phone) VALUES ($1, $2, $3, $4, $5)",
+          [funnels[0].id, steps[0].id, email, name || null, phone || null]
+        );
+      } catch (dbErr: any) {
+        console.error(`[funnel-lead] funnel_contacts write failed for funnel ${funnels[0].id} step ${steps[0].id}:`, dbErr?.code, dbErr?.message);
+        return res.status(500).json({ message: "Could not save your details. Please try again." });
+      }
       // CRM: attach the opt-in to the funnel owner's contacts (fire-and-forget)
       captureLeadToCrmInBackground({
         userId: funnels[0].user_id,
@@ -17264,13 +17681,7 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
       });
       await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
       await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
-      try {
-        await pool.query(
-          "INSERT INTO funnel_contacts (funnel_id, step_id, email, name, phone) VALUES ($1, $2, $3, $4, $5)",
-          [funnels[0].id, steps[0].id, email, name || null, phone || null]
-        );
-      } catch {}
-      // Fire active automations for lead_captured
+      // Fire active automations for lead_captured (non-fatal for the visitor, but logged)
       try {
         const { rows: autos } = await pool.query(
           `SELECT * FROM funnel_automations WHERE funnel_id = $1 AND active = true
@@ -17279,9 +17690,13 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
           [funnels[0].id, steps[0].id]
         );
         for (const auto of autos) {
-          fireFunnelAutomation(auto, { email, name: name || null, phone: phone || null }, pool).catch(() => {});
+          fireFunnelAutomation(auto, { email, name: name || null, phone: phone || null }, pool).catch((e: any) => {
+            console.error(`[funnel-lead] automation ${auto.id} failed for funnel ${funnels[0].id}:`, e?.message || e);
+          });
         }
-      } catch {}
+      } catch (autoErr: any) {
+        console.error(`[funnel-lead] loading automations failed for funnel ${funnels[0].id}:`, autoErr?.message);
+      }
       // Return next step slug
       let nextSlug: string | null = null;
       if (steps[0].yes_step_id) {

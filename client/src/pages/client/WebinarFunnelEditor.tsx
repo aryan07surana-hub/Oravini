@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST } from "@shared/webinarFunnel";
-import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy } from "lucide-react";
+import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";
 
 const GOLD = "#d4b461";
@@ -22,6 +22,24 @@ function toISTInput(iso: string) {
 function fromISTInput(value: string) {
   const d = new Date(`${value}:00+05:30`);
   return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+type WebinarStatus = "draft" | "published" | "ended";
+
+/** What a visitor sees right now, from the SAVED status + scheduledAt (mirrors WebinarFunnelLanding/Live). */
+function visitorState(status: WebinarStatus, scheduledAt: string, hasVideo: boolean, now: number) {
+  const started = new Date(scheduledAt).getTime() <= now;
+  if (status === "draft") {
+    return { tone: "#71717a", label: "Hidden", text: "Draft — /w/ links show \"not found\". Publish to open registration." };
+  }
+  if (status === "ended") {
+    return started
+      ? { tone: "#a78bfa", label: "Replay", text: `Registration closed · /live plays the ${hasVideo ? "replay" : "video (none set yet)"} with your CTA.` }
+      : { tone: "#a78bfa", label: "Closed", text: "Registration closed · /live shows a countdown until the scheduled time, then the replay." };
+  }
+  return started
+    ? { tone: "#f87171", label: "Live", text: hasVideo ? "Live now · registration page links to /live, which shows the stream + CTA." : "Live now · but no YouTube video is set, so /live shows \"stream isn't connected yet\"." }
+    : { tone: "#34d399", label: "Registration", text: `Registration open · /w/ shows the sign-up form, /live shows a countdown to ${formatIST(scheduledAt)}.` };
 }
 
 function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
@@ -52,10 +70,21 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [ctaText, setCtaText] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
   const [slug, setSlug] = useState("");
-  const [status, setStatus] = useState<"draft" | "published" | "ended">("draft");
+  const [status, setStatus] = useState<WebinarStatus>("draft");
+  const [now, setNow] = useState(() => Date.now());
+  const hydratedId = useRef<string | null>(null);
 
+  // Re-evaluate the visitor-state line as the scheduled time passes.
   useEffect(() => {
-    if (!existing) return;
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Hydrate the form once per webinar. Later cache updates (e.g. the publish toggle
+  // saving on its own) must not wipe unsaved edits in the other fields.
+  useEffect(() => {
+    if (!existing || hydratedId.current === existing.id) return;
+    hydratedId.current = existing.id;
     setTitle(existing.title);
     setDescription(existing.description || "");
     setHostName(existing.hostName || "");
@@ -98,6 +127,36 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
     },
     onError: (e: any) => toast({ title: "Couldn't save", description: e.message, variant: "destructive" }),
   });
+
+  // Publish switch / "Mark ended" persist immediately (status only), independent of Save.
+  const saveStatus = useMutation({
+    mutationFn: async (next: WebinarStatus) => apiRequest("PATCH", `/api/webinar-funnels/${id}`, { status: next }),
+    onMutate: (next: WebinarStatus) => {
+      const prev = status;
+      setStatus(next);
+      return { prev };
+    },
+    onSuccess: (row: WebinarFunnelRow) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/webinar-funnels"] });
+      queryClient.setQueryData([`/api/webinar-funnels/${row.id}`], row);
+      setStatus(row.status);
+      toast({
+        title: row.status === "published" ? "Webinar published" : row.status === "ended" ? "Webinar marked as ended" : "Webinar unpublished",
+        description: row.status === "published" ? `Registration is open at ${window.location.origin}/w/${row.slug}`
+          : row.status === "ended" ? "Registration closed; the replay page stays up."
+          : "The public page is hidden again.",
+      });
+    },
+    onError: (e: any, _next, ctx) => {
+      if (ctx) setStatus(ctx.prev);
+      toast({ title: "Couldn't update publish status", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const changeStatus = (next: WebinarStatus) => {
+    if (isNew) { setStatus(next); return; } // nothing to persist yet — applied on "Create webinar"
+    saveStatus.mutate(next);
+  };
 
   const handleSave = () => {
     if (!title.trim()) return toast({ title: "Title is required", variant: "destructive" });
@@ -175,7 +234,17 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
               {status === "published" ? "Anyone with the link can register and watch."
                 : status === "ended" ? "Public pages stay up (replay + CTA) but registration is closed."
                 : "Only you can see this. Publish to open registration."}
+              {isNew && <span className="text-zinc-600"> Applied when you create the webinar.</span>}
             </p>
+            {!isNew && existing && (() => {
+              const v = visitorState(existing.status, existing.scheduledAt, !!existing.youtubeVideoId, now);
+              return (
+                <p data-testid="text-visitor-state" className="flex items-start gap-1.5 mt-2 text-[11px] text-zinc-400">
+                  <Eye className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: v.tone }} />
+                  <span><b style={{ color: v.tone }}>Visitors see: {v.label}</b> — {v.text}</span>
+                </p>
+              );
+            })()}
             {publicUrl && status !== "draft" && (
               <button onClick={() => { navigator.clipboard.writeText(publicUrl).then(() => toast({ title: "Link copied!", description: publicUrl })).catch(() => {}); }}
                 className="flex items-center gap-1.5 mt-2 text-[11px] font-semibold truncate max-w-full" style={{ color: GOLD }}>
@@ -185,12 +254,15 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {status === "published" && (
-              <button onClick={() => setStatus("ended")} className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300">Mark ended</button>
+              <button data-testid="btn-mark-ended" onClick={() => changeStatus("ended")} disabled={saveStatus.isPending}
+                className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 disabled:opacity-50">Mark ended</button>
             )}
+            {saveStatus.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-500" aria-label="Saving publish status" />}
             <Switch
               data-testid="switch-publish"
               checked={status === "published"}
-              onCheckedChange={(on) => setStatus(on ? "published" : "draft")}
+              disabled={saveStatus.isPending}
+              onCheckedChange={(on) => changeStatus(on ? "published" : "draft")}
               aria-label="Publish webinar"
             />
           </div>

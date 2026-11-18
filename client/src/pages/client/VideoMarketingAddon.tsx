@@ -5,8 +5,8 @@ import { ArrowLeft, Check, Zap, MonitorPlay, Users, Mail, BarChart3, Video, Glob
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
 
-// ── Swap these in once Whop products are created ──────────────────────────
-const WHOP_VM_PRO_URL    = "https://whop.com/checkout/PLACEHOLDER_VM_PRO_29";
+// ── Swap this in once the Whop product is created ─────────────────────────
+// Pro (and Elite) include Video Marketing at no extra cost — no checkout needed.
 const WHOP_VM_GROWTH_URL = "https://whop.com/checkout/PLACEHOLDER_VM_GROWTH_39";
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -60,9 +60,10 @@ export default function VideoMarketingAddon() {
   const isGrowth = plan === "growth";
   const eligible = isPro || isGrowth;
 
-  const addonPrice  = isPro ? "$29" : "$39";
-  const addonSaving = isPro ? "Save $10 vs standalone" : null;
-  const whopUrl     = isPro ? WHOP_VM_PRO_URL : WHOP_VM_GROWTH_URL;
+  // Pro/Elite: Video Marketing is included free. Growth: paid add-on.
+  const addonPrice  = isPro ? "Included" : "$39";
+  const addonSaving = isPro ? "Free with Pro" : null;
+  const whopUrl     = WHOP_VM_GROWTH_URL;
   const planLabel   = plan.charAt(0).toUpperCase() + plan.slice(1);
 
   return (
@@ -88,7 +89,7 @@ export default function VideoMarketingAddon() {
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: `${GOLD}12`, border: `1px solid ${GOLD}28`, borderRadius: 99, padding: "5px 14px", marginBottom: 20 }}>
             <MonitorPlay style={{ width: 12, height: 12, color: GOLD }} />
-            <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.14em", textTransform: "uppercase" }}>Optional Add-On</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.14em", textTransform: "uppercase" }}>{isPro ? "Included with Pro" : "Optional Add-On"}</span>
           </div>
           <h1 style={{ fontSize: "clamp(32px, 6vw, 58px)", fontWeight: 900, lineHeight: 1.05, margin: "0 0 18px", letterSpacing: "-0.02em" }}>
             Turn your{" "}
@@ -122,13 +123,13 @@ export default function VideoMarketingAddon() {
                     <Sparkles style={{ width: 17, height: 17, color: isPro ? GOLD : "rgba(255,255,255,0.5)" }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: isPro ? GOLD : "rgba(255,255,255,0.35)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{planLabel} member exclusive</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>Video Marketing Add-on</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: isPro ? GOLD : "rgba(255,255,255,0.35)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{isPro ? `Included in your ${planLabel} plan` : `${planLabel} member exclusive`}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{isPro ? "Video Marketing Suite" : "Video Marketing Add-on"}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                   <span style={{ fontSize: 52, fontWeight: 900, color: isPro ? GOLD : "#fff", lineHeight: 1 }}>{addonPrice}</span>
-                  <span style={{ fontSize: 15, color: "rgba(255,255,255,0.3)", paddingBottom: 6 }}>/mo</span>
+                  {!isPro && <span style={{ fontSize: 15, color: "rgba(255,255,255,0.3)", paddingBottom: 6 }}>/mo</span>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                   {addonSaving && (
@@ -137,16 +138,16 @@ export default function VideoMarketingAddon() {
                     </span>
                   )}
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.28)" }}>
-                    {isPro ? "Standalone bundle costs $59/mo" : "Billed monthly · cancel anytime"}
+                    {isPro ? "No extra cost · already part of your plan" : "Billed monthly · cancel anytime"}
                   </span>
                 </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
                 <a
-                  href={whopUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={isPro ? "/video-marketing" : whopUrl}
+                  target={isPro ? undefined : "_blank"}
+                  rel={isPro ? undefined : "noopener noreferrer"}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 8,
                     background: isPro ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.08)",
@@ -159,10 +160,10 @@ export default function VideoMarketingAddon() {
                   }}
                 >
                   <Zap style={{ width: 15, height: 15 }} />
-                  Add for {addonPrice}/mo
+                  {isPro ? "Open Video Marketing" : `Add for ${addonPrice}/mo`}
                   <ChevronRight style={{ width: 14, height: 14, opacity: 0.7 }} />
                 </a>
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", textAlign: "right" }}>Secure checkout via Whop · No contracts</span>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", textAlign: "right" }}>{isPro ? "Already unlocked · nothing to buy" : "Secure checkout via Whop · No contracts"}</span>
               </div>
             </div>
 
@@ -184,7 +185,7 @@ export default function VideoMarketingAddon() {
             <Crown style={{ width: 36, height: 36, color: GOLD, margin: "0 auto 14px" }} />
             <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Upgrade to Growth or Pro first</h2>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, marginBottom: 20 }}>
-              The Video Marketing add-on is available on Growth (+$39/mo) and Pro (+$29/mo exclusive) plans.
+              Video Marketing is included free on Pro, or available as an add-on on Growth (+$39/mo).
               You're currently on <strong style={{ color: "#fff" }}>{planLabel}</strong>.
             </p>
             <Link href="/select-plan">
@@ -201,7 +202,7 @@ export default function VideoMarketingAddon() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px", padding: "16px 24px", background: "rgba(255,255,255,0.025)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Feature</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center" }}>Growth +$39</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center" }}>Pro +$29</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase", textAlign: "center" }}>Pro · Included</span>
           </div>
           {FEATURES.map((f, i) => {
             const Icon = f.icon;
@@ -222,9 +223,9 @@ export default function VideoMarketingAddon() {
         {eligible && (
           <div style={{ textAlign: "center" }}>
             <a
-              href={whopUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={isPro ? "/video-marketing" : whopUrl}
+              target={isPro ? undefined : "_blank"}
+              rel={isPro ? undefined : "noopener noreferrer"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 10,
                 background: isPro ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.08)",
@@ -236,10 +237,10 @@ export default function VideoMarketingAddon() {
               }}
             >
               <Zap style={{ width: 16, height: 16 }} />
-              Activate Video Marketing · {addonPrice}/mo
+              {isPro ? "Open Video Marketing · Included with Pro" : `Activate Video Marketing · ${addonPrice}/mo`}
             </a>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 12 }}>
-              Monthly · cancel anytime · no lock-in
+              {isPro ? "Included in your plan · no extra charge" : "Monthly · cancel anytime · no lock-in"}
             </p>
           </div>
         )}

@@ -536,13 +536,14 @@ function ExitIntentPopup({ config, accent }: { config: any; accent: string }) {
 
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
-export default function PublicFunnelStep({ funnelSlugOverride, stepSlugOverride }: { funnelSlugOverride?: string; stepSlugOverride?: string } = {}) {
+export default function PublicFunnelStep({ notFound, funnelSlugOverride, stepSlugOverride }: { notFound?: React.ReactNode; funnelSlugOverride?: string; stepSlugOverride?: string } = {}) {
   const [match1, params1] = useRoute("/f/:slug");
   const [match2, params2] = useRoute("/f/:slug/:stepSlug");
   const [, navTo] = useLocation();
   // overrides: funnel served by Host (custom domain / subdomain)
   const funnelSlug = funnelSlugOverride ?? (params1?.slug || params2?.slug) ?? "";
   const stepSlug = funnelSlugOverride ? stepSlugOverride : params2?.stepSlug;
+  // Remember UTM params from the entry URL so a later opt-in step can still send them.
   useEffect(() => { getUtmParams(); }, []);
 
   const { data, isLoading, isError } = useQuery<{ funnel: any; step: any }>({
@@ -561,6 +562,8 @@ export default function PublicFunnelStep({ funnelSlugOverride, stepSlugOverride 
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#d4b461" }} />
     </div>
   );
+
+  if ((isError || !data) && notFound) return <>{notFound}</>;
 
   if (isError || !data) return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: BG }}>

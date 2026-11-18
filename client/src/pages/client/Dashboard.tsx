@@ -2405,7 +2405,7 @@ export default function ClientDashboard() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" as const }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
                       {(user as any)?.plan === "pro"
-                        ? "You qualify for Video Marketing at +$29/mo"
+                        ? "Video Marketing is included free with Pro"
                         : "Add Video Marketing to your Growth plan for +$39/mo"}
                     </span>
                     {(user as any)?.plan === "pro" && (
@@ -2414,20 +2414,20 @@ export default function ClientDashboard() {
                         background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)",
                         borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em"
                       }}>
-                        EXCLUSIVE RATE · SAVE $10
+                        INCLUDED · $0
                       </span>
                     )}
                   </div>
                   <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5, margin: 0 }}>
                     {(user as any)?.plan === "pro"
-                      ? "Host webinars, upload videos, build VSL pages & track every viewer — all for $10 less than the standalone price."
-                      : "Host up to 3 webinars/mo, video hosting, registration pages & email reminders. Upgrade to Pro for an exclusive $29/mo rate."}
+                      ? "Host webinars, upload videos, build VSL pages & track every viewer — already part of your Pro plan, no extra cost."
+                      : "Host up to 3 webinars/mo, video hosting, registration pages & email reminders. Or upgrade to Pro and get Video Marketing included free."}
                   </p>
                 </div>
               </div>
               {/* right: CTA + dismiss */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <Link href="/video-marketing-addon">
+                <Link href={(user as any)?.plan === "pro" ? "/video-marketing" : "/video-marketing-addon"}>
                   <button style={{
                     background: (user as any)?.plan === "pro" ? GOLD : "rgba(255,255,255,0.08)",
                     border: (user as any)?.plan === "pro" ? "none" : "1px solid rgba(255,255,255,0.12)",
@@ -2437,7 +2437,7 @@ export default function ClientDashboard() {
                     display: "flex", alignItems: "center", gap: 6,
                   }}>
                     <Sparkles className="w-3.5 h-3.5" />
-                    Add Video Marketing
+                    {(user as any)?.plan === "pro" ? "Open Video Marketing" : "Add Video Marketing"}
                   </button>
                 </Link>
                 <button
