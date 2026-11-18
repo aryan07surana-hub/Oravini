@@ -10,6 +10,7 @@ function requireAuth(req: Request, res: Response, next: Function) {
 
 // Scopes for the classic (non-config) Meta dialog fallback.
 const META_FALLBACK_SCOPES = [
+  "email",
   "instagram_basic",
   "pages_show_list",
   "pages_read_engagement",
