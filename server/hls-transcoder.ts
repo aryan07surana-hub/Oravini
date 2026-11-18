@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-const FFMPEG_PATH = process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg";
+import { FFMPEG_PATH, ffmpegAvailable } from "./ffmpegPath";
 const HLS_DIR = path.resolve("hls");
 const RTMP_PORT = parseInt(process.env.RTMP_PORT || "1935", 10);
 
@@ -47,6 +47,10 @@ const activeTranscoders = new Map<string, ChildProcess>();
 
 export function startHlsTranscode(streamKey: string): void {
   if (activeTranscoders.has(streamKey)) return;
+  if (!ffmpegAvailable()) {
+    console.warn(`[hls] ffmpeg not found at ${FFMPEG_PATH}; skipping HLS transcode for ${streamKey}`);
+    return;
+  }
 
   const quality = process.env.HLS_QUALITY || "1080p";
   const variants = PRESETS[quality] || PRESETS["1080p"];
@@ -64,6 +68,13 @@ export function startHlsTranscode(streamKey: string): void {
   }
 
   activeTranscoders.set(streamKey, ffmpeg);
+
+  // Without this listener a missing/unexecutable binary (ENOENT/EACCES)
+  // throws an unhandled 'error' event and kills the whole server.
+  ffmpeg.on("error", (err) => {
+    console.error(`[hls] ffmpeg failed to start for ${streamKey} (${FFMPEG_PATH}): ${err.message}`);
+    activeTranscoders.delete(streamKey);
+  });
 
   ffmpeg.stderr?.on("data", (data) => {
     const msg = data.toString();
