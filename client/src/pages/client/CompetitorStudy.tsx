@@ -3526,17 +3526,17 @@ function IntelligenceFeedSection() {
 
   const { data: feed = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/feed"],
-    queryFn: () => apiRequest("GET", "/api/competitor/feed").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/feed"),
   });
 
   const analyzeMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/analyze`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/analyze`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] }); toast({ title: "Analysis ready" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const ideasMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/generate-ideas`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/generate-ideas`),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
@@ -3546,7 +3546,7 @@ function IntelligenceFeedSection() {
   });
 
   const writeMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/write-my-version`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/write-my-version`),
     onSuccess: (data: any, postId: string) => {
       if (data?.script) {
         setExpandedScript(prev => ({ ...prev, [postId]: data.script }));
@@ -3793,12 +3793,12 @@ function ContentIdeasSection() {
 
   const { data: ideas = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/ideas"],
-    queryFn: () => apiRequest("GET", "/api/competitor/ideas").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/ideas"),
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiRequest("PATCH", `/api/competitor/ideas/${id}/status`, { status }).then(r => r.json()),
+      apiRequest("PATCH", `/api/competitor/ideas/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
@@ -3806,7 +3806,7 @@ function ContentIdeasSection() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/ideas/${id}`).then(r => r.json()),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/ideas/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
@@ -3929,7 +3929,7 @@ function DashboardSection() {
   const { setActiveSection } = useCompetitorCtx();
   const { data: dash, isLoading } = useQuery<any>({
     queryKey: ["/api/competitor/dashboard"],
-    queryFn: () => apiRequest("GET", "/api/competitor/dashboard").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/dashboard"),
     refetchInterval: 60_000,
   });
 
@@ -4224,7 +4224,7 @@ function DailyIntelSection() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery<HubData>({
     queryKey: ["/api/content-intel/today"],
-    queryFn: () => apiRequest("GET", "/api/content-intel/today").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/content-intel/today"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -4406,7 +4406,7 @@ function LeaderboardSection() {
 
   const { data: lb, isLoading } = useQuery<any>({
     queryKey: ["/api/competitor/leaderboard", "benchmarks"],
-    queryFn: () => apiRequest("GET", "/api/competitor/leaderboard?withBenchmarks=1").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/leaderboard?withBenchmarks=1"),
   });
   const rows: any[] = lb?.rows ?? [];
   const bench = lb?.benchmarks;
@@ -4594,7 +4594,7 @@ function ContentGapSection() {
   const [addedGaps, setAddedGaps] = useState<Set<number>>(new Set());
 
   const gapMut = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/competitor/gap-analysis").then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/competitor/gap-analysis"),
     onSuccess: (data) => {
       if (data?.message) { toast({ title: "Not enough data", description: data.message, variant: "destructive" }); return; }
       setResult(data);
@@ -4758,7 +4758,7 @@ function ContentGapSection() {
 function GrowthChartSection() {
   const { data: watchlist = [], isLoading: wlLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/watchlist"],
-    queryFn: () => apiRequest("GET", "/api/competitor/watchlist").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/watchlist"),
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -4768,7 +4768,7 @@ function GrowthChartSection() {
 
   const { data: trends, isLoading: snapLoading } = useQuery<any>({
     queryKey: ["/api/competitor/watchlist", watchlistId, "trends", days],
-    queryFn: () => apiRequest("GET", `/api/competitor/watchlist/${watchlistId}/trends?days=${days}`).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/competitor/watchlist/${watchlistId}/trends?days=${days}`),
     enabled: !!watchlistId,
   });
 
@@ -4921,10 +4921,10 @@ function WeeklyBriefPanel() {
   const { addIdeaToPipeline, setActiveSection } = useCompetitorCtx();
   const { data: briefs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/briefs"],
-    queryFn: () => apiRequest("GET", "/api/competitor/briefs").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/briefs"),
   });
   const gen = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/competitor/briefs/generate", {}).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/competitor/briefs/generate", {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/competitor/briefs"] }),
     onError: (e: any) => toast({ title: "Couldn't build the brief", description: String(e?.message || e), variant: "destructive" }),
   });
@@ -5013,7 +5013,7 @@ function WeeklyDigestSection() {
 
   const { data: alerts = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/alerts"],
-    queryFn: () => apiRequest("GET", "/api/competitor/alerts").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/alerts"),
     select: (data: any[]) => data.filter((a: any) => a.alertType === "weekly_digest"),
   });
 
