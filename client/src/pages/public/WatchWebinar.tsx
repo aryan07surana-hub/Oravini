@@ -100,6 +100,7 @@ export default function WatchWebinar() {
         body: JSON.stringify({
           viewerId: vidRef.current,
           viewerName: regForm.name || "Anonymous",
+          viewerEmail: regForm.email || undefined,
           userAgent: navigator.userAgent,
           referrer: document.referrer || null,
         }),
@@ -110,7 +111,7 @@ export default function WatchWebinar() {
         startTimeRef.current = Date.now();
       }
     } catch {}
-  }, [webinar?.id, regForm.name]);
+  }, [webinar?.id, regForm.name, regForm.email]);
 
   const trackHeartbeat = useCallback(async () => {
     if (!trackingRef.current.sessionId || !webinar?.id) return;
@@ -148,7 +149,7 @@ export default function WatchWebinar() {
       await fetch(`/api/webinars/${webinar.id}/track/event`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventType }),
+        body: JSON.stringify({ eventType, viewerId: vidRef.current, viewerName: regForm.name || "Anonymous" }),
       });
       // Also update engagement score
       const eventMap: Record<string, string> = {
@@ -158,6 +159,12 @@ export default function WatchWebinar() {
         reaction_sent: "reaction",
         cta_clicked: "cta_click",
         hand_raised: "hand_raise",
+        // Event names actually sent by this page
+        chat: "chat",
+        question: "question",
+        poll_vote: "poll",
+        reaction: "reaction",
+        cta_click: "cta_click",
       };
       const scoreEvent = eventMap[eventType];
       if (scoreEvent) {
@@ -532,9 +539,14 @@ export default function WatchWebinar() {
     const handleBeforeUnload = () => {
       if (trackingRef.current.sessionId && webinar?.id) {
         const watchedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        // Send as application/json so express.json() parses the body
+        // (a bare string is sent as text/plain and arrives empty).
         navigator.sendBeacon(
           `/api/webinars/${webinar.id}/track/leave`,
-          JSON.stringify({ sessionId: trackingRef.current.sessionId, watchedSeconds })
+          new Blob(
+            [JSON.stringify({ sessionId: trackingRef.current.sessionId, watchedSeconds })],
+            { type: "application/json" },
+          ),
         );
       }
     };
@@ -824,6 +836,7 @@ export default function WatchWebinar() {
         </p>
         {webinar.offerUrl && webinar.offerTitle && (
           <a href={webinar.offerUrl} target="_blank" rel="noopener noreferrer"
+            onClick={() => trackEvent("cta_click")}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm text-black"
             style={{ background: GOLD }}>
             {webinar.offerTitle} →
@@ -1004,6 +1017,7 @@ export default function WatchWebinar() {
                   onClick={() => {
                     if (wsRef.current?.readyState === WebSocket.OPEN && webinar?.id)
                       wsRef.current.send(JSON.stringify({ type: "wr_cta_click", webinarId: webinar.id, name: regForm.name, url: activeCta.url }));
+                    trackEvent("cta_click");
                   }}
                   className="flex-shrink-0 px-4 py-2 rounded-xl font-black text-xs text-black transition-transform hover:scale-105 cta-shimmer"
                   style={{ background: GOLD }}>
@@ -1022,6 +1036,7 @@ export default function WatchWebinar() {
           {webinar.offerUrl && webinar.offerTitle && !activeCta && (
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
               <a href={webinar.offerUrl} target="_blank" rel="noopener noreferrer"
+                onClick={() => trackEvent("cta_click")}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-sm text-black shadow-2xl transition-transform hover:scale-105"
                 style={{ background: GOLD }}>
                 {webinar.offerTitle} →
@@ -1046,6 +1061,7 @@ export default function WatchWebinar() {
                         onClick={() => {
                           if (wsRef.current?.readyState === WebSocket.OPEN && webinar?.id)
                             wsRef.current.send(JSON.stringify({ type: "wr_poll_vote", webinarId: webinar.id, pollId: activePoll.pollId, optionIndex: i, name: regForm.name }));
+                          trackEvent("poll_vote");
                           setPollVoted(true);
                           setActivePoll(prev => { if (!prev) return null; const v = [...prev.votes]; v[i] = (v[i] || 0) + 1; return { ...prev, votes: v }; });
                         }}

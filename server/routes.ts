@@ -19,6 +19,7 @@ import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, g
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
+import { computeWebinarTimeline, computeStayRates, matchAttendedRegistrations, sessionEndMs, dropOffMinute, median, normEmail, pct } from "./webinar-analytics";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
 import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson } from "./aiService";
 
@@ -13094,11 +13095,12 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   // Track when a viewer joins the webinar
   app.post("/api/webinars/:id/track/join", async (req: Request, res: Response) => {
     try {
-      const { viewerId, viewerName, ipAddress, userAgent, referrer } = req.body;
+      const { viewerId, viewerName, viewerEmail, ipAddress, userAgent, referrer } = req.body;
       if (!viewerId) return res.status(400).json({ message: "viewerId required" });
+      const webinarId = p(req.params.id);
 
       const session = await storage.createWebinarViewerSession({
-        webinarId: p(req.params.id),
+        webinarId,
         viewerId,
         viewerName: viewerName || "Anonymous",
         ipAddress: ipAddress || null,
@@ -13109,13 +13111,31 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
         isActive: true,
       });
 
-      // Upsert analytics record
-      const existing = await storage.getWebinarAnalytics(p(req.params.id));
-      if (existing) {
-        await storage.upsertWebinarAnalytics(p(req.params.id), {
-          totalViewers: (existing.totalViewers || 0) + 1,
-        });
+      // Record the join with the viewer's email so the session can be linked
+      // back to their registration (sessions have no email column).
+      const email = normEmail(viewerEmail);
+      await storage.createWebinarEvent({
+        webinarId,
+        eventType: "viewer_join",
+        viewerId,
+        viewerName: viewerName || "Anonymous",
+        data: { sessionId: session.id, ...(email ? { email } : {}) },
+      }).catch(() => {});
+
+      // Mark the matching registration as attended.
+      if (email) {
+        try {
+          const regs = await storage.getWebinarRegistrations(webinarId);
+          const reg = regs.find((r: any) => normEmail(r.email) === email);
+          if (reg && !reg.attended) await storage.markWebinarRegistrationAttended(reg.id);
+        } catch {}
       }
+
+      // Upsert analytics record (creates it on first join)
+      const existing = await storage.getWebinarAnalytics(webinarId);
+      await storage.upsertWebinarAnalytics(webinarId, {
+        totalViewers: (existing?.totalViewers || 0) + 1,
+      });
 
       res.status(201).json({ sessionId: session.id });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -13127,7 +13147,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       const { sessionId, watchedSeconds } = req.body;
       if (!sessionId) return res.status(400).json({ message: "sessionId required" });
 
-      const session = await storage.updateWebinarViewerSession(sessionId, {
+      await storage.updateWebinarViewerSession(sessionId, {
         lastHeartbeatAt: new Date(),
         watchedSeconds: watchedSeconds || 0,
         isActive: true,
@@ -13136,8 +13156,8 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       // Update peak concurrent
       const activeCount = await storage.getActiveViewerCount(p(req.params.id));
       const analytics = await storage.getWebinarAnalytics(p(req.params.id));
-      if (analytics) {
-        const newPeak = Math.max(analytics.peakConcurrent || 0, activeCount);
+      const newPeak = Math.max(analytics?.peakConcurrent || 0, activeCount);
+      if (!analytics || newPeak !== analytics.peakConcurrent) {
         await storage.upsertWebinarAnalytics(p(req.params.id), { peakConcurrent: newPeak });
       }
 
@@ -13145,10 +13165,13 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // Track when a viewer leaves
+  // Track when a viewer leaves (also hit via navigator.sendBeacon on unload)
   app.post("/api/webinars/:id/track/leave", async (req: Request, res: Response) => {
     try {
-      const { sessionId, watchedSeconds } = req.body;
+      let body: any = req.body;
+      // Older clients sent the beacon as text/plain; tolerate a raw JSON string.
+      if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
+      const { sessionId, watchedSeconds } = body || {};
       if (!sessionId) return res.status(400).json({ message: "sessionId required" });
 
       await storage.updateWebinarViewerSession(sessionId, {
@@ -13164,11 +13187,12 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   // Track a custom engagement event (chat, reaction, question, poll_vote, cta_click)
   app.post("/api/webinars/:id/track/event", async (req: Request, res: Response) => {
     try {
-      const { eventType } = req.body;
+      const { eventType, viewerId, viewerName } = req.body;
       if (!eventType) return res.status(400).json({ message: "eventType required" });
+      const webinarId = p(req.params.id);
 
       // Update analytics counters
-      const analytics = await storage.getWebinarAnalytics(p(req.params.id));
+      const analytics = await storage.getWebinarAnalytics(webinarId);
       const update: any = {};
       switch (eventType) {
         case "chat": update.totalChatMessages = (analytics?.totalChatMessages || 0) + 1; break;
@@ -13178,7 +13202,16 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
         case "cta_click": update.totalCtaClicks = (analytics?.totalCtaClicks || 0) + 1; break;
       }
       if (Object.keys(update).length > 0) {
-        await storage.upsertWebinarAnalytics(p(req.params.id), update);
+        await storage.upsertWebinarAnalytics(webinarId, update);
+        // Persist the event itself so we can chart it per minute and count
+        // unique CTA clickers.
+        await storage.createWebinarEvent({
+          webinarId,
+          eventType,
+          viewerId: typeof viewerId === "string" ? viewerId : null,
+          viewerName: typeof viewerName === "string" ? viewerName : null,
+          data: null,
+        }).catch(() => {});
       }
 
       res.json({ ok: true });
@@ -13196,67 +13229,99 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       const sessions = await storage.getWebinarViewerSessions(webinarId);
       const analytics = await storage.getWebinarAnalytics(webinarId);
       const events = await storage.getWebinarEvents(webinarId);
+      const now = Date.now();
+
+      // Link viewer sessions to registrations and backfill `attended` for
+      // viewers who joined before join-time marking existed.
+      const matched = matchAttendedRegistrations(registrations as any, sessions as any, events as any);
+      for (const r of registrations as any[]) {
+        const watched = matched.get(r.id);
+        if (watched === undefined) continue;
+        if (!r.attended || (watched > 0 && watched !== r.watchedDuration)) {
+          await storage.markWebinarRegistrationAttended(r.id, watched).catch(() => {});
+          r.attended = true;
+          if (watched > 0) r.watchedDuration = watched;
+        }
+      }
 
       const attended = registrations.filter((r: any) => r.attended).length;
       const uniqueViewers = sessions.length;
+      const uniqueViewerIds = new Set(sessions.map((s: any) => s.viewerId)).size;
       const totalWatchSeconds = sessions.reduce((sum: number, s: any) => sum + (s.watchedSeconds || 0), 0);
       const avgWatchTime = uniqueViewers > 0 ? Math.round(totalWatchSeconds / uniqueViewers) : 0;
+      const medianWatchTime = median(sessions.map((s: any) => s.watchedSeconds || 0));
       const duration = webinar.startedAt && webinar.endedAt
         ? Math.round((new Date(webinar.endedAt).getTime() - new Date(webinar.startedAt).getTime()) / 1000)
         : (webinar.durationMinutes || 0) * 60;
 
-      // Build timeline from events
-      const timeline: any[] = [];
-      if (events.length > 0) {
-        const grouped = new Map<string, { viewers: Set<string>; chats: number; reactions: number; questions: number; ctaClicks: number }>();
-        events.forEach((e: any) => {
-          const key = e.viewerId || "unknown";
-          if (!grouped.has(key)) grouped.set(key, { viewers: new Set(), chats: 0, reactions: 0, questions: 0, ctaClicks: 0 });
-          const g = grouped.get(key)!;
-          g.viewers.add(key);
-          if (e.eventType === "chat") g.chats++;
-          else if (e.eventType === "reaction") g.reactions++;
-          else if (e.eventType === "question") g.questions++;
-          else if (e.eventType === "cta_click") g.ctaClicks++;
-        });
-        let minute = 0;
-        for (const [, g] of grouped) {
-          timeline.push({
-            minute: minute++,
-            viewers: g.viewers.size,
-            chats: g.chats,
-            reactions: g.reactions,
-            ctaClicks: g.ctaClicks,
-          });
-        }
-      }
+      // Real per-minute concurrent-viewer series from viewer sessions.
+      const { timeline, startMs, endMs } = computeWebinarTimeline({ webinar, sessions, events, now });
+      const peakPoint = timeline.reduce<{ minute: number; viewers: number } | null>(
+        (best, t) => (!best || t.viewers > best.viewers ? { minute: t.minute, viewers: t.viewers } : best), null);
+      const storedPeak = analytics?.peakConcurrent || webinar.peakViewers || 0;
+      const peakViewers = Math.max(storedPeak, peakPoint?.viewers || 0);
+
+      // "Attendees" = registrations that showed up; fall back to distinct
+      // viewers when nobody could be linked to a registration.
+      const attendees = attended > 0 ? attended : uniqueViewerIds;
+      const stayRate = computeStayRates(timeline, attendees);
+
+      // Engagement / conversion
+      const ctaClicks = analytics?.totalCtaClicks || 0;
+      const ctaEvents = events.filter((e: any) => e.eventType === "cta_click");
+      const ctaClickerIds = new Set(ctaEvents.map((e: any) => e.viewerId).filter(Boolean));
+      // Unique clickers when we have per-viewer events, otherwise the raw counter.
+      const ctaClickers = ctaClickerIds.size > 0 ? Math.min(ctaClickerIds.size, ctaClicks || ctaClickerIds.size) : ctaClicks;
+      const showRate = registrations.length > 0 ? Math.round((attended / registrations.length) * 100) : 0;
 
       res.json({
         webinar,
         registrations: registrations.length,
         attended,
         uniqueViewers,
-        peakViewers: analytics?.peakConcurrent || webinar.peakViewers || 0,
+        peakViewers,
         avgWatchTime,
         totalWatchSeconds,
         chatMessages: analytics?.totalChatMessages || 0,
         qaQuestions: analytics?.totalQuestions || 0,
         totalReactions: analytics?.totalReactions || 0,
         pollVotes: analytics?.totalPollVotes || 0,
-        ctaClicks: analytics?.totalCtaClicks || 0,
+        ctaClicks,
         engagementRate: analytics?.engagementRate || 0,
-        showRate: registrations.length > 0 ? Math.round((attended / registrations.length) * 100) : 0,
+        showRate,
         completionRate: analytics?.completionRate || 0,
         duration,
         timeline,
-        attendeeList: sessions.map((s: any) => ({
-          id: s.viewerId,
-          name: s.viewerName,
-          joinedAt: s.joinedAt,
-          lastHeartbeat: s.lastHeartbeatAt,
-          watchedSeconds: s.watchedSeconds || 0,
-          active: s.isActive,
-        })),
+        attendeeList: sessions.map((s: any) => {
+          const end = sessionEndMs(s, now);
+          return {
+            id: s.viewerId,
+            name: s.viewerName,
+            joinedAt: s.joinedAt,
+            leftAt: end != null ? new Date(end) : null,
+            lastHeartbeat: s.lastHeartbeatAt,
+            watchedSeconds: s.watchedSeconds || 0,
+            active: s.isActive && end == null,
+            dropOffMinute: dropOffMinute(s, startMs, now),
+          };
+        }),
+        // ── New fields (additive) ──
+        uniqueViewerIds,
+        attendees,
+        medianWatchTime,
+        peakMinute: peakPoint && peakPoint.viewers > 0 ? peakPoint.minute : null,
+        timelineStartedAt: startMs != null ? new Date(startMs) : null,
+        timelineEndedAt: endMs != null ? new Date(endMs) : null,
+        stayRate,
+        ctaClickers,
+        conversion: {
+          registered: registrations.length,
+          attended,
+          clickedCta: ctaClickers,
+          showRate: pct(attended, registrations.length),
+          ctaPerAttendee: pct(ctaClickers, attendees),
+          ctaPerRegistration: pct(ctaClickers, registrations.length),
+        },
       });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
