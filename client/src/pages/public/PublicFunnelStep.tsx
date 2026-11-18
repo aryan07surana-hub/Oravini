@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import ThemedPage from "@/components/pages/ThemedPage";
+import { FunnelWebinarBlock, useFunnelWebinar } from "@/components/funnel/FunnelWebinarBlock";
 import { getUtmParams } from "@/lib/utm";
 import { Loader2, ArrowRight, CheckCircle, Star, Play, Timer, DollarSign, X, Shield, Sparkles, ChevronDown } from "lucide-react";
 
@@ -534,6 +535,37 @@ function ExitIntentPopup({ config, accent }: { config: any; accent: string }) {
   );
 }
 
+// ── Webinar step (registration → live → replay) ───────────────────────────────
+
+// Registration-only sections are hidden once the webinar is live / over.
+const REGISTRATION_ONLY_SECTIONS = new Set(["form", "countdown"]);
+
+function WebinarStepContent({ funnelSlug, step, sections, accent }: { funnelSlug: string; step: any; sections: any[]; accent: string }) {
+  const { settings, phase } = useFunnelWebinar(funnelSlug, step.slug, step.webinar);
+  if (!settings || !phase) return null;
+  const visible = phase === "registration" ? sections : sections.filter((s: any) => !REGISTRATION_ONLY_SECTIONS.has(s.type));
+  return (
+    <>
+      <FunnelWebinarBlock settings={settings} phase={phase} funnelSlug={funnelSlug} stepSlug={step.slug} accent={accent} />
+      {visible.map((s: any) => <Section key={s.id} section={s} accent={accent} funnelSlug={funnelSlug} stepSlug={step.slug} />)}
+    </>
+  );
+}
+
+/** Webinar step that also has a template theme: webinar room first, then the themed sections. */
+function ThemedWebinarStep({ funnelSlug, step, onLead }: { funnelSlug: string; step: any; onLead: (lead: any) => Promise<void> }) {
+  const { settings, phase } = useFunnelWebinar(funnelSlug, step.slug, step.webinar);
+  const sections: any[] = Array.isArray(step.sections) ? step.sections : [];
+  if (!settings || !phase) return null;
+  const visible = phase === "registration" ? sections : sections.filter((s: any) => !REGISTRATION_ONLY_SECTIONS.has(s.type));
+  return (
+    <div style={{ background: step.theme?.palette?.bg || BG }}>
+      <FunnelWebinarBlock settings={settings} phase={phase} funnelSlug={funnelSlug} stepSlug={step.slug} accent={step.theme?.palette?.primary || "#d4b461"} />
+      <ThemedPage theme={step.theme} sections={visible} onLead={onLead} />
+    </div>
+  );
+}
+
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
 export default function PublicFunnelStep({ notFound, funnelSlugOverride, stepSlugOverride }: { notFound?: React.ReactNode; funnelSlugOverride?: string; stepSlugOverride?: string } = {}) {
@@ -575,21 +607,18 @@ export default function PublicFunnelStep({ notFound, funnelSlugOverride, stepSlu
 
   // Themed steps (template gallery / unified page engine) render with ThemedPage.
   if (step.theme) {
-    return (
-      <ThemedPage
-        theme={step.theme}
-        sections={Array.isArray(step.sections) ? step.sections : []}
-        onLead={async (lead) => {
-          const r = await fetch(`/api/f/${encodeURIComponent(funnelSlug)}/${encodeURIComponent(step.slug)}/lead`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...lead, ...getUtmParams() }),
-          });
-          const out = await r.json().catch(() => ({}));
-          if (!r.ok) throw new Error(out.message || "Something went wrong");
-          if (out.nextSlug) navTo(funnelSlugOverride ? `/${out.nextSlug}` : `/f/${out.funnelSlug}/${out.nextSlug}`);
-        }}
-      />
-    );
+    const onLead = async (lead: any) => {
+      const r = await fetch(`/api/f/${encodeURIComponent(funnelSlug)}/${encodeURIComponent(step.slug)}/lead`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...lead, ...getUtmParams() }),
+      });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(out.message || "Something went wrong");
+      if (out.nextSlug) navTo(funnelSlugOverride ? `/${out.nextSlug}` : `/f/${out.funnelSlug}/${out.nextSlug}`);
+    };
+    // Webinar steps keep their registration → live → replay room above the themed sections.
+    if (step.type === "webinar" && step.webinar) return <ThemedWebinarStep funnelSlug={funnelSlug} step={step} onLead={onLead} />;
+    return <ThemedPage theme={step.theme} sections={Array.isArray(step.sections) ? step.sections : []} onLead={onLead} />;
   }
   const accent = ACCENT_MAP[step.color_scheme || "gold"] || "#d4b461";
   const sections: any[] = Array.isArray(step.sections) ? step.sections : [];
@@ -606,7 +635,9 @@ export default function PublicFunnelStep({ notFound, funnelSlugOverride, stepSlu
       <div className="pointer-events-none fixed top-0 left-0 right-0 h-96" style={{ background: `radial-gradient(ellipse 120% 40% at 50% 0%, ${accent}10 0%, transparent 65%)` }} />
 
       <div className="relative z-10 max-w-5xl mx-auto pb-32">
-        {sections.length > 0 ? (
+        {step.type === "webinar" && step.webinar ? (
+          <WebinarStepContent funnelSlug={funnelSlug} step={step} sections={sections} accent={accent} />
+        ) : sections.length > 0 ? (
           sections.map((s: any) => <Section key={s.id} section={s} accent={accent} funnelSlug={funnelSlug} stepSlug={step.slug} />)
         ) : (
           <div className="flex items-center justify-center h-80">

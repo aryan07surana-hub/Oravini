@@ -23,6 +23,8 @@ import "@xyflow/react/dist/style.css";
 import TemplateGallery from "@/components/pages/TemplateGallery";
 import { ShareDomainModal } from "@/components/pages/ShareDomainPanel";
 import { instantiateTemplate, type PageTemplate } from "@shared/pageTemplates";
+import { formatIST } from "@shared/webinarFunnel";
+import { getFunnelWebinarPhase, type FunnelWebinarSettings } from "@shared/funnelWebinar";
 import {
   ArrowLeft, Plus, Trash2, Edit3, Globe, Loader2, X, Check,
   Users, Eye, DollarSign, Layers, BarChart2, Zap, Link2,
@@ -45,7 +47,7 @@ const STEP_META: Record<string, { label: string; color: string; icon: string; de
   order_bump:   { label: "Order Bump",       color: "#ec4899", icon: "🛒", desc: "Add-on at checkout" },
   thank_you:    { label: "Thank You",        color: "#a855f7", icon: "🙏", desc: "Post opt-in delivery" },
   confirmation: { label: "Confirmation",     color: "#06b6d4", icon: "✅", desc: "Order confirmed" },
-  webinar:      { label: "Webinar Room",     color: "#ec4899", icon: "📡", desc: "Live or replay room" },
+  webinar:      { label: "Webinar",          color: "#ec4899", icon: "📡", desc: "Register → live → replay + offer" },
 };
 
 const STEP_TYPES = Object.keys(STEP_META);
@@ -59,7 +61,15 @@ type Step = {
   price: number | null; product_name: string | null;
   visits: number; conversions: number;
   canvas_x: number; canvas_y: number;
+  webinar?: FunnelWebinarSettings | null;
 };
+
+const WEBINAR_PHASE_BADGE = {
+  registration: { label: "Registration", color: "#34d399" },
+  live:         { label: "Live",         color: "#f87171" },
+  replay:       { label: "Replay",       color: "#a78bfa" },
+  ended:        { label: "Ended",        color: "#71717a" },
+} as const;
 
 type Funnel = {
   id: string; name: string; slug: string; status: string;
@@ -128,6 +138,18 @@ function StepNode({ data }: NodeProps) {
         <div className="p-3">
           <p className="text-white font-black text-sm mb-0.5 truncate">{step.name}</p>
           <p className="text-zinc-600 text-[10px] truncate mb-2">/f/…/{step.slug}</p>
+          {step.type === "webinar" && step.webinar && (() => {
+            const b = WEBINAR_PHASE_BADGE[getFunnelWebinarPhase(step.webinar)];
+            return (
+              <div data-testid={`node-webinar-${step.id}`} className="flex items-center gap-1.5 mb-2 text-[10px]">
+                <span className="px-1.5 py-0.5 rounded font-black uppercase tracking-wider" style={{ background: `${b.color}18`, color: b.color }}>{b.label}</span>
+                <span className="text-zinc-400 truncate">📅 {formatIST(step.webinar.scheduledAt)}</span>
+              </div>
+            );
+          })()}
+          {step.type === "webinar" && !step.webinar && (
+            <p className="text-[10px] text-zinc-600 mb-2">Webinar not set up yet</p>
+          )}
           {step.price && (
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mb-2" style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}25` }}>
               <DollarSign className="w-2.5 h-2.5" style={{ color: GOLD }} />
