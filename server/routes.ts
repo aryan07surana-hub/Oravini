@@ -10,6 +10,10 @@ import path from "path";
 import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
+import { captureLeadToCrmInBackground, pickUtm } from "./crmLeadCapture";
+import { ensurePageDomainsSchema, backfillSubdomains, ensureSubdomain, registerPageDomainRoutes } from "./pageDomains";
+import { ensurePageStudioSchema, registerPageStudioRoutes } from "./pageStudio";
+import { normalizeTheme } from "@shared/pageEngine";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
@@ -398,6 +402,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     console.log("[migration] Funnels tables ready");
   } catch (e: any) {
     console.error("[migration] Failed to ensure funnels:", e.message);
+  }
+
+  // ── Unified builder: themes, page versions, subdomains, custom domains (additive) ──
+  try {
+    await ensurePageStudioSchema();
+    await ensurePageDomainsSchema();
+    console.log("[migration] Page studio + page domains ready");
+    backfillSubdomains().catch(e => console.error("[page-domains] backfill failed:", e.message));
+  } catch (e: any) {
+    console.error("[migration] Failed to ensure page studio/domains:", e.message);
   }
 
   app.use("/uploads", (req, res, next) => {
@@ -15783,6 +15797,8 @@ CRITICAL RULES:
   // ── CRM Suite (native, GHL-style — Contacts · Pipelines · Activities · Tasks) ─
   await bootstrapCrmSuite().catch(err => console.error("[crm-suite] bootstrap failed:", err));
   registerCrmSuiteRoutes(app, requireAuth);
+  registerPageStudioRoutes(app, requireAuth);
+  registerPageDomainRoutes(app, requireAuth);
 
   // ── CRM Public API (API key auth — landing pages POST contacts directly) ─────
   await bootstrapCrmPublicApi().catch(err => console.error("[crm-public-api] bootstrap failed:", err));
@@ -16546,6 +16562,7 @@ Generate 3 variations of this hook for this niche. Return JSON:
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
         [user.id, title || "Untitled Page", template || "vsl", colorScheme || "gold", JSON.stringify(sections || []), slug]
       );
+      rows[0].subdomain = await ensureSubdomain("landing_page", rows[0].id).catch(() => null);
       res.json(rows[0]);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -16554,6 +16571,8 @@ Generate 3 variations of this hook for this niche. Return JSON:
     try {
       const user = req.user as any;
       const { title, sections, published, color_scheme, slug } = req.body;
+      // theme: AI Page Studio visual theme (validated); null clears it back to the classic renderer
+      const themeJson = req.body.theme === undefined ? undefined : req.body.theme === null ? null : JSON.stringify(normalizeTheme(req.body.theme));
       // Validate slug uniqueness if changing
       if (slug) {
         const { rows: conflict } = await pool.query(
@@ -16569,6 +16588,7 @@ Generate 3 variations of this hook for this niche. Return JSON:
              published = COALESCE($3, published),
              color_scheme = COALESCE($4, color_scheme),
              slug = COALESCE($5, slug),
+             theme = CASE WHEN $8::boolean THEN $9::jsonb ELSE theme END,
              updated_at = now()
          WHERE id = $6 AND user_id = $7 RETURNING *`,
         [
@@ -16579,9 +16599,12 @@ Generate 3 variations of this hook for this niche. Return JSON:
           slug ?? null,
           req.params.id,
           user.id,
+          themeJson !== undefined,
+          themeJson ?? null,
         ]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      if (rows[0].published && !rows[0].subdomain) rows[0].subdomain = await ensureSubdomain("landing_page", rows[0].id).catch(() => null);
       res.json(rows[0]);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -16668,17 +16691,28 @@ Rules:
   app.post("/api/lp/:slug/lead", async (req: Request, res: Response) => {
     try {
       const { name, email, phone } = req.body;
-      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      // email is required; name is optional (email-only opt-in forms)
+      if (!email || !/^\S+@\S+\.\S+$/.test(String(email))) return res.status(400).json({ message: "A valid email is required" });
       const { rows } = await pool.query(
-        "SELECT id FROM marketing_landing_pages WHERE slug = $1 AND published = true",
+        "SELECT id, user_id, title, slug FROM marketing_landing_pages WHERE slug = $1 AND published = true",
         [p(req.params.slug)]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      // CRM: attach the lead to the landing page owner's contacts (fire-and-forget)
+      captureLeadToCrmInBackground({
+        userId: rows[0].user_id,
+        email, name, phone,
+        source: "landing",
+        tags: ["landing-lead", `lp:${rows[0].slug}`],
+        activityTitle: `Submitted landing page "${rows[0].title || rows[0].slug}"`,
+        context: { landingPageId: rows[0].id, landingPageSlug: rows[0].slug },
+        utm: pickUtm(req.body),
+      });
       await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [rows[0].id]);
       try {
         await pool.query(
           "INSERT INTO landing_leads (name, email, phone, source) VALUES ($1, $2, $3, $4)",
-          [name, email, phone || null, `lp:${p(req.params.slug)}`]
+          [name || "", email, phone || null, `lp:${p(req.params.slug)}`]
         );
       } catch {}
       res.json({ ok: true });
@@ -16911,6 +16945,7 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
         [user.id, name, slug]
       );
       const funnel = rows[0];
+      funnel.subdomain = await ensureSubdomain("funnel", funnel.id).catch(() => null);
 
       // auto-create first step based on template
       const firstSteps: Record<string, { name: string; type: string }[]> = {
@@ -16953,6 +16988,7 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
         [name, status, slug, req.params.id, user.id]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      if (rows[0].status === "active" && !rows[0].subdomain) rows[0].subdomain = await ensureSubdomain("funnel", rows[0].id).catch(() => null);
       res.json(rows[0]);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -16992,6 +17028,8 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
       const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
       if (!f[0]) return res.status(403).json({ message: "Forbidden" });
       const { name, type, sections, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x, canvas_y } = req.body;
+      // theme: unified page-engine theme (set by the template gallery); null reverts to the classic step renderer
+      const stepThemeJson = req.body.theme === undefined ? undefined : req.body.theme === null ? null : JSON.stringify(normalizeTheme(req.body.theme));
       const { rows } = await pool.query(
         `UPDATE funnel_steps SET
           name = COALESCE($1, name),
@@ -17006,9 +17044,10 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
           position = COALESCE($10, position),
           canvas_x = COALESCE($11, canvas_x),
           canvas_y = COALESCE($12, canvas_y),
+          theme = CASE WHEN $15::boolean THEN $16::jsonb ELSE theme END,
           updated_at = now()
          WHERE id = $13 AND funnel_id = $14 RETURNING *`,
-        [name, type, sections ? JSON.stringify(sections) : null, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x ?? null, canvas_y ?? null, req.params.stepId, req.params.id]
+        [name, type, sections ? JSON.stringify(sections) : null, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x ?? null, canvas_y ?? null, req.params.stepId, req.params.id, stepThemeJson !== undefined, stepThemeJson ?? null]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
       res.json(rows[0]);
@@ -17212,6 +17251,17 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
       if (!funnels[0]) return res.status(404).json({ message: "Not found" });
       const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
       if (!steps[0]) return res.status(404).json({ message: "Not found" });
+      // CRM: attach the opt-in to the funnel owner's contacts (fire-and-forget)
+      captureLeadToCrmInBackground({
+        userId: funnels[0].user_id,
+        email, name, phone,
+        source: "funnel",
+        tags: ["funnel-lead", `funnel:${funnels[0].slug}`],
+        activityTitle: `Opted in on funnel "${funnels[0].name || funnels[0].slug}"`,
+        activityBody: `Step: ${steps[0].name || steps[0].slug}`,
+        context: { funnelId: funnels[0].id, funnelSlug: funnels[0].slug, stepId: steps[0].id, stepSlug: steps[0].slug },
+        utm: pickUtm(req.body),
+      });
       await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
       await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
       try {

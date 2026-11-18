@@ -1,5 +1,5 @@
-import { Component, type ReactNode, type ErrorInfo } from "react";
-import { Switch, Route, Redirect } from "wouter";
+import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
@@ -138,8 +138,9 @@ import Domains from "@/pages/client/Domains";
 import FunnelAnalytics from "@/pages/client/FunnelAnalytics";
 import FunnelAutomations from "@/pages/client/FunnelAutomations";
 import FunnelDomain from "@/pages/client/FunnelDomain";
-import PublicFunnelDomain from "@/pages/public/PublicFunnelDomain";
+// PublicFunnelDomain (legacy custom-domain redirector) is superseded by HostGate; file kept for reference.
 import PublicFunnelStep from "@/pages/public/PublicFunnelStep";
+import PageStudio, { PageStudioNew } from "@/pages/client/PageStudio";
 import ClientScheduling from "@/pages/client/Scheduling";
 import Analytics from "@/pages/client/Analytics";
 import MentorKit from "@/pages/client/MentorKit";
@@ -246,12 +247,48 @@ function HomeRedirect() {
 
 // Known app hostnames — custom domain detection skips these
 const APP_HOSTNAMES = ["localhost", "oravini.com", "www.oravini.com", "app.oravini.com", "onrender.com"]; // onrender.com: Render service + PR preview hosts (*.onrender.com)
-const isCustomDomain = !APP_HOSTNAMES.some(h => window.location.hostname === h || window.location.hostname.endsWith(`.${h}`));
+// Hosts that might serve a single published page: custom domains and <sub>.<base domain>.
+// Exact app hosts, localhost and *.onrender.com never trigger a lookup.
+const _host = window.location.hostname;
+const EXACT_APP_HOSTS = ["localhost", "127.0.0.1", "oravini.com", "www.oravini.com", "app.oravini.com"];
+const mayBePageHost = !EXACT_APP_HOSTS.includes(_host) && !_host.endsWith(".onrender.com");
+void APP_HOSTNAMES;
+
+type HostResolution = { kind: "app" } | { kind: "landing"; slug: string } | { kind: "funnel"; slug: string } | { kind: "pending"; domain: string };
+
+/** Host-header routing: serves a page/funnel on its own (sub)domain; anything unknown falls back to the app. */
+function HostGate({ children }: { children: React.ReactNode }) {
+  const [res, setRes] = useState<HostResolution | null>(mayBePageHost ? null : { kind: "app" });
+  const [location] = useLocation();
+  useEffect(() => {
+    if (!mayBePageHost) return;
+    fetch("/api/public/resolve-host").then(r => (r.ok ? r.json() : { kind: "app" })).catch(() => ({ kind: "app" })).then(setRes);
+  }, []);
+  if (!res) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    </div>
+  );
+  if (res.kind === "landing") return <PublicLandingPage slugOverride={res.slug} />;
+  if (res.kind === "funnel") {
+    const seg = location.split("/").filter(Boolean);
+    const step = seg[0] === "f" ? seg[2] : seg[0];
+    return <PublicFunnelStep key={step || "root"} funnelSlugOverride={res.slug} stepSlugOverride={step} />;
+  }
+  if (res.kind === "pending") return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#040406] px-6 text-center">
+      <p className="text-white font-bold text-lg">This domain is being connected</p>
+      <p className="text-zinc-500 text-sm">{res.domain} isn't verified yet. If you own it, finish DNS verification in Oravini.</p>
+    </div>
+  );
+  return <>{children}</>;
+}
 
 function Router() {
-  // Custom domain visitor — resolve domain → funnel slug and redirect
-  if (isCustomDomain) return <PublicFunnelDomain />;
+  return <HostGate><AppRoutes /></HostGate>;
+}
 
+function AppRoutes() {
   return (
     <Switch>
       {/* Public */}
@@ -330,6 +367,8 @@ function Router() {
       <Route path="/funnels/:id/domain">{() => <Guard component={FunnelDomain} />}</Route>
       <Route path="/funnels/:funnelId/steps/:stepId/edit">{() => <Guard component={FunnelStepBuilder} />}</Route>
       <Route path="/pages">{() => <Redirect to="/pages-hub" />}</Route>
+      <Route path="/pages/new">{() => <Guard component={PageStudioNew} />}</Route>
+      <Route path="/pages/studio/:id">{() => <Guard component={PageStudio} />}</Route>
       <Route path="/pages/:funnelId/step/:stepId">{() => <Guard component={FunnelStepBuilder} />}</Route>
       <Route path="/domains">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>

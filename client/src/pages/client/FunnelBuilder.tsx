@@ -20,6 +20,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import TemplateGallery from "@/components/pages/TemplateGallery";
+import { ShareDomainModal } from "@/components/pages/ShareDomainPanel";
+import { instantiateTemplate, type PageTemplate } from "@shared/pageTemplates";
 import {
   ArrowLeft, Plus, Trash2, Edit3, Globe, Loader2, X, Check,
   Users, Eye, DollarSign, Layers, BarChart2, Zap, Link2,
@@ -384,7 +387,7 @@ function StepSettings({ step, allSteps, saving, onSave, onClose }: {
 
 // ── Add Step Modal ────────────────────────────────────────────────────────────
 
-function AddStepModal({ onAdd, onClose }: { onAdd: (type: string, name: string) => void; onClose: () => void }) {
+function AddStepModal({ onAdd, onClose, onTemplate }: { onAdd: (type: string, name: string) => void; onClose: () => void; onTemplate: () => void }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -397,6 +400,18 @@ function AddStepModal({ onAdd, onClose }: { onAdd: (type: string, name: string) 
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: PANEL_BORDER }}>
           <p className="font-black text-white">Add Step</p>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="px-3 pt-3">
+          <button data-testid="add-step-template" onClick={() => { onClose(); onTemplate(); }}
+            className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all hover:brightness-125"
+            style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}35` }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: `${GOLD}18` }}>✨</div>
+            <div className="flex-1">
+              <p className="text-sm font-black text-white">Start from a designed template</p>
+              <p className="text-[10px] text-zinc-500">Landing, webinar registration, opt-in, sales, VSL and waitlist pages — preview, then add</p>
+            </div>
+          </button>
+          <p className="text-[10px] font-black uppercase tracking-wider text-zinc-600 px-1 pt-3">Or a blank step</p>
         </div>
         <div className="p-3 grid grid-cols-2 gap-2">
           {STEP_TYPES.map(type => {
@@ -477,6 +492,28 @@ function FunnelCanvas({ funnelId, steps, onStepsChange }: {
       });
     }, 600);
   }, [funnelId, steps, onStepsChange]);
+
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const addStepFromTemplate = async (tpl: PageTemplate) => {
+    setGalleryBusy(true);
+    try {
+      const r = await fetch(`/api/funnels/${funnelId}/steps`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ type: tpl.stepType, name: tpl.name }),
+      });
+      const created = await r.json();
+      const { theme, sections } = instantiateTemplate(tpl);
+      const r2 = await fetch(`/api/funnels/${funnelId}/steps/${created.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ sections, theme }),
+      });
+      const step = r2.ok ? await r2.json() : created;
+      onStepsChange([...steps, step]);
+      setSelectedId(step.id);
+      setGalleryOpen(false);
+    } finally { setGalleryBusy(false); }
+  };
 
   const addStep = async (type: string, name: string) => {
     const r = await fetch(`/api/funnels/${funnelId}/steps`, {
@@ -581,7 +618,8 @@ function FunnelCanvas({ funnelId, steps, onStepsChange }: {
 
       {/* Modals */}
       <AnimatePresence>
-        {showAddModal && <AddStepModal onAdd={addStep} onClose={() => setShowAddModal(false)} />}
+        {showAddModal && <AddStepModal onAdd={addStep} onClose={() => setShowAddModal(false)} onTemplate={() => setGalleryOpen(true)} />}
+        <TemplateGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} busy={galleryBusy} confirmLabel="Add as new step" title="Add a step from a template" onSelect={addStepFromTemplate} />
         {pendingConn && (
           <ConnectModal conn={pendingConn} steps={steps}
             onSave={saveConnection} onClose={() => setPendingConn(null)} />
@@ -620,6 +658,7 @@ export default function FunnelBuilder() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [funnel, setFunnel] = useState<Omit<Funnel, "steps"> | null>(null);
   const [savingFunnel, setSavingFunnel] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -686,10 +725,11 @@ export default function FunnelBuilder() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-white transition-colors">
             <Zap className="w-3.5 h-3.5" />Automations
           </button>
-          <button onClick={() => nav(`/funnels/${id}/domain`)}
+          <button data-testid="funnel-share" onClick={() => setShareOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-white transition-colors">
-            <Link2 className="w-3.5 h-3.5" />Domain
+            <Link2 className="w-3.5 h-3.5" />Share & domain
           </button>
+          <ShareDomainModal open={shareOpen} onClose={() => setShareOpen(false)} targetType="funnel" targetId={id} published={funnel.status === "active"} />
           {funnel.status === "active" && (
             <a href={`/f/${funnel.slug}`} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-white transition-colors">

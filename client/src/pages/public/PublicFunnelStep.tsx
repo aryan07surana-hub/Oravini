@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
+import ThemedPage from "@/components/pages/ThemedPage";
+import { getUtmParams } from "@/lib/utm";
 import { Loader2, ArrowRight, CheckCircle, Star, Play, Timer, DollarSign, X, Shield, Sparkles, ChevronDown } from "lucide-react";
 
 const BG = "#040406";
@@ -51,7 +53,7 @@ function Section({ section, accent, funnelSlug, stepSlug }: { section: any; acce
       const r = await fetch(`/api/f/${funnelSlug}/${stepSlug}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...getUtmParams() }),
       });
       const data = await r.json();
       if (data.nextSlug) nav(`/f/${data.funnelSlug}/${data.nextSlug}`);
@@ -534,11 +536,14 @@ function ExitIntentPopup({ config, accent }: { config: any; accent: string }) {
 
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
-export default function PublicFunnelStep() {
+export default function PublicFunnelStep({ funnelSlugOverride, stepSlugOverride }: { funnelSlugOverride?: string; stepSlugOverride?: string } = {}) {
   const [match1, params1] = useRoute("/f/:slug");
   const [match2, params2] = useRoute("/f/:slug/:stepSlug");
-  const funnelSlug = (params1?.slug || params2?.slug) ?? "";
-  const stepSlug = params2?.stepSlug;
+  const [, navTo] = useLocation();
+  // overrides: funnel served by Host (custom domain / subdomain)
+  const funnelSlug = funnelSlugOverride ?? (params1?.slug || params2?.slug) ?? "";
+  const stepSlug = funnelSlugOverride ? stepSlugOverride : params2?.stepSlug;
+  useEffect(() => { getUtmParams(); }, []);
 
   const { data, isLoading, isError } = useQuery<{ funnel: any; step: any }>({
     queryKey: [`/api/f/${funnelSlug}/${stepSlug || ""}`],
@@ -564,6 +569,25 @@ export default function PublicFunnelStep() {
   );
 
   const { funnel, step } = data;
+
+  // Themed steps (template gallery / unified page engine) render with ThemedPage.
+  if (step.theme) {
+    return (
+      <ThemedPage
+        theme={step.theme}
+        sections={Array.isArray(step.sections) ? step.sections : []}
+        onLead={async (lead) => {
+          const r = await fetch(`/api/f/${encodeURIComponent(funnelSlug)}/${encodeURIComponent(step.slug)}/lead`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...lead, ...getUtmParams() }),
+          });
+          const out = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(out.message || "Something went wrong");
+          if (out.nextSlug) navTo(funnelSlugOverride ? `/${out.nextSlug}` : `/f/${out.funnelSlug}/${out.nextSlug}`);
+        }}
+      />
+    );
+  }
   const accent = ACCENT_MAP[step.color_scheme || "gold"] || "#d4b461";
   const sections: any[] = Array.isArray(step.sections) ? step.sections : [];
   const isOffer = ["upsell", "downsell", "sales"].includes(step.type);
