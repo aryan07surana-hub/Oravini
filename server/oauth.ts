@@ -99,12 +99,17 @@ export function registerOAuthRoutes(app: Express) {
       let igUsername = null;
       let fbPageId = null;
       let fbPageName = null;
+      // Instagram Messaging needs the PAGE access token of the page linked to the
+      // IG business account, not the user token. /me/accounts returns it per page
+      // (long-lived when derived from a long-lived user token).
+      let pageAccessToken: string | null = null;
 
       // Get Instagram Business Account from first page
       if (pagesData.data && pagesData.data.length > 0) {
         const page = pagesData.data[0];
         fbPageId = page.id;
         fbPageName = page.name;
+        pageAccessToken = typeof page.access_token === "string" && page.access_token ? page.access_token : null;
 
         const igResp = await fetch(`https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`);
         const igData = await igResp.json();
@@ -119,8 +124,12 @@ export function registerOAuthRoutes(app: Express) {
         }
       }
 
-      // Save to database (encrypt token at rest)
-      const encryptedToken = encryptToken(accessToken);
+      // Save to database (encrypt token at rest). Store the page token; fall back to
+      // the user token only if no page token came back (no page selected).
+      if (!pageAccessToken) {
+        console.warn(`[meta-oauth] no page access token for user ${userId} (page=${fbPageId ?? "none"}); storing user token — DM/comment sends will not work`);
+      }
+      const encryptedToken = encryptToken(pageAccessToken ?? accessToken);
       await pool.query(
         `INSERT INTO meta_tokens (user_id, access_token, expires_at, scope, ig_account_id, ig_username, fb_page_id, fb_page_name, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())

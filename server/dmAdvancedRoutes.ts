@@ -8,7 +8,7 @@ import {
   conversationNotes, dmScheduledBroadcasts,
   dmLeads, dmContactTags, metaTokens,
 } from "@shared/schema";
-import { sendInstagramDM } from "./meta";
+import { sendInstagramDMForUser } from "./meta";
 import { aiChatJson } from "./aiService";
 
 function requireAuth(req: Request, res: Response, next: Function) {
@@ -311,7 +311,7 @@ export function registerDMAdvancedRoutes(app: Express) {
         let sent = 0;
         for (const lead of leads) {
           if (!lead.instagramHandle) continue;
-          try { await sendInstagramDM(lead.instagramHandle, broadcast.message); sent++; } catch {}
+          try { await sendInstagramDMForUser(userId, lead.instagramHandle, broadcast.message); sent++; } catch {}
         }
         await db.update(dmScheduledBroadcasts).set({ status: "sent", sentAt: new Date(), recipientCount: sent }).where(eq(dmScheduledBroadcasts.id, broadcast.id));
         processed++;

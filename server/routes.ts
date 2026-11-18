@@ -11,7 +11,7 @@ import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
 import { hashPassword } from "./auth";
-import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
@@ -2392,7 +2392,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { recipientId, message } = req.body;
       if (!recipientId?.trim()) return res.status(400).json({ message: "recipientId is required" });
       if (!message?.trim()) return res.status(400).json({ message: "message is required" });
-      const result = await sendInstagramDM(recipientId.trim(), message.trim());
+      const result = await sendInstagramDMForUser((req.user as any).id, recipientId.trim(), message.trim());
       return res.json({ success: true, messageId: result.messageId });
     } catch (err: any) {
       console.log("[send-dm] error:", err.message);
@@ -4446,7 +4446,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       const results: { recipientId: string; success: boolean; error?: string }[] = [];
       for (const recipientId of recipientIgIds) {
         try {
-          await sendInstagramDM(recipientId, message.trim());
+          await sendInstagramDMForUser((req.user as any).id, recipientId, message.trim());
           results.push({ recipientId, success: true });
           // Small delay to avoid rate limiting
           await new Promise(r => setTimeout(r, 300));
