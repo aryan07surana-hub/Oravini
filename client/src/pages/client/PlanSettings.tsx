@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { COMPETITOR_CREDIT_COSTS } from "@shared/competitorCredits";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -49,7 +50,7 @@ const PLANS = [
     cardBg: "rgba(212,180,97,0.07)",
     cardBorder: "rgba(212,180,97,0.35)",
     highlight: true,
-    features: ["Everything in Tier 2", "350 AI credits/month", "No watermarks", "Competitor Intelligence (10 credits)", "AI Content Report (8 credits)", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
+    features: ["Everything in Tier 2", "350 AI credits/month", "No watermarks", `Competitor Intelligence (${COMPETITOR_CREDIT_COSTS.deepAnalysis} credits)`, "AI Content Report (8 credits)", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
   },
   {
     slug: "pro",

@@ -173,6 +173,7 @@ export interface IStorage {
   upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance>;
   activatePlanCredits(userId: string, plan: string): Promise<CreditBalance>;
   deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }>;
+  refundCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<void>;
   addBonusCredits(userId: string, amount: number, description: string): Promise<CreditBalance>;
   getCreditTransactions(userId: string, limit?: number): Promise<CreditTransaction[]>;
   getAllCreditBalances(): Promise<(CreditBalance & { userName?: string; userEmail?: string; userPlan?: string })[]>;
@@ -296,7 +297,7 @@ export interface IStorage {
   addCompetitorToWatchlist(data: InsertCompetitorWatchlistItem): Promise<CompetitorWatchlistItem>;
   updateWatchlistItem(id: string, data: Partial<CompetitorWatchlistItem>): Promise<CompetitorWatchlistItem>;
   removeFromWatchlist(id: string): Promise<void>;
-  createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt'>): Promise<CompetitorSnapshot>;
+  createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt' | 'postsPerWeek'> & { postsPerWeek?: number | null }): Promise<CompetitorSnapshot>;
   getCompetitorSnapshots(watchlistId: string, limit?: number): Promise<CompetitorSnapshot[]>;
   getLatestSnapshot(watchlistId: string): Promise<CompetitorSnapshot | null>;
   createCompetitorAlert(data: Omit<CompetitorAlert, 'id' | 'createdAt'>): Promise<CompetitorAlert>;
@@ -1153,7 +1154,7 @@ class DatabaseStorage implements IStorage {
     await db.delete(competitorWatchlist).where(eq(competitorWatchlist.id, id));
   }
 
-  async createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt'>) {
+  async createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt' | 'postsPerWeek'> & { postsPerWeek?: number | null }) {
     const [snap] = await db.insert(competitorSnapshots).values(data as any).returning();
     return snap;
   }
@@ -1319,7 +1320,7 @@ class DatabaseStorage implements IStorage {
         w.id, w.handle, w.display_name, w.avatar_url, w.niche,
         s.follower_count, s.following_count, s.post_count,
         s.avg_views, s.avg_likes, s.avg_comments, s.avg_engagement,
-        s.scanned_at,
+        s.scanned_at, s.posts_per_week, s.recent_posts,
         prev.follower_count AS prev_follower_count
       FROM competitor_watchlist w
       LEFT JOIN LATERAL (
@@ -1616,6 +1617,19 @@ class DatabaseStorage implements IStorage {
       .returning();
     await db.insert(creditTransactions).values({ userId, amount, type: "bonus_added", description });
     return row;
+  }
+
+  // Give back credits taken by deductCredits when the paid work then failed.
+  // Elite deductions are skipped entirely, so their refunds are too. Refunds land
+  // in bonusCredits (which never expire) so a month rollover can't swallow them.
+  async refundCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<void> {
+    if (plan === "elite" || amount <= 0) return;
+    const existing = await this.getCreditBalance(userId);
+    if (!existing) return;
+    await db.update(creditBalances)
+      .set({ bonusCredits: existing.bonusCredits + amount })
+      .where(eq(creditBalances.userId, userId));
+    await db.insert(creditTransactions).values({ userId, amount, type: `${type}_refund`, description: `Refund: ${description}` });
   }
 
   async getCreditTransactions(userId: string, limit = 20): Promise<CreditTransaction[]> {

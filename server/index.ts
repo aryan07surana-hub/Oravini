@@ -861,6 +861,14 @@ async function runMigrations() {
   }
 
   try {
+    const { ensureCompetitorIntelTables } = await import("./competitorIntel");
+    await ensureCompetitorIntelTables();
+    console.log("[migration] competitor scrape cache / transcripts / briefs tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] competitor intel tables skipped:", e.message);
+  }
+
+  try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS client_meta_ads_connections (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
