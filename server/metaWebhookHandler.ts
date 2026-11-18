@@ -13,7 +13,7 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "./storage";
 import { metaTokens, dmTriggers, commentAutoReplies } from "@shared/schema";
 import type { DmTrigger, CommentAutoReply } from "@shared/schema";
-import { getActiveToken, sendInstagramDM, sendInstagramPrivateReply, replyToInstagramComment } from "./meta";
+import { getUserMetaCredentials, sendInstagramDM, sendInstagramPrivateReply, replyToInstagramComment } from "./meta";
 
 const LOG = "[Meta Webhook]";
 
@@ -40,6 +40,22 @@ async function findUserIdForAccount(accountId: string): Promise<string | null> {
   return row?.userId ?? null;
 }
 
+// Send credentials for one webhook event: the IG account id to send from and the
+// connected user's decrypted page access token (from meta_tokens).
+interface SendCreds { igAccountId: string; token: string }
+
+async function getSendCreds(userId: string, accountId: string): Promise<SendCreds | null> {
+  try {
+    const creds = await getUserMetaCredentials(userId);
+    if (!creds?.token) return null;
+    // Webhook entry id is the IG account id for object=instagram; prefer the stored one.
+    return { igAccountId: creds.igAccountId || accountId, token: creds.token };
+  } catch (e: any) {
+    console.warn(`${LOG} could not load meta_tokens for user=${userId}: ${e.message}`);
+    return null;
+  }
+}
+
 export function matchesKeyword(text: string, keyword: string, matchType: string): boolean {
   const t = text.trim().toLowerCase();
   const k = keyword.trim().toLowerCase();
@@ -53,7 +69,7 @@ export function matchesKeyword(text: string, keyword: string, matchType: string)
 }
 
 // ── Direct messages ─────────────────────────────────────────────────────────
-async function handleMessagingEvent(accountId: string, userId: string, evt: any): Promise<void> {
+async function handleMessagingEvent(accountId: string, userId: string, creds: SendCreds, evt: any): Promise<void> {
   const message = evt?.message;
   if (!message || typeof message !== "object") {
     console.log(`${LOG} Skipping non-message messaging event for ${accountId}:`, Object.keys(evt || {}).join(","));
@@ -77,7 +93,7 @@ async function handleMessagingEvent(accountId: string, userId: string, evt: any)
   if (!trigger) return;
 
   try {
-    const { messageId } = await sendInstagramDM(senderId, trigger.replyMessage);
+    const { messageId } = await sendInstagramDM(creds.igAccountId, senderId, trigger.replyMessage, creds.token);
     await db.update(dmTriggers)
       .set({ triggerCount: sql`${dmTriggers.triggerCount} + 1` })
       .where(eq(dmTriggers.id, trigger.id));
@@ -95,13 +111,12 @@ function postShortcode(url: string | null | undefined): string | null {
 }
 
 const permalinkCache = new Map<string, string | null>();
-async function getMediaPermalink(mediaId: string): Promise<string | null> {
+async function getMediaPermalink(mediaId: string, token: string): Promise<string | null> {
   if (permalinkCache.has(mediaId)) return permalinkCache.get(mediaId)!;
   let permalink: string | null = null;
   try {
-    const token = await getActiveToken();
     if (token) {
-      const r = await fetch(`https://graph.instagram.com/v25.0/${encodeURIComponent(mediaId)}?fields=permalink`, {
+      const r = await fetch(`https://graph.facebook.com/v25.0/${encodeURIComponent(mediaId)}?fields=permalink`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = await r.json() as any;
@@ -112,7 +127,7 @@ async function getMediaPermalink(mediaId: string): Promise<string | null> {
   return permalink;
 }
 
-async function handleCommentChange(accountId: string, userId: string, value: any): Promise<void> {
+async function handleCommentChange(accountId: string, userId: string, creds: SendCreds, value: any): Promise<void> {
   const commentId: string | undefined = value?.id;
   const text: string = typeof value?.text === "string" ? value.text : "";
   const fromId: string | undefined = value?.from?.id;
@@ -137,7 +152,7 @@ async function handleCommentChange(accountId: string, userId: string, value: any
     const wantCode = postShortcode(r.postUrl);
     if (wantCode) {
       if (!mediaId) continue;
-      const gotCode = postShortcode(await getMediaPermalink(mediaId));
+      const gotCode = postShortcode(await getMediaPermalink(mediaId, creds.token));
       if (!gotCode || gotCode !== wantCode) continue;
     }
     rule = r;
@@ -148,7 +163,7 @@ async function handleCommentChange(accountId: string, userId: string, value: any
   const actions: string[] = [];
   if (rule.replyMessage?.trim()) {
     try {
-      await replyToInstagramComment(commentId, rule.replyMessage.trim());
+      await replyToInstagramComment(commentId, rule.replyMessage.trim(), creds.token);
       actions.push("public-reply");
     } catch (e: any) {
       console.error(`${LOG} Comment rule "${rule.name}" (${rule.id}) public reply failed: ${e.message}`);
@@ -156,7 +171,7 @@ async function handleCommentChange(accountId: string, userId: string, value: any
   }
   if (rule.alsoDm && rule.dmMessage?.trim()) {
     try {
-      await sendInstagramPrivateReply(commentId, rule.dmMessage.trim());
+      await sendInstagramPrivateReply(commentId, rule.dmMessage.trim(), creds.token);
       actions.push("dm");
     } catch (e: any) {
       console.error(`${LOG} Comment rule "${rule.name}" (${rule.id}) comment-to-DM failed: ${e.message}`);
@@ -196,12 +211,17 @@ export async function handleMetaWebhookEvent(body: any): Promise<void> {
           console.warn(`${LOG} No connected Oravini account for IG/page id ${accountId} — skipping ${messaging.length} message(s), ${commentChanges.length} comment(s)`);
           continue;
         }
+        const creds = await getSendCreds(userId, accountId);
+        if (!creds) {
+          console.warn(`${LOG} No Meta access token stored for user=${userId} (account ${accountId}) — reconnect Instagram; skipping ${messaging.length} message(s), ${commentChanges.length} comment(s)`);
+          continue;
+        }
         for (const evt of messaging) {
-          try { await handleMessagingEvent(accountId, userId, evt); }
+          try { await handleMessagingEvent(accountId, userId, creds, evt); }
           catch (e: any) { console.error(`${LOG} messaging event error: ${e.message}`); }
         }
         for (const change of commentChanges) {
-          try { await handleCommentChange(accountId, userId, change?.value); }
+          try { await handleCommentChange(accountId, userId, creds, change?.value); }
           catch (e: any) { console.error(`${LOG} comment change error: ${e.message}`); }
         }
       } catch (e: any) {
