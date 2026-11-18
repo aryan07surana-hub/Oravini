@@ -20,7 +20,8 @@ import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
-import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson } from "./aiService";
+import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson, aiChatCompletion as _aiChatCompletion, aiFeature } from "./aiService";
+import { handleMetaWebhookEvent } from "./metaWebhookHandler";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -3877,6 +3878,7 @@ Generate ${count} slides following this psychology framework. Mix templates stra
   });
 
   // ── AI Text Refine (Groq — improve message quality) ───────────────────────
+  app.use("/api/ai/refine-text", aiFeature("refine-text"));
   app.post("/api/ai/refine-text", requireAuth, async (req: Request, res: Response) => {
     try {
       const { text, context } = req.body;
@@ -5973,6 +5975,9 @@ Apply penalties: unclear value prop (-15), missing or weak CTA (-20), generic fi
 
 Only include analysis when content is provided. Never produce generic filler content — tie every suggestion back to the user's specific product and audience.`;
 
+  // Content Coach is quality-critical: Groq first, guaranteed OpenRouter fallback.
+  app.use("/api/coach", aiFeature("content-coach", { critical: true }));
+
   app.post("/api/coach/chat", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message, script, mode, goal, history = [] } = req.body;
@@ -6452,11 +6457,9 @@ ${historyCtx}
         },
       ];
 
-      const coachAiKey = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
-      if (!coachAiKey) throw new Error("AI API key not configured");
-      const coachAiUrl = "https://openrouter.ai/api/v1/chat/completions";
+      // Tool-calling loop runs through the provider layer: Groq (llama-3.3-70b-versatile) first,
+      // OpenRouter (meta-llama/llama-3.3-70b-instruct) as the quality-critical fallback.
       const coachAiModel = "meta-llama/llama-3.3-70b-instruct";
-      const coachAiHeaders: Record<string, string> = { "Authorization": `Bearer ${coachAiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 
       const content = script || (message && message.length > 40 ? message : undefined);
       const hasScript = Boolean(content && content.trim().length > 20);
@@ -6544,22 +6547,13 @@ Return ONLY JSON: { "script": "rewritten", "whatChanged": "2 sentences on key ch
       }
 
       const groqFetch = async (msgs: any[], maxTokens = 2000) => {
-        const r = await fetch(coachAiUrl, {
-          method: "POST",
-          headers: coachAiHeaders,
-          body: JSON.stringify({
-            model: coachAiModel,
-            messages: msgs,
-            tools: groqTools,
-            tool_choice: "auto",
-            max_tokens: maxTokens,
-            temperature: 0.7,
-          }),
-          signal: AbortSignal.timeout(30000),
-        });
-        const d: any = await r.json();
-        if (d?.error) throw new Error(d.error.message);
-        return d;
+        return _aiChatCompletion({
+          messages: msgs,
+          tools: groqTools,
+          tool_choice: "auto",
+          max_tokens: maxTokens,
+          temperature: 0.7,
+        }, { model: coachAiModel, feature: "content-coach-agent", critical: true });
       };
 
       const messages: any[] = [
@@ -6678,20 +6672,12 @@ Return ONLY JSON: { "script": "rewritten", "whatChanged": "2 sentences on key ch
   // Webhook event receiver — Meta sends POST for Instagram events
   app.post("/api/webhooks/meta", (req: Request, res: Response) => {
     const body = req.body;
-    console.log("[Meta Webhook] Event received:", JSON.stringify(body, null, 2));
-    if (body.object === "instagram") {
-      body.entry?.forEach((entry: any) => {
-        const changes = entry.changes || [];
-        changes.forEach((change: any) => {
-          console.log(`[Meta Webhook] Change field: ${change.field}`, change.value);
-        });
-        const messaging = entry.messaging || [];
-        messaging.forEach((msg: any) => {
-          console.log("[Meta Webhook] Message event:", JSON.stringify(msg));
-        });
-      });
-    }
-    return res.status(200).json({ status: "EVENT_RECEIVED" });
+    try {
+      console.log("[Meta Webhook] Event received:", JSON.stringify(body, null, 2));
+    } catch { /* unserialisable body — still acknowledge */ }
+    // Acknowledge immediately (Meta expects a fast 200), then run DM / comment triggers.
+    res.status(200).json({ status: "EVENT_RECEIVED" });
+    handleMetaWebhookEvent(body).catch((e: any) => console.error("[Meta Webhook] processing error:", e?.message));
   });
 
   // Deauthorize callback — required by Meta; called when user removes app access
@@ -7208,6 +7194,8 @@ Return ONLY valid JSON:
       return { title: item.title || "YouTube Video", segments };
     }
   }
+
+  app.use("/api/clip-finder", aiFeature("clip-finder"));
 
   app.post("/api/clip-finder", requireAuth, async (req: Request, res: Response) => {
     try {
