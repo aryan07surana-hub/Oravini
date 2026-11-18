@@ -11,7 +11,10 @@
  */
 
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
-import { EgressClient, StreamProtocol, EncodingOptionsPreset } from "livekit-server-sdk";
+import {
+  EgressClient, StreamProtocol, EncodingOptionsPreset, EncodedFileOutput, EncodedFileType,
+  S3Upload, StreamOutput, EgressStatus, type EgressInfo,
+} from "livekit-server-sdk";
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || "";
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "";
@@ -315,19 +318,13 @@ export async function startSimulcast(
     return `${base}/${d.streamKey}`;
   });
 
-  // Start a Room Composite Egress that publishes to all RTMP destinations
-  const egress = await client.startRoomCompositeEgress(roomName, {
-    layout: "speaker",
-    audioOnly: false,
-    videoOnly: false,
-    customBaseUrl: undefined,
-    encodingOptions: EncodingOptionsPreset.H264_1080P_30,
-  } as any, {
-    stream: {
-      protocol: StreamProtocol.RTMP,
-      urls,
-    },
-  } as any);
+  // Start a Room Composite Egress that publishes to all RTMP destinations.
+  // Signature is (roomName, output, options).
+  const egress = await client.startRoomCompositeEgress(
+    roomName,
+    new StreamOutput({ protocol: StreamProtocol.RTMP, urls }),
+    { layout: "speaker", encodingOptions: EncodingOptionsPreset.H264_1080P_30 },
+  );
 
   const list = activeEgresses.get(String(webinarId)) || [];
   list.push(egress.egressId);
@@ -365,40 +362,209 @@ export function getActiveEgresses(webinarId: string | number): string[] {
   return activeEgresses.get(String(webinarId)) || [];
 }
 
+// ── AUTOMATIC RECORDING (Room Composite → MP4 file) ────────────────────────
+//
+// LiveKit file egress needs somewhere to upload the MP4. Supported setups:
+//
+//   1. S3-compatible bucket (AWS S3, Cloudflare R2, Backblaze B2, MinIO, …):
+//        LIVEKIT_EGRESS_S3_BUCKET, LIVEKIT_EGRESS_S3_ACCESS_KEY, LIVEKIT_EGRESS_S3_SECRET
+//        optional: LIVEKIT_EGRESS_S3_REGION, LIVEKIT_EGRESS_S3_ENDPOINT,
+//                  LIVEKIT_EGRESS_S3_FORCE_PATH_STYLE=true,
+//                  LIVEKIT_RECORDING_PUBLIC_BASE_URL (public URL prefix for playback)
+//   2. Storage configured on the LiveKit project itself (LiveKit Cloud plans that
+//      provide default egress storage, or a self-hosted egress with storage in its
+//      config): set LIVEKIT_RECORDING_USE_PROJECT_STORAGE=true.
+//
+// With neither, auto-recording is skipped with a warning. Set LIVEKIT_AUTO_RECORD=false
+// to turn it off entirely. Recording failures never affect the live webinar.
+
+type RecordingStorage =
+  | { kind: "s3"; s3: S3Upload; publicBaseUrl: string | null }
+  | { kind: "project"; publicBaseUrl: string | null };
+
+export function getRecordingStorage(): RecordingStorage | null {
+  const publicBaseUrl = (process.env.LIVEKIT_RECORDING_PUBLIC_BASE_URL || "").replace(/\/+$/, "") || null;
+  const bucket = process.env.LIVEKIT_EGRESS_S3_BUCKET;
+  const accessKey = process.env.LIVEKIT_EGRESS_S3_ACCESS_KEY;
+  const secret = process.env.LIVEKIT_EGRESS_S3_SECRET;
+  if (bucket && accessKey && secret) {
+    return {
+      kind: "s3",
+      publicBaseUrl,
+      s3: new S3Upload({
+        bucket,
+        accessKey,
+        secret,
+        region: process.env.LIVEKIT_EGRESS_S3_REGION || "auto",
+        endpoint: process.env.LIVEKIT_EGRESS_S3_ENDPOINT || "",
+        forcePathStyle: process.env.LIVEKIT_EGRESS_S3_FORCE_PATH_STYLE === "true",
+      }),
+    };
+  }
+  if (process.env.LIVEKIT_RECORDING_USE_PROJECT_STORAGE === "true") {
+    return { kind: "project", publicBaseUrl };
+  }
+  return null;
+}
+
+export function isAutoRecordingEnabled(): boolean {
+  return isLiveKitConfigured() && process.env.LIVEKIT_AUTO_RECORD !== "false";
+}
+
+// webinarId → file egress IDs started by auto-recording (kept separate from simulcast)
+const activeRecordings = new Map<string, string[]>();
+
+function buildFileOutput(webinarId: string | number, storage: RecordingStorage): EncodedFileOutput {
+  const filepath = `webinar-recordings/webinar-${webinarId}-${Date.now()}.mp4`;
+  return new EncodedFileOutput({
+    fileType: EncodedFileType.MP4,
+    filepath,
+    output: storage.kind === "s3" ? { case: "s3", value: storage.s3 } : { case: undefined },
+  });
+}
+
 /**
- * Start cloud recording via Egress — saves the room composite to a file.
- * Returns the egress ID. The recording is uploaded to your configured destination.
+ * Start recording the webinar room to an MP4 file. Returns the egress ID, or null
+ * when recording is not possible (no storage, LiveKit down, …). Never throws.
  */
-export async function startCloudRecording(
-  webinarId: string | number,
-  uploadConfig?: { s3?: { bucket: string; region: string; accessKey: string; secret: string } },
-): Promise<{ egressId: string }> {
-  if (!isLiveKitConfigured()) {
-    throw new Error("LiveKit is not configured.");
+export async function startAutoRecording(webinarId: string | number): Promise<string | null> {
+  if (!isAutoRecordingEnabled()) return null;
+
+  const storage = getRecordingStorage();
+  if (!storage) {
+    console.warn(
+      `[livekit] Auto-recording skipped for webinar ${webinarId}: file egress needs storage. ` +
+      `Set LIVEKIT_EGRESS_S3_BUCKET/ACCESS_KEY/SECRET (any S3-compatible bucket) or ` +
+      `LIVEKIT_RECORDING_USE_PROJECT_STORAGE=true if your LiveKit project has egress storage configured.`,
+    );
+    return null;
   }
 
-  const roomName = `webinar-${webinarId}`;
+  if ((activeRecordings.get(String(webinarId)) || []).length) {
+    return activeRecordings.get(String(webinarId))![0];
+  }
+
+  try {
+    const client = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+    const egress = await client.startRoomCompositeEgress(
+      `webinar-${webinarId}`,
+      buildFileOutput(webinarId, storage),
+      { layout: "speaker", encodingOptions: EncodingOptionsPreset.H264_1080P_30 },
+    );
+    activeRecordings.set(String(webinarId), [egress.egressId]);
+    console.log(`[livekit] Auto-recording started for webinar ${webinarId} (egress ${egress.egressId}, storage: ${storage.kind})`);
+    return egress.egressId;
+  } catch (err: any) {
+    console.warn(`[livekit] Auto-recording could not start for webinar ${webinarId}: ${err?.message || err}`);
+    return null;
+  }
+}
+
+/**
+ * Stop the webinar's recording egress(es). Also discovers active file egresses for
+ * the room via the API, so recordings survive a server restart. Returns the IDs stopped.
+ */
+export async function stopAutoRecording(webinarId: string | number): Promise<string[]> {
+  if (!isLiveKitConfigured()) return [];
+  const key = String(webinarId);
+  const ids = new Set(activeRecordings.get(key) || []);
   const client = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+  const simulcastIds = new Set(activeEgresses.get(key) || []);
 
-  // For now, use a local file output — production should use S3
-  const filename = `webinar-${webinarId}-${Date.now()}.mp4`;
+  try {
+    const active = await client.listEgress({ roomName: `webinar-${webinarId}`, active: true });
+    for (const e of active) {
+      const isFile = e.request?.case === "roomComposite"
+        && (e.request.value.fileOutputs?.length || e.request.value.output?.case === "file");
+      if (isFile && !simulcastIds.has(e.egressId)) ids.add(e.egressId);
+    }
+  } catch (err: any) {
+    console.warn(`[livekit] Could not list egresses for webinar ${webinarId}: ${err?.message || err}`);
+  }
 
-  const egress = await client.startRoomCompositeEgress(roomName, {
-    layout: "speaker",
-    encodingOptions: EncodingOptionsPreset.H264_1080P_30,
-  } as any, {
-    file: {
-      filepath: `/recordings/${filename}`,
-      ...(uploadConfig?.s3 ? {
-        s3: {
-          accessKey: uploadConfig.s3.accessKey,
-          secret: uploadConfig.s3.secret,
-          bucket: uploadConfig.s3.bucket,
-          region: uploadConfig.s3.region,
-        },
-      } : {}),
-    },
-  } as any);
+  for (const egressId of Array.from(ids)) {
+    try {
+      await client.stopEgress(egressId);
+    } catch (err: any) {
+      // Already stopped/ended (e.g. room closed) — results can still be collected.
+      console.warn(`[livekit] stopEgress ${egressId}: ${err?.message || err}`);
+    }
+  }
+  activeRecordings.delete(key);
+  return Array.from(ids);
+}
 
-  return { egressId: egress.egressId };
+export interface CompletedRecording {
+  egressId: string;
+  url: string;
+  durationSeconds: number | null;
+  sizeBytes: number | null;
+}
+
+/**
+ * Poll an egress until it finishes uploading, then return the playback URL.
+ * Returns null on failure/timeout. Never throws.
+ */
+export async function waitForRecording(
+  egressId: string,
+  timeoutMs = 15 * 60 * 1000,
+  intervalMs = 10_000,
+): Promise<CompletedRecording | null> {
+  if (!isLiveKitConfigured()) return null;
+  const client = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+  const deadline = Date.now() + timeoutMs;
+  const storage = getRecordingStorage();
+
+  while (Date.now() < deadline) {
+    try {
+      const [info] = await client.listEgress({ egressId });
+      if (info) {
+        if (info.status === EgressStatus.EGRESS_COMPLETE) return toCompleted(info, storage);
+        if (info.status === EgressStatus.EGRESS_FAILED || info.status === EgressStatus.EGRESS_ABORTED) {
+          console.warn(`[livekit] Recording egress ${egressId} ended with status ${EgressStatus[info.status]}: ${info.error || "no details"}`);
+          return null;
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[livekit] Polling egress ${egressId}: ${err?.message || err}`);
+    }
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  console.warn(`[livekit] Timed out waiting for recording egress ${egressId} to finish.`);
+  return null;
+}
+
+function toCompleted(info: EgressInfo, storage: RecordingStorage | null): CompletedRecording | null {
+  const file = info.fileResults?.[0] ?? (info.result?.case === "file" ? info.result.value : undefined);
+  if (!file) {
+    console.warn(`[livekit] Recording egress ${info.egressId} completed without file results.`);
+    return null;
+  }
+  let url = file.location;
+  if (storage?.publicBaseUrl && file.filename) {
+    url = `${storage.publicBaseUrl}/${file.filename.replace(/^\/+/, "")}`;
+  }
+  if (!url) return null;
+  const durationNs = Number(file.duration || BigInt(0));
+  const size = Number(file.size || BigInt(0));
+  return {
+    egressId: info.egressId,
+    url,
+    durationSeconds: durationNs > 0 ? Math.round(durationNs / 1e9) : null,
+    sizeBytes: size > 0 ? size : null,
+  };
+}
+
+/**
+ * Manually start a cloud recording (used by /cloud-recording/start).
+ * Uses the same storage configuration as auto-recording.
+ */
+export async function startCloudRecording(webinarId: string | number): Promise<{ egressId: string }> {
+  if (!isLiveKitConfigured()) throw new Error("LiveKit is not configured.");
+  if (!getRecordingStorage()) {
+    throw new Error("Cloud recording needs storage: set LIVEKIT_EGRESS_S3_* or LIVEKIT_RECORDING_USE_PROJECT_STORAGE=true.");
+  }
+  const egressId = await startAutoRecording(webinarId);
+  if (!egressId) throw new Error("Could not start cloud recording — check server logs.");
+  return { egressId };
 }

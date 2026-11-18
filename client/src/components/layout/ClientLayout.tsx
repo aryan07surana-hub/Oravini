@@ -194,6 +194,7 @@ const topNavItems = [
   { href: "/oravini-recorder", label: "Oravini Recorder", icon: MonitorPlay },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
+  { href: "/recordings", label: "Recordings", icon: Film },
   { href: "/pages-hub", label: "Pages & Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
   { href: "/mentor-kit", label: "MentorKit", icon: LayoutTemplate },
