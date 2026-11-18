@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
+import { captureLeadToCrmInBackground, pickUtm } from "./crmLeadCapture";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
@@ -10955,6 +10956,17 @@ Rules:
         if (!already) {
           await db.insert(webinarFunnelRegistrations).values({ webinarId: funnel.id, name, email, phone: phone || null });
         }
+        // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
+        captureLeadToCrmInBackground({
+          userId: funnel.userId,
+          email, name, phone,
+          source: "webinar",
+          tags: ["webinar-registrant", `webinar:${funnel.slug}`],
+          activityTitle: already ? `Re-registered for webinar "${funnel.title}"` : `Registered for webinar "${funnel.title}"`,
+          activityBody: `Scheduled for ${funnel.scheduledAt.toISOString()}`,
+          context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
+          utm: pickUtm(req.body),
+        });
         res.status(already ? 200 : 201).json({ success: true });
       } catch (e: any) {
         console.error("[webinar-funnels] register error:", e.message);
@@ -16670,10 +16682,20 @@ Rules:
       const { name, email, phone } = req.body;
       if (!name || !email) return res.status(400).json({ message: "Name and email required" });
       const { rows } = await pool.query(
-        "SELECT id FROM marketing_landing_pages WHERE slug = $1 AND published = true",
+        "SELECT id, user_id, title, slug FROM marketing_landing_pages WHERE slug = $1 AND published = true",
         [p(req.params.slug)]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      // CRM: attach the lead to the landing page owner's contacts (fire-and-forget)
+      captureLeadToCrmInBackground({
+        userId: rows[0].user_id,
+        email, name, phone,
+        source: "landing",
+        tags: ["landing-lead", `lp:${rows[0].slug}`],
+        activityTitle: `Submitted landing page "${rows[0].title || rows[0].slug}"`,
+        context: { landingPageId: rows[0].id, landingPageSlug: rows[0].slug },
+        utm: pickUtm(req.body),
+      });
       await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [rows[0].id]);
       try {
         await pool.query(
@@ -17212,6 +17234,17 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
       if (!funnels[0]) return res.status(404).json({ message: "Not found" });
       const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
       if (!steps[0]) return res.status(404).json({ message: "Not found" });
+      // CRM: attach the opt-in to the funnel owner's contacts (fire-and-forget)
+      captureLeadToCrmInBackground({
+        userId: funnels[0].user_id,
+        email, name, phone,
+        source: "funnel",
+        tags: ["funnel-lead", `funnel:${funnels[0].slug}`],
+        activityTitle: `Opted in on funnel "${funnels[0].name || funnels[0].slug}"`,
+        activityBody: `Step: ${steps[0].name || steps[0].slug}`,
+        context: { funnelId: funnels[0].id, funnelSlug: funnels[0].slug, stepId: steps[0].id, stepSlug: steps[0].slug },
+        utm: pickUtm(req.body),
+      });
       await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
       await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
       try {

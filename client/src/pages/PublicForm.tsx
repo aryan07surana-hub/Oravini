@@ -359,9 +359,15 @@ function QuestionInput({
   );
 }
 
-export default function PublicForm() {
+/**
+ * `fallback` is rendered instead of "Form not found" when the forms API returns 404.
+ * App.tsx uses it to hand /f/:slug over to the funnel renderer, because forms and
+ * funnels share the /f/ prefix (see the comment on that route).
+ */
+export default function PublicForm({ fallback }: { fallback?: React.ReactNode } = {}) {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const [notFound, setNotFound] = useState(false);
 
   const [formData, setFormData] = useState<{ form: any; questions: Question[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -376,8 +382,13 @@ export default function PublicForm() {
   const viewTracked = useRef(false);
 
   useEffect(() => {
+    setNotFound(false);
     fetch(`/api/public/forms/${slug}`)
-      .then(r => r.json())
+      .then(async r => {
+        const d = await r.json().catch(() => ({}));
+        if (r.status === 404) setNotFound(true);
+        return d;
+      })
       .then(d => {
         if (d.message) { setError(d.message); setLoading(false); return; }
         setFormData(d);
@@ -407,6 +418,8 @@ export default function PublicForm() {
       <div className="w-7 h-7 rounded-full border-2 border-gray-800 border-t-transparent animate-spin" />
     </div>
   );
+
+  if (notFound && fallback) return <>{fallback}</>;
 
   if (error || !formData) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
