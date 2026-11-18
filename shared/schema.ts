@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb, serial, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -3231,3 +3231,35 @@ export const userActivityEvents = pgTable("user_activity_events", {
 export const insertUserActivityEventSchema = createInsertSchema(userActivityEvents).omit({ id: true, createdAt: true });
 export type InsertUserActivityEvent = z.infer<typeof insertUserActivityEventSchema>;
 export type UserActivityEvent = typeof userActivityEvents.$inferSelect;
+
+// ── Webinar Funnels (YouTube Live registration + watch pages) ────────────────
+// Separate from the LiveKit-based `webinars` / `webinar_registrations` tables above.
+// Tables are created idempotently at startup in server/index.ts (runMigrations).
+export const WEBINAR_FUNNEL_STATUSES = ["draft", "published", "ended"] as const;
+export type WebinarFunnelStatus = typeof WEBINAR_FUNNEL_STATUSES[number];
+
+export const webinarFunnels = pgTable("webinar_funnels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  hostName: text("host_name"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  youtubeVideoId: text("youtube_video_id"),
+  ctaText: text("cta_text"),
+  ctaUrl: text("cta_url"),
+  status: text("status").notNull().default("draft"), // draft | published | ended
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_webinar_funnels_user").on(t.userId)]);
+export type WebinarFunnel = typeof webinarFunnels.$inferSelect;
+
+export const webinarFunnelRegistrations = pgTable("webinar_funnel_registrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinarFunnels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_webinar_funnel_regs_webinar").on(t.webinarId)]);
+export type WebinarFunnelRegistration = typeof webinarFunnelRegistrations.$inferSelect;

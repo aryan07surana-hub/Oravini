@@ -1234,6 +1234,42 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] dm_ai_configs skipped:", e.message);
   }
+
+  // ── Webinar Funnels (YouTube Live registration + watch pages) ──
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webinar_funnels (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        slug TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        host_name TEXT,
+        scheduled_at TIMESTAMP NOT NULL,
+        youtube_video_id TEXT,
+        cta_text TEXT,
+        cta_url TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_funnels_slug_unique UNIQUE (slug),
+        CONSTRAINT webinar_funnels_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_funnels_user ON webinar_funnels(user_id);
+      CREATE TABLE IF NOT EXISTS webinar_funnel_registrations (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        webinar_id VARCHAR NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_funnel_registrations_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_funnel_regs_webinar ON webinar_funnel_registrations(webinar_id);
+    `);
+    console.log("[migration] webinar_funnels tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] webinar_funnels skipped:", e.message);
+  }
 }
 
 (async () => {
