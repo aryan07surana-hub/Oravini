@@ -164,6 +164,36 @@ export async function sendInstagramDM(recipientId: string, messageText: string):
   return { messageId: data.message_id || data.id || "sent" };
 }
 
+// ── Private reply to a comment (comment-to-DM) ────────────────────────────────
+// Instagram only allows a business to DM a commenter via a "private reply" that
+// references the comment_id (one per comment, within 7 days of the comment).
+export async function sendInstagramPrivateReply(commentId: string, messageText: string): Promise<{ messageId: string }> {
+  const token = await getActiveToken();
+  if (!token) throw new Error("META_ACCESS_TOKEN not configured");
+  const res = await fetch(`https://graph.instagram.com/v25.0/me/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: messageText } }),
+  });
+  const data = await res.json() as any;
+  if (data?.error) throw new Error(`Instagram private reply: ${data.error.message} (code ${data.error.code})`);
+  return { messageId: data.message_id || data.id || "sent" };
+}
+
+// ── Public reply to a comment ─────────────────────────────────────────────────
+export async function replyToInstagramComment(commentId: string, messageText: string): Promise<{ id: string }> {
+  const token = await getActiveToken();
+  if (!token) throw new Error("META_ACCESS_TOKEN not configured");
+  const res = await fetch(`https://graph.instagram.com/v25.0/${encodeURIComponent(commentId)}/replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ message: messageText }),
+  });
+  const data = await res.json() as any;
+  if (data?.error) throw new Error(`Instagram comment reply: ${data.error.message} (code ${data.error.code})`);
+  return { id: data.id || "sent" };
+}
+
 // ── Fetch a post's metrics by its permalink (used for auto-sync) ──────────────
 export async function syncPostByPermalink(igAccountId: string, permalink: string): Promise<{
   views: number; likes: number; comments: number; saves: number;

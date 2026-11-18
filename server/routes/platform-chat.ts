@@ -1,49 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "../storage";
+import { aiChatStream } from "../aiService";
 
+// Streaming goes through the shared provider layer: Groq by default, OpenRouter fallback.
 async function callAIStream(
   messages: { role: string; content: string }[],
   onToken: (token: string) => void
 ): Promise<string> {
-  const key = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("AI API key not configured");
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" },
-    body: JSON.stringify({
-      model: "meta-llama/llama-3.3-70b-instruct",
-      messages,
-      temperature: 0.7,
-      max_tokens: 1400,
-      stream: true,
-    }),
-  });
-  if (!r.ok) {
-    const err = await r.json() as any;
-    throw new Error("AI error: " + (err?.error?.message || r.status));
-  }
-  const reader = r.body!.getReader();
-  const dec = new TextDecoder();
-  let full = "";
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (raw === "[DONE]") continue;
-      try {
-        const chunk = JSON.parse(raw);
-        const token: string = chunk.choices?.[0]?.delta?.content ?? "";
-        if (token) { full += token; onToken(token); }
-      } catch { /* ignore malformed chunks */ }
-    }
-  }
-  return full;
+  return aiChatStream(messages, onToken, { feature: "platform-chat", critical: false, maxTokens: 1400, temperature: 0.7 });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
