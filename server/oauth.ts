@@ -10,13 +10,12 @@ function requireAuth(req: Request, res: Response, next: Function) {
 
 // Scopes for the classic (non-config) Meta dialog fallback.
 const META_FALLBACK_SCOPES = [
+  "email",
   "instagram_basic",
-  "instagram_content_publish",
   "pages_show_list",
   "pages_read_engagement",
   "instagram_manage_messages",
   "pages_manage_metadata",
-  "business_management",
 ].join(",");
 
 // Subscribe the app to Page + Instagram webhook fields so inbound DMs/comments
