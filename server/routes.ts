@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
+import { captureLeadToCrmInBackground, pickUtm } from "./crmLeadCapture";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
@@ -8363,7 +8364,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
           FROM users WHERE role = 'client' AND created_at >= NOW() - INTERVAL '12 months'
           GROUP BY month ORDER BY month
         `),
-        pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads`),
+        pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads WHERE owner_id IS NULL`),
         pool.query(`
           SELECT COUNT(*)::int AS total, ROUND(AVG(overall_rating)::numeric, 1) AS avg_rating,
             COUNT(CASE WHEN nps_score >= 9 THEN 1 END) AS promoters,
@@ -8381,7 +8382,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         pool.query(`SELECT COALESCE(SUM(monthly_credits + bonus_credits)::int, 0) AS total_credits FROM credit_balances`),
         pool.query(`SELECT platform, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY platform ORDER BY count DESC`),
         pool.query(`SELECT field, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY field ORDER BY count DESC LIMIT 10`),
-        pool.query(`SELECT source, COUNT(*)::int AS count FROM landing_leads GROUP BY source ORDER BY count DESC`),
+        pool.query(`SELECT source, COUNT(*)::int AS count FROM landing_leads WHERE owner_id IS NULL GROUP BY source ORDER BY count DESC`),
         pool.query(`
           SELECT COUNT(*)::int AS total_posts, COALESCE(SUM(views)::int, 0) AS total_views,
             COALESCE(SUM(likes)::int, 0) AS total_likes, COALESCE(SUM(comments)::int, 0) AS total_comments
@@ -10962,6 +10963,17 @@ Rules:
         if (!already) {
           await db.insert(webinarFunnelRegistrations).values({ webinarId: funnel.id, name, email, phone: phone || null });
         }
+        // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
+        captureLeadToCrmInBackground({
+          userId: funnel.userId,
+          email, name, phone,
+          source: "webinar",
+          tags: ["webinar-registrant", `webinar:${funnel.slug}`],
+          activityTitle: already ? `Re-registered for webinar "${funnel.title}"` : `Registered for webinar "${funnel.title}"`,
+          activityBody: `Scheduled for ${funnel.scheduledAt.toISOString()}`,
+          context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
+          utm: pickUtm(req.body),
+        });
         res.status(already ? 200 : 201).json({ success: true });
       } catch (e: any) {
         console.error("[webinar-funnels] register error:", e.message);
@@ -16674,22 +16686,61 @@ Rules:
   // Public: record lead capture from marketing landing page
   app.post("/api/lp/:slug/lead", async (req: Request, res: Response) => {
     try {
-      const { name, email, phone } = req.body;
+      const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+      // Phone is optional: the form may not collect it.
+      const phone = typeof req.body?.phone === "string" && req.body.phone.trim() ? req.body.phone.trim().slice(0, 32) : null;
       if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: "Enter a valid email" });
       const { rows } = await pool.query(
-        "SELECT id FROM marketing_landing_pages WHERE slug = $1 AND published = true",
+        "SELECT id, user_id, title, slug FROM marketing_landing_pages WHERE slug = $1 AND published = true",
         [p(req.params.slug)]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [rows[0].id]);
+      const page = rows[0];
+
+      // Persist the lead, deduped per (page owner, email). A repeat submission updates the
+      // existing row (latest name/source, keeps a known phone) instead of failing.
+      let inserted = false;
       try {
-        await pool.query(
-          "INSERT INTO landing_leads (name, email, phone, source) VALUES ($1, $2, $3, $4)",
-          [name, email, phone || null, `lp:${p(req.params.slug)}`]
+        const { rows: up } = await pool.query(
+          `INSERT INTO landing_leads (owner_id, name, email, phone, source)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT ((COALESCE(owner_id, '')), email) DO UPDATE SET
+             name   = EXCLUDED.name,
+             phone  = COALESCE(EXCLUDED.phone, landing_leads.phone),
+             source = EXCLUDED.source
+           RETURNING (xmax = 0) AS inserted`,
+          [page.user_id, name, email, phone, `lp:${page.slug}`]
         );
-      } catch {}
+        inserted = up[0]?.inserted === true;
+      } catch (dbErr: any) {
+        console.error(`[lp-lead] landing_leads write failed for page ${page.id} (${page.slug}):`, dbErr?.code, dbErr?.message);
+        return res.status(500).json({ message: "Could not save your details. Please try again." });
+      }
+
+      // Only count genuinely new leads so repeat submissions don't inflate the page counter.
+      if (inserted) {
+        await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [page.id]);
+      }
+      // CRM: attach the lead to the landing page owner's contacts (fire-and-forget;
+      // crm capture upserts per owner+email, so repeats add an activity, not a contact).
+      captureLeadToCrmInBackground({
+        userId: page.user_id,
+        email, name, phone,
+        source: "landing",
+        tags: ["landing-lead", `lp:${page.slug}`],
+        activityTitle: inserted
+          ? `Submitted landing page "${page.title || page.slug}"`
+          : `Re-submitted landing page "${page.title || page.slug}"`,
+        context: { landingPageId: page.id, landingPageSlug: page.slug },
+        utm: pickUtm(req.body),
+      });
       res.json({ ok: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error(`[lp-lead] lead capture failed for slug ${req.params.slug}:`, err?.message);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -17574,19 +17625,35 @@ Request: "${message.trim()}"`;
   app.post("/api/f/:slug/:stepSlug/lead", async (req, res) => {
     try {
       const { name, email, phone } = req.body;
+      if (!email || typeof email !== "string" || !email.trim()) return res.status(400).json({ message: "Email required" });
       const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1", [req.params.slug]);
       if (!funnels[0]) return res.status(404).json({ message: "Not found" });
       const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
       if (!steps[0]) return res.status(404).json({ message: "Not found" });
-      await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
-      await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
+      // Persist the opt-in first; if it fails, surface it instead of counting a lead we didn't store.
       try {
         await pool.query(
           "INSERT INTO funnel_contacts (funnel_id, step_id, email, name, phone) VALUES ($1, $2, $3, $4, $5)",
           [funnels[0].id, steps[0].id, email, name || null, phone || null]
         );
-      } catch {}
-      // Fire active automations for lead_captured
+      } catch (dbErr: any) {
+        console.error(`[funnel-lead] funnel_contacts write failed for funnel ${funnels[0].id} step ${steps[0].id}:`, dbErr?.code, dbErr?.message);
+        return res.status(500).json({ message: "Could not save your details. Please try again." });
+      }
+      // CRM: attach the opt-in to the funnel owner's contacts (fire-and-forget)
+      captureLeadToCrmInBackground({
+        userId: funnels[0].user_id,
+        email, name, phone,
+        source: "funnel",
+        tags: ["funnel-lead", `funnel:${funnels[0].slug}`],
+        activityTitle: `Opted in on funnel "${funnels[0].name || funnels[0].slug}"`,
+        activityBody: `Step: ${steps[0].name || steps[0].slug}`,
+        context: { funnelId: funnels[0].id, funnelSlug: funnels[0].slug, stepId: steps[0].id, stepSlug: steps[0].slug },
+        utm: pickUtm(req.body),
+      });
+      await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
+      await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
+      // Fire active automations for lead_captured (non-fatal for the visitor, but logged)
       try {
         const { rows: autos } = await pool.query(
           `SELECT * FROM funnel_automations WHERE funnel_id = $1 AND active = true
@@ -17595,9 +17662,13 @@ Request: "${message.trim()}"`;
           [funnels[0].id, steps[0].id]
         );
         for (const auto of autos) {
-          fireFunnelAutomation(auto, { email, name: name || null, phone: phone || null }, pool).catch(() => {});
+          fireFunnelAutomation(auto, { email, name: name || null, phone: phone || null }, pool).catch((e: any) => {
+            console.error(`[funnel-lead] automation ${auto.id} failed for funnel ${funnels[0].id}:`, e?.message || e);
+          });
         }
-      } catch {}
+      } catch (autoErr: any) {
+        console.error(`[funnel-lead] loading automations failed for funnel ${funnels[0].id}:`, autoErr?.message);
+      }
       // Return next step slug
       let nextSlug: string | null = null;
       if (steps[0].yes_step_id) {

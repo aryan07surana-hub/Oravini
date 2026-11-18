@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { sql, eq, and, or, ilike, desc, asc, isNull, isNotNull, inArray } from "drizzle-orm";
+import { sql, eq, and, or, ilike, desc, asc, isNull, isNotNull, inArray, getTableColumns } from "drizzle-orm";
 import { db, pool } from "../storage";
 import {
   crmContacts, crmPipelines, crmPipelineStages, crmOpportunities,
@@ -684,7 +684,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     try {
       const result = { landingLeads: 0, users: 0, dmLeads: 0, skipped: 0 };
       // Landing leads
-      const { rows: leads } = await pool.query(`SELECT * FROM landing_leads`);
+      // Platform leads only: owner-scoped landing page leads are already in their owner's CRM.
+      const { rows: leads } = await pool.query(`SELECT * FROM landing_leads WHERE owner_id IS NULL`);
       for (const l of leads) {
         if (!l.email) { result.skipped++; continue; }
         const [existing] = await db.select().from(crmContacts).where(eq(crmContacts.email, l.email));
@@ -1436,14 +1437,14 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
         pool.query(`SELECT COUNT(*)::int AS n FROM crm_opportunities WHERE status = 'open'${ownerWhere}`, params).then(r => r.rows[0].n as number),
         pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open'${taskWhere}`, params).then(r => r.rows[0].n as number),
         pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at < NOW()${taskWhere}`, params).then(r => r.rows[0].n as number),
+        // Both branches go through drizzle so rows have the same camelCase CrmActivity
+        // shape (occurredAt, contactId, ...). A raw `SELECT a.*` here returned snake_case
+        // keys and crashed the client's timeAgo(a.occurredAt).
         ownerFilter
-          ? pool.query(
-              `SELECT a.* FROM crm_activities a
-                 LEFT JOIN crm_contacts c ON c.id = a.contact_id
-                WHERE c.owner_id = $1 OR a.user_id = $1
-                ORDER BY a.occurred_at DESC LIMIT 15`,
-              [ownerFilter],
-            ).then(r => r.rows)
+          ? db.select(getTableColumns(crmActivities)).from(crmActivities)
+              .leftJoin(crmContacts, eq(crmContacts.id, crmActivities.contactId))
+              .where(or(eq(crmContacts.ownerId, ownerFilter), eq(crmActivities.userId, ownerFilter)))
+              .orderBy(desc(crmActivities.occurredAt)).limit(15)
           : db.select().from(crmActivities).orderBy(desc(crmActivities.occurredAt)).limit(15),
       ]);
 

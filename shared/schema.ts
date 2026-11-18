@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb, serial, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb, serial, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -395,10 +395,16 @@ export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({ id: true,
 export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
 export type OtpCode = typeof otpCodes.$inferSelect;
 
+// Lead capture store. owner_id IS NULL → Oravini's own platform leads (quiz,
+// email capture, audit). owner_id = user id → leads captured on that user's
+// marketing landing pages (/api/lp/:slug/lead). Email is unique per owner, not
+// globally — see the "landing_leads owner scope" startup migration in server/index.ts.
 export const landingLeads = pgTable("landing_leads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id"),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  email: text("email").notNull(),
+  phone: text("phone"),
   source: text("source").notNull().default("email_capture"),
   creatorType: text("creator_type"),
   platform: text("platform"),
@@ -414,7 +420,10 @@ export const landingLeads = pgTable("landing_leads", {
   auditData: jsonb("audit_data"),
   creditsClaimed: boolean("credits_claimed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("landing_leads_owner_email_uniq").on(sql`COALESCE(${t.ownerId}, '')`, t.email),
+  index("idx_landing_leads_owner").on(t.ownerId),
+]);
 
 export const insertLandingLeadSchema = createInsertSchema(landingLeads).omit({ id: true, createdAt: true });
 export type InsertLandingLead = z.infer<typeof insertLandingLeadSchema>;

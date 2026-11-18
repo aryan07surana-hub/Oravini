@@ -1427,13 +1427,16 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── Landing Leads (CRM) ────────────────────────────────────────────────────
+  // These helpers serve Oravini's own platform leads only (owner_id IS NULL).
+  // Leads captured on users' marketing landing pages carry owner_id and live in
+  // the owner's CRM; they must not be matched/updated/listed here.
   async createLandingLead(data: InsertLandingLead): Promise<LandingLead> {
     const [row] = await db.insert(landingLeads).values(data).returning();
     return row;
   }
 
   async getLandingLeadByEmail(email: string): Promise<LandingLead | undefined> {
-    const [row] = await db.select().from(landingLeads).where(eq(landingLeads.email, email));
+    const [row] = await db.select().from(landingLeads).where(and(eq(landingLeads.email, email), isNull(landingLeads.ownerId)));
     return row;
   }
 
@@ -1443,7 +1446,7 @@ class DatabaseStorage implements IStorage {
   }
 
   async getAllLandingLeads(): Promise<LandingLead[]> {
-    return await db.select().from(landingLeads).orderBy(desc(landingLeads.createdAt));
+    return await db.select().from(landingLeads).where(isNull(landingLeads.ownerId)).orderBy(desc(landingLeads.createdAt));
   }
 
   // ── Onboarding Surveys ─────────────────────────────────────────────────────
