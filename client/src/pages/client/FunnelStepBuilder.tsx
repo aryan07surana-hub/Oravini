@@ -9,8 +9,11 @@ import {
   Type, Video, List, MessageSquare, Zap, Timer,
   DollarSign, HelpCircle, User, Minus, Image, Send,
   Shield, TrendingUp, CornerDownRight, RefreshCw,
-  MousePointer, Layers, ChevronRight,
+  MousePointer, Layers, ChevronRight, Radio,
 } from "lucide-react";
+import { WebinarStepPanel, draftFromSettings, previewSettings, type WebinarDraft } from "@/components/funnel/WebinarStepPanel";
+import { FunnelWebinarBlock } from "@/components/funnel/FunnelWebinarBlock";
+import { getFunnelWebinarPhase, type FunnelWebinarSettings } from "@shared/funnelWebinar";
 
 const GOLD = "#d4b461";
 const BG = "#040406";
@@ -780,6 +783,26 @@ export default function FunnelStepBuilder() {
   const [dirty, setDirty] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  // Webinar steps: settings draft (hydrated once per step so refetches don't wipe edits) + right-panel tab
+  const isWebinarStep = step?.type === "webinar";
+  const savedWebinar: FunnelWebinarSettings | null = step?.webinar ?? null;
+  const [webinarDraft, setWebinarDraft] = useState<WebinarDraft | null>(null);
+  const [rightTab, setRightTab] = useState<"webinar" | "ai">("webinar");
+  const hydratedWebinarFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!savedWebinar) { setWebinarDraft(null); hydratedWebinarFor.current = null; return; }
+    if (hydratedWebinarFor.current === stepId) return;
+    hydratedWebinarFor.current = stepId;
+    setWebinarDraft(draftFromSettings(savedWebinar));
+  }, [savedWebinar, stepId]);
+  const onWebinarSaved = (row: any) => {
+    qc.setQueryData([`/api/funnels/${funnelId}`], (old: any) =>
+      old ? { ...old, steps: old.steps.map((st: any) => st.id === row.id ? { ...st, webinar: row.webinar } : st) } : old);
+    // full save → draft now equals saved; first-time enable → hydrate
+    if (!webinarDraft || hydratedWebinarFor.current !== stepId) { hydratedWebinarFor.current = stepId; setWebinarDraft(draftFromSettings(row.webinar)); }
+  };
+  const webinarPreview = savedWebinar && webinarDraft ? previewSettings(savedWebinar, webinarDraft) : null;
+
   useEffect(() => {
     if (step) {
       setSections(Array.isArray(step.sections) ? step.sections : []);
@@ -952,13 +975,22 @@ export default function FunnelStepBuilder() {
             <div style={{ height:0, overflow:"visible", pointerEvents:"none" }}>
               <div style={{ height:500, background:`radial-gradient(ellipse 140% 50% at 50% 0%,${accent}10 0%,transparent 65%)`, pointerEvents:"none" }} />
             </div>
+            {isWebinarStep && webinarPreview && (
+              <div data-testid="builder-webinar-preview">
+                <FunnelWebinarBlock settings={webinarPreview} phase={getFunnelWebinarPhase(webinarPreview)}
+                  funnelSlug={data?.slug || ""} stepSlug={step.slug} accent={accent} preview />
+              </div>
+            )}
             {sections.length === 0 ? (
+              isWebinarStep && webinarPreview ? (
+                <div><p className="text-center text-zinc-700 text-xs pb-8">Add sections (benefits, bio, testimonials…) to show below the webinar room.</p></div>
+              ) :
               <div className="flex flex-col items-center justify-center h-80 gap-4" style={{ marginTop:-500 }}>
                 <Layers className="w-10 h-10" style={{ color:`${GOLD}25` }} />
                 <p className="text-zinc-600 text-sm text-center max-w-xs">Add sections from the left, or tell the AI what you need in the chat →</p>
               </div>
             ) : (
-              <div style={{ marginTop:-500 }}>
+              <div style={{ marginTop: isWebinarStep && webinarPreview ? 0 : -500 }}>
                 {sections.map(section => (
                   <PreviewSection
                     key={section.id} section={section} accent={accent}
@@ -976,6 +1008,23 @@ export default function FunnelStepBuilder() {
 
       {/* ── Right: AI Chat ────────────────────────────────────────────── */}
       <div className="w-[300px] flex-shrink-0 flex flex-col" style={{ background:SIDEBAR_BG, borderLeft:`1px solid ${PANEL_BORDER}` }}>
+        {isWebinarStep && (
+          <div className="flex p-1.5 gap-1 border-b" style={{ borderColor:PANEL_BORDER }}>
+            {(["webinar","ai"] as const).map(t => (
+              <button key={t} data-testid={`tab-${t}`} onClick={() => setRightTab(t)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-black transition-colors"
+                style={{ background: rightTab===t ? `${GOLD}16` : "transparent", color: rightTab===t ? GOLD : "#71717a" }}>
+                {t === "webinar" ? <><Radio className="w-3 h-3" />Webinar</> : <><Sparkles className="w-3 h-3" />AI chat</>}
+              </button>
+            ))}
+          </div>
+        )}
+        {isWebinarStep && rightTab === "webinar" ? (
+          <div className="flex-1 min-h-0">
+            <WebinarStepPanel funnelId={funnelId} stepId={stepId} stepName={step.name}
+              saved={savedWebinar} draft={webinarDraft} setDraft={setWebinarDraft} onSaved={onWebinarSaved} />
+          </div>
+        ) : (
         <AIChatPanel
           funnelId={funnelId}
           stepId={stepId}
@@ -984,6 +1033,7 @@ export default function FunnelStepBuilder() {
           accent={accent}
           onSectionsUpdate={handleAIUpdate}
         />
+        )}
       </div>
     </div>
   );
