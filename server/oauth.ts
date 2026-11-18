@@ -8,6 +8,17 @@ function requireAuth(req: Request, res: Response, next: Function) {
   next();
 }
 
+// Scopes for the classic (non-config) Meta dialog fallback.
+const META_FALLBACK_SCOPES = [
+  "instagram_basic",
+  "instagram_content_publish",
+  "pages_show_list",
+  "pages_read_engagement",
+  "instagram_manage_messages",
+  "pages_manage_metadata",
+  "business_management",
+].join(",");
+
 export function registerOAuthRoutes(app: Express) {
   const getAppBase = () => {
     return process.env.APP_URL || process.env.SITE_URL || process.env.PUBLIC_BASE_URL || "http://localhost:5000";
@@ -20,16 +31,30 @@ export function registerOAuthRoutes(app: Express) {
     if (!clientId) return res.status(500).json({ message: "Meta OAuth not configured" });
     
     const redirectUri = `${getAppBase()}/api/oauth/meta/callback`;
-    const scope = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_messages";
     const state = Buffer.from(JSON.stringify({ userId })).toString("base64");
-    
-    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
+
+    // Facebook Login for Business: the app is a business-type app with only the
+    // "Facebook Login for Business" product, so the dialog must be driven by a
+    // login configuration (config_id) instead of a scope list. An explicit empty
+    // META_LOGIN_CONFIG_ID falls back to the classic scope-based dialog (local dev).
+    const configId = process.env.META_LOGIN_CONFIG_ID ?? "1495729659074082";
+
+    let authUrl: string;
+    if (configId) {
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=${encodeURIComponent(configId)}&response_type=code&state=${encodeURIComponent(state)}`;
+    } else {
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${META_FALLBACK_SCOPES}&state=${encodeURIComponent(state)}&response_type=code`;
+    }
     res.redirect(authUrl);
   });
 
   app.get("/api/oauth/meta/callback", async (req: Request, res: Response) => {
     try {
-      const { code, state } = req.query;
+      const { code, state, error, error_description } = req.query;
+      if (error) {
+        console.warn("[meta-oauth] user declined or dialog error:", error, error_description);
+        return res.redirect("/dashboard?error=meta_declined");
+      }
       if (!code || !state) return res.redirect("/dashboard?error=meta_auth_failed");
 
       const { userId } = JSON.parse(Buffer.from(state as string, "base64").toString());
@@ -48,6 +73,23 @@ export function registerOAuthRoutes(app: Express) {
       const accessToken = tokenData.access_token;
       const expiresIn = tokenData.expires_in || 5184000; // 60 days default
       const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+      // Record the permissions actually granted (config flows don't echo scopes
+      // in the token response, so read them from /me/permissions).
+      let grantedScope = META_FALLBACK_SCOPES;
+      try {
+        const permResp = await fetch(`https://graph.facebook.com/v18.0/me/permissions?access_token=${accessToken}`);
+        const permData = await permResp.json();
+        if (Array.isArray(permData.data)) {
+          const granted = permData.data
+            .filter((p: any) => p.status === "granted")
+            .map((p: any) => p.permission)
+            .join(",");
+          if (granted) grantedScope = granted;
+        }
+      } catch (e) {
+        console.warn("[meta-oauth] could not read granted permissions:", e);
+      }
 
       // Get user's Facebook pages
       const pagesResp = await fetch(`https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`);
@@ -91,7 +133,7 @@ export function registerOAuthRoutes(app: Express) {
            fb_page_id = EXCLUDED.fb_page_id,
            fb_page_name = EXCLUDED.fb_page_name,
            updated_at = NOW()`,
-        [userId, encryptedToken, expiresAt, "instagram_basic,pages_show_list", igAccountId, igUsername, fbPageId, fbPageName]
+        [userId, encryptedToken, expiresAt, grantedScope, igAccountId, igUsername, fbPageId, fbPageName]
       );
 
       res.redirect("/dashboard?connected=instagram");
