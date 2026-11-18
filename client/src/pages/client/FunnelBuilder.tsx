@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -23,6 +23,7 @@ import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft, Plus, Trash2, Edit3, Globe, Loader2, X, Check,
   Users, Eye, DollarSign, Layers, BarChart2, Zap, Link2,
+  Sparkles, Send, Undo2, PanelRightClose, AlertTriangle,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -422,10 +423,12 @@ function AddStepModal({ onAdd, onClose }: { onAdd: (type: string, name: string) 
 
 // ── Canvas (inside ReactFlowProvider) ────────────────────────────────────────
 
-function FunnelCanvas({ funnelId, steps, onStepsChange }: {
+function FunnelCanvas({ funnelId, steps, onStepsChange, onSelectionChange }: {
   funnelId: string; steps: Step[]; onStepsChange: (s: Step[]) => void;
+  onSelectionChange?: (id: string | null) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => { onSelectionChange?.(selectedId); }, [selectedId, onSelectionChange]);
   const [pendingConn, setPendingConn] = useState<Connection | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [savingStep, setSavingStep] = useState(false);
@@ -599,6 +602,253 @@ function FunnelCanvas({ funnelId, steps, onStepsChange }: {
   );
 }
 
+// ── AI Copilot (chat) Panel ─────────────────────────────────────────────────
+
+type ChatMessage =
+  | { role: "user"; text: string }
+  | { role: "assistant"; text: string; changes?: string[] }
+  | { role: "notice"; text: string; tone: "error" | "limit" | "info" };
+
+const UNDO_LIMIT = 20;
+// Must match the key written by the "Build with AI" modal in Funnels.tsx.
+const CHAT_SEED_KEY = (funnelId: string) => `funnel-chat-seed:${funnelId}`;
+
+const stepsSignature = (list: Step[]) => JSON.stringify(list.map(s => [
+  s.id, s.name, s.type, s.position, s.sections, s.price, s.product_name,
+  s.next_step_id, s.yes_step_id, s.no_step_id,
+]));
+
+function CopilotPanel({ funnelId, steps, onStepsChange, selectedStep, onClose }: {
+  funnelId: string;
+  steps: Step[];
+  onStepsChange: (s: Step[]) => void;
+  selectedStep: Step | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = sessionStorage.getItem(CHAT_SEED_KEY(funnelId));
+      if (raw) {
+        sessionStorage.removeItem(CHAT_SEED_KEY(funnelId));
+        const seeded = JSON.parse(raw);
+        if (Array.isArray(seeded)) return seeded as ChatMessage[];
+      }
+    } catch { /* storage unavailable — start empty */ }
+    return [];
+  });
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [undoStack, setUndoStack] = useState<Step[][]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  const refreshCaches = () => {
+    qc.invalidateQueries({ queryKey: ["/api/funnels"] });
+    qc.invalidateQueries({ queryKey: [`/api/funnels/${funnelId}`] });
+  };
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || busy || undoing) return;
+    const before = steps;
+    setInput("");
+    setMessages(m => [...m, { role: "user", text }]);
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/funnels/${funnelId}/chat`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ message: text, selectedStepId: selectedStep?.id }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 429) {
+        setMessages(m => [...m, { role: "notice", tone: "limit", text: data.message || "You've hit today's copilot limit. Try again tomorrow." }]);
+        return;
+      }
+      if (!r.ok) throw new Error(data.message || `Request failed (${r.status})`);
+      const next: Step[] = Array.isArray(data.steps) ? data.steps : before;
+      if (stepsSignature(next) !== stepsSignature(before)) {
+        setUndoStack(st => [...st, before].slice(-UNDO_LIMIT));
+      }
+      onStepsChange(next);
+      setMessages(m => [...m, { role: "assistant", text: data.reply || "Done!", changes: data.changes || [] }]);
+      refreshCaches();
+    } catch (e: any) {
+      setMessages(m => [...m, { role: "notice", tone: "error", text: e.message || "Something went wrong. Please try again." }]);
+    } finally {
+      setBusy(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const undo = async () => {
+    if (busy || undoing || undoStack.length === 0) return;
+    const snapshot = undoStack[undoStack.length - 1];
+    setUndoing(true);
+    try {
+      const r = await fetch(`/api/funnels/${funnelId}/steps/snapshot`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ steps: snapshot }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.message || `Undo failed (${r.status})`);
+      setUndoStack(st => st.slice(0, -1));
+      onStepsChange(Array.isArray(data.steps) ? data.steps : snapshot);
+      setMessages(m => [...m, { role: "notice", tone: "info", text: "Undid the last change." }]);
+      refreshCaches();
+    } catch (e: any) {
+      setMessages(m => [...m, { role: "notice", tone: "error", text: e.message || "Undo failed." }]);
+    } finally {
+      setUndoing(false);
+    }
+  };
+
+  const onPanelKeyDown = (e: ReactKeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+    // Let the textarea handle its own text undo while it has content.
+    if (e.target === inputRef.current && input.length > 0) return;
+    e.preventDefault();
+    undo();
+  };
+
+  const suggestions = ["Make the hero headline punchier", "Add a FAQ section", "Add an upsell step"];
+
+  return (
+    <div
+      onKeyDown={onPanelKeyDown}
+      tabIndex={-1}
+      className="w-[340px] flex-shrink-0 flex flex-col min-h-0 outline-none"
+      style={{ background: SIDEBAR_BG, borderLeft: `1px solid ${PANEL_BORDER}` }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: PANEL_BORDER }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}30` }}>
+          <Sparkles className="w-3.5 h-3.5" style={{ color: GOLD }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-black text-white">AI Copilot</p>
+          <p className="text-[10px] text-zinc-600 truncate">Describe a change — it's applied live</p>
+        </div>
+        <button
+          onClick={undo}
+          disabled={undoStack.length === 0 || busy || undoing}
+          title="Undo last AI change (Ctrl+Z)"
+          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"
+          style={{ border: `1px solid ${PANEL_BORDER}` }}
+        >
+          {undoing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3" />}
+          Undo{undoStack.length > 0 ? ` (${undoStack.length})` : ""}
+        </button>
+        <button onClick={onClose} title="Hide copilot" className="p-1 text-zinc-600 hover:text-white transition-colors">
+          <PanelRightClose className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+        {messages.length === 0 && (
+          <div className="text-center pt-6">
+            <p className="text-zinc-400 text-xs mb-1">Edit your funnel by chatting.</p>
+            <p className="text-zinc-600 text-[11px] mb-4">Select a step on the canvas to focus edits on it.</p>
+            <div className="space-y-2">
+              {suggestions.map(sug => (
+                <button key={sug} onClick={() => { setInput(sug); inputRef.current?.focus(); }}
+                  className="w-full text-left text-[11px] px-3 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                  style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${PANEL_BORDER}` }}>
+                  {sug}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((m, i) => {
+          if (m.role === "user") return (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-md text-xs leading-relaxed whitespace-pre-wrap"
+                style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}30`, color: "#f4f4f5" }}>
+                {m.text}
+              </div>
+            </div>
+          );
+          if (m.role === "assistant") return (
+            <div key={i} className="flex justify-start">
+              <div className="max-w-[92%] px-3 py-2 rounded-2xl rounded-bl-md text-xs leading-relaxed"
+                style={{ background: CARD, border: `1px solid ${PANEL_BORDER}`, color: "#d4d4d8" }}>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+                {m.changes && m.changes.length > 0 && (
+                  <ul className="mt-2 pt-2 space-y-1 border-t" style={{ borderColor: PANEL_BORDER }}>
+                    {m.changes.map((c, j) => (
+                      <li key={j} className="flex gap-1.5 text-[11px] text-zinc-400">
+                        <Check className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: GOLD }} />
+                        <span>{c}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          );
+          const tone = m.tone === "info"
+            ? { color: "#a1a1aa", bg: "rgba(255,255,255,0.03)", border: PANEL_BORDER }
+            : m.tone === "limit"
+              ? { color: GOLD, bg: `${GOLD}0d`, border: `${GOLD}30` }
+              : { color: "#f87171", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.2)" };
+          return (
+            <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-xl text-[11px] leading-relaxed"
+              style={{ background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color }}>
+              {m.tone !== "info" && <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />}
+              <span>{m.text}</span>
+            </div>
+          );
+        })}
+
+        {busy && (
+          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: GOLD }} />
+            Editing your funnel…
+          </div>
+        )}
+      </div>
+
+      {/* Composer */}
+      <div className="p-3 border-t flex-shrink-0" style={{ borderColor: PANEL_BORDER }}>
+        <div className="flex items-center gap-1.5 mb-2 text-[10px] text-zinc-600">
+          <span>Scope:</span>
+          <span className="px-1.5 py-0.5 rounded font-bold truncate"
+            style={selectedStep ? { background: `${GOLD}12`, color: GOLD } : { background: "rgba(255,255,255,0.04)", color: "#a1a1aa" }}>
+            {selectedStep ? selectedStep.name : "Whole funnel"}
+          </span>
+        </div>
+        <div className="flex items-end gap-2 rounded-xl px-3 py-2"
+          style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${busy ? GOLD + "40" : "rgba(255,255,255,0.1)"}` }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={busy ? "Working on it…" : "e.g. Add a FAQ section"}
+            rows={2}
+            readOnly={busy || undoing}
+            className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none resize-none leading-relaxed read-only:opacity-50"
+          />
+          <button onClick={send} disabled={!input.trim() || busy || undoing}
+            className="p-2 rounded-lg disabled:opacity-30 transition-opacity flex-shrink-0"
+            style={{ background: GOLD, color: BG }}>
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <p className="text-[9px] text-zinc-700 mt-1.5">Enter to send · Shift+Enter for a new line · Ctrl+Z to undo</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function FunnelBuilder() {
@@ -620,6 +870,8 @@ export default function FunnelBuilder() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [funnel, setFunnel] = useState<Omit<Funnel, "steps"> | null>(null);
   const [savingFunnel, setSavingFunnel] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -678,6 +930,11 @@ export default function FunnelBuilder() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setChatOpen(o => !o)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+            style={chatOpen ? { color: GOLD, background: `${GOLD}12`, border: `1px solid ${GOLD}30` } : { color: "#a1a1aa", border: "1px solid transparent" }}>
+            <Sparkles className="w-3.5 h-3.5" />AI Copilot
+          </button>
           <button onClick={() => nav(`/funnels/${id}/analytics`)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-white transition-colors">
             <BarChart2 className="w-3.5 h-3.5" />Analytics
@@ -712,8 +969,18 @@ export default function FunnelBuilder() {
       {/* React Flow canvas */}
       <div className="flex flex-1 min-h-0">
         <ReactFlowProvider>
-          <FunnelCanvas funnelId={id} steps={steps} onStepsChange={setSteps} />
+          <FunnelCanvas funnelId={id} steps={steps} onStepsChange={setSteps} onSelectionChange={setSelectedStepId} />
         </ReactFlowProvider>
+        {/* Kept mounted while collapsed so chat history + undo stack survive toggling */}
+        <div className={chatOpen ? "flex" : "hidden"}>
+          <CopilotPanel
+            funnelId={id}
+            steps={steps}
+            onStepsChange={setSteps}
+            selectedStep={steps.find(s => s.id === selectedStepId) || null}
+            onClose={() => setChatOpen(false)}
+          />
+        </div>
       </div>
     </div>
   );
