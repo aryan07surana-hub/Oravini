@@ -75,7 +75,6 @@ async function handleMessagingEvent(accountId: string, userId: string, creds: Se
     console.log(`${LOG} Skipping non-message messaging event for ${accountId}:`, Object.keys(evt || {}).join(","));
     return;
   }
-  if (message.is_echo || message.is_deleted) return; // our own outgoing messages / deletions
   const senderId: string | undefined = evt?.sender?.id;
   if (!senderId || senderId === accountId) return;
   const text: string = typeof message.text === "string" ? message.text : "";
@@ -198,7 +197,11 @@ export async function handleMetaWebhookEvent(body: any): Promise<void> {
       try {
         const accountId = entry?.id != null ? String(entry.id) : "";
         if (!accountId) continue;
-        const messaging: any[] = Array.isArray(entry.messaging) ? entry.messaging : [];
+        // Drop echoes (our own outgoing messages) and deletions BEFORE the account
+        // lookup, so tester-account echoes don't log misleading "No connected
+        // Oravini account" warnings.
+        const messaging: any[] = (Array.isArray(entry.messaging) ? entry.messaging : [])
+          .filter((evt: any) => !(evt?.message?.is_echo || evt?.message?.is_deleted));
         const changes: any[] = Array.isArray(entry.changes) ? entry.changes : [];
         const commentChanges = changes.filter(c => c?.field === "comments");
         for (const c of changes) {

@@ -19,6 +19,58 @@ const META_FALLBACK_SCOPES = [
   "business_management",
 ].join(",");
 
+// Subscribe the app to Page + Instagram webhook fields so inbound DMs/comments
+// are delivered to /api/webhooks/meta. Best-effort: errors are logged only.
+async function subscribeMetaWebhooks(
+  userId: string,
+  fbPageId: string | null,
+  igAccountId: string | null,
+  pageAccessToken: string,
+): Promise<void> {
+  if (fbPageId) {
+    try {
+      const resp = await fetch(
+        `https://graph.facebook.com/v25.0/${fbPageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_referrals&access_token=${encodeURIComponent(pageAccessToken)}`,
+        { method: "POST" },
+      );
+      const data: any = await resp.json().catch(() => ({}));
+      if (data?.error) {
+        const msg = String(data.error.message ?? "");
+        if (/pages_messaging/i.test(msg)) {
+          console.warn(`[meta-oauth] page subscribed_apps for user ${userId} page=${fbPageId} needs pages_messaging (continuing; IG subscription may still deliver):`, JSON.stringify(data));
+        } else {
+          console.error(`[meta-oauth] page subscribed_apps failed for user ${userId} page=${fbPageId}:`, JSON.stringify(data));
+        }
+      } else {
+        console.log(`[meta-oauth] page subscribed_apps for user ${userId} page=${fbPageId}:`, JSON.stringify(data));
+      }
+    } catch (e: any) {
+      console.error(`[meta-oauth] page subscribed_apps error for user ${userId} page=${fbPageId}: ${e?.message ?? e}`);
+    }
+  } else {
+    console.warn(`[meta-oauth] skipping page subscribed_apps for user ${userId}: no fbPageId`);
+  }
+
+  if (igAccountId) {
+    try {
+      const resp = await fetch(
+        `https://graph.facebook.com/v25.0/${igAccountId}/subscribed_apps?subscribed_fields=messages,comments,mentions,messaging_postbacks,messaging_referral&access_token=${encodeURIComponent(pageAccessToken)}`,
+        { method: "POST" },
+      );
+      const data: any = await resp.json().catch(() => ({}));
+      if (data?.error) {
+        console.error(`[meta-oauth] IG subscribed_apps failed for user ${userId} ig=${igAccountId}:`, JSON.stringify(data));
+      } else {
+        console.log(`[meta-oauth] IG subscribed_apps for user ${userId} ig=${igAccountId}:`, JSON.stringify(data));
+      }
+    } catch (e: any) {
+      console.error(`[meta-oauth] IG subscribed_apps error for user ${userId} ig=${igAccountId}: ${e?.message ?? e}`);
+    }
+  } else {
+    console.warn(`[meta-oauth] skipping IG subscribed_apps for user ${userId}: no igAccountId`);
+  }
+}
+
 export function registerOAuthRoutes(app: Express) {
   const getAppBase = () => {
     return process.env.APP_URL || process.env.SITE_URL || process.env.PUBLIC_BASE_URL || "http://localhost:5000";
@@ -33,11 +85,11 @@ export function registerOAuthRoutes(app: Express) {
     const redirectUri = `${getAppBase()}/api/oauth/meta/callback`;
     const state = Buffer.from(JSON.stringify({ userId })).toString("base64");
 
-    // Facebook Login for Business: the app is a business-type app with only the
-    // "Facebook Login for Business" product, so the dialog must be driven by a
-    // login configuration (config_id) instead of a scope list. An explicit empty
-    // META_LOGIN_CONFIG_ID falls back to the classic scope-based dialog (local dev).
-    const configId = process.env.META_LOGIN_CONFIG_ID ?? "1495729659074082";
+    // Default to the classic scope-based dialog (META_FALLBACK_SCOPES). The login
+    // configuration flow silently drops pages_manage_metadata, which Meta requires
+    // for Instagram messaging webhook delivery. Set META_LOGIN_CONFIG_ID only if a
+    // configuration that includes pages_manage_metadata is available.
+    const configId = process.env.META_LOGIN_CONFIG_ID ?? "";
 
     let authUrl: string;
     if (configId) {
@@ -144,6 +196,14 @@ export function registerOAuthRoutes(app: Express) {
            updated_at = NOW()`,
         [userId, encryptedToken, expiresAt, grantedScope, igAccountId, igUsername, fbPageId, fbPageName]
       );
+
+      // Subscribe the app to webhook delivery for this page + IG account.
+      // Best-effort: log results, never fail the connect.
+      if (pageAccessToken) {
+        await subscribeMetaWebhooks(userId, fbPageId, igAccountId, pageAccessToken);
+      } else {
+        console.warn(`[meta-oauth] skipping webhook auto-subscribe for user ${userId}: no page access token`);
+      }
 
       res.redirect("/dashboard?connected=instagram");
     } catch (err: any) {
