@@ -45,21 +45,124 @@ function fmtDuration(secs: number): string {
   return `${s}s`;
 }
 
-function ViewerHeatmap({ timeline }: { timeline: any[] }) {
+function fmtPct(n: number | undefined | null): string {
+  if (n == null || !Number.isFinite(n)) return "0%";
+  return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
+}
+
+function ConversionFunnel({ conversion }: { conversion: any }) {
+  const registered = conversion?.registered ?? 0;
+  const attended = conversion?.attended ?? 0;
+  const clicked = conversion?.clickedCta ?? 0;
+  const top = Math.max(registered, attended, clicked, 1);
+  const steps = [
+    { label: "Registered", value: registered, color: "#60a5fa", note: null as string | null },
+    { label: "Attended", value: attended, color: "#34d399", note: `${fmtPct(conversion?.showRate)} show rate` },
+    { label: "Clicked CTA", value: clicked, color: GOLD, note: `${fmtPct(conversion?.ctaPerAttendee)} of attendees` },
+  ];
+  return (
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+      <div>
+        <h3 className="text-sm font-black text-white tracking-tight">Conversion Funnel</h3>
+        <p className="text-[11px] text-zinc-500 mt-0.5">Registered → attended → clicked CTA</p>
+      </div>
+      <div className="space-y-3">
+        {steps.map(st => (
+          <div key={st.label}>
+            <div className="flex items-baseline justify-between mb-1.5 gap-3">
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">{st.label}</span>
+              <span className="flex items-baseline gap-2">
+                {st.note && <span className="text-[10px] text-zinc-500">{st.note}</span>}
+                <span className="text-lg font-black text-white">{st.value}</span>
+              </span>
+            </div>
+            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${Math.max((st.value / top) * 100, st.value > 0 ? 3 : 0)}%`, background: st.color }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-3 pt-1">
+        {[
+          { label: "Show rate", value: conversion?.showRate, sub: "attended / registered" },
+          { label: "CTA / attendee", value: conversion?.ctaPerAttendee, sub: "clicked / attended" },
+          { label: "CTA / registrant", value: conversion?.ctaPerRegistration, sub: "clicked / registered" },
+        ].map(r => (
+          <div key={r.label} className="rounded-xl p-3" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}14` }}>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: `${GOLD}70` }}>{r.label}</p>
+            <p className="text-xl font-black text-white mt-1">{fmtPct(r.value)}</p>
+            <p className="text-[9px] text-zinc-600 mt-0.5">{r.sub}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StayRatePanel({ stayRate, attendees }: { stayRate: any; attendees: number }) {
+  const marks = [
+    { key: "p25", label: "25% in" },
+    { key: "p50", label: "Halfway" },
+    { key: "p75", label: "75% in" },
+  ];
+  const hasData = !!stayRate && attendees > 0;
+  return (
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+      <div>
+        <h3 className="text-sm font-black text-white tracking-tight">Stay Rate</h3>
+        <p className="text-[11px] text-zinc-500 mt-0.5">% of {attendees} attendee{attendees === 1 ? "" : "s"} still watching at each point</p>
+      </div>
+      {!hasData ? (
+        <p className="text-xs text-zinc-600 py-6 text-center">No viewer sessions yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {marks.map(m => {
+            const d = stayRate[m.key] || { pct: 0, viewers: 0, minute: 0 };
+            const color = d.pct >= 60 ? "#34d399" : d.pct >= 30 ? GOLD : "#f87171";
+            return (
+              <div key={m.key}>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                    {m.label} <span className="text-zinc-600 normal-case tracking-normal font-semibold">· min {d.minute}</span>
+                  </span>
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-[10px] text-zinc-500">{d.viewers} watching</span>
+                    <span className="text-lg font-black" style={{ color }}>{d.pct}%</span>
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${d.pct}%`, background: color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ViewerHeatmap({ timeline, isLive, stayRate }: { timeline: any[]; isLive?: boolean; stayRate?: any }) {
   if (!timeline || timeline.length < 2) {
     return (
       <div className="rounded-2xl p-10 text-center" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
         <div className="w-10 h-10 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: `${GOLD}12` }}>
           <TrendingUp className="w-5 h-5" style={{ color: `${GOLD}60` }} />
         </div>
-        <p className="text-zinc-500 text-sm font-semibold">Timeline available after webinar ends</p>
-        <p className="text-zinc-700 text-xs mt-1">Run a live webinar to generate the dropout curve and engagement heatmap.</p>
+        <p className="text-zinc-500 text-sm font-semibold">
+          {isLive ? "Collecting viewer data…" : "No viewer sessions recorded yet"}
+        </p>
+        <p className="text-zinc-700 text-xs mt-1">
+          {isLive
+            ? "The drop-off curve fills in minute by minute as viewers watch."
+            : "Run a live webinar to generate the drop-off curve and engagement heatmap."}
+        </p>
       </div>
     );
   }
 
   const maxViewers    = Math.max(...timeline.map(t => t.viewers), 1);
-  const maxEngagement = Math.max(...timeline.map(t => t.chats + t.reactions), 1);
   const ctaMinutes    = timeline.filter(t => t.ctaClicks > 0);
   const peakMinute    = timeline.reduce((p, c) => c.viewers > p.viewers ? c : p, timeline[0]);
   const halfViewers   = maxViewers / 2;
@@ -77,6 +180,8 @@ function ViewerHeatmap({ timeline }: { timeline: any[] }) {
           <div className="flex justify-between gap-4"><span className="text-zinc-400">Viewers</span><span className="font-bold text-white">{d.viewers}</span></div>
           {d.chats    > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Chat</span><span className="font-bold text-blue-400">{d.chats}</span></div>}
           {d.reactions > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Reactions</span><span className="font-bold text-pink-400">{d.reactions}</span></div>}
+          {d.questions > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Questions</span><span className="font-bold text-amber-400">{d.questions}</span></div>}
+          {d.pollVotes > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Poll votes</span><span className="font-bold text-orange-400">{d.pollVotes}</span></div>}
           {d.ctaClicks > 0 && <div className="flex justify-between gap-4"><span style={{ color: GOLD }} className="font-bold">⚡ CTA Clicks</span><span className="font-bold" style={{ color: GOLD }}>{d.ctaClicks}</span></div>}
         </div>
       </div>
@@ -87,8 +192,8 @@ function ViewerHeatmap({ timeline }: { timeline: any[] }) {
     <div className="rounded-2xl p-5 space-y-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-black text-white tracking-tight">Viewer Dropout Curve</h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">When people left · chat & reaction bursts · CTA conversion moments</p>
+          <h3 className="text-sm font-black text-white tracking-tight">Viewer Drop-off Curve</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Concurrent viewers per minute · chat & reaction bursts · CTA conversion moments</p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
           {[
@@ -125,6 +230,11 @@ function ViewerHeatmap({ timeline }: { timeline: any[] }) {
             interval={Math.max(1, Math.floor(timeline.length / 8))}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: `${GOLD}30`, strokeWidth: 1 }} />
+
+          {/* Stay-rate checkpoints (25 / 50 / 75% of duration) */}
+          {stayRate && ["p25", "p50", "p75"].map(k => stayRate[k] && stayRate[k].minute > 0 ? (
+            <ReferenceLine key={k} x={stayRate[k].minute} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+          ) : null)}
 
           {/* CTA click reference lines */}
           {ctaMinutes.map(t => (
@@ -230,6 +340,19 @@ export default function WebinarAnalytics() {
   const recordings = a.recordings ?? [];
   const chatTranscript = a.chatTranscript ?? [];
   const qaLog = a.qaLog ?? [];
+  const medianWatchTime = a.medianWatchTime ?? 0;
+  const peakMinute: number | null = a.peakMinute ?? null;
+  const stayRate = a.stayRate ?? null;
+  const attendees = a.attendees ?? attended;
+  const uniqueViewerIds = a.uniqueViewerIds ?? uniqueViewers;
+  const conversion = a.conversion ?? {
+    registered: registrations,
+    attended,
+    clickedCta: ctaClicks,
+    showRate,
+    ctaPerAttendee: attended > 0 ? Math.round((ctaClicks / attended) * 1000) / 10 : 0,
+    ctaPerRegistration: registrations > 0 ? Math.round((ctaClicks / registrations) * 1000) / 10 : 0,
+  };
 
   const attendanceRate = registrations > 0 ? Math.round((attended / registrations) * 100) : 0;
   const isLive = webinar?.status === "live";
@@ -300,7 +423,12 @@ export default function WebinarAnalytics() {
               icon={TrendingUp}
               color="#34d399"
             />
-            <StatCard label="Peak Viewers" value={peakViewers} icon={Users} color={GOLD} />
+            <StatCard
+              label={peakMinute != null ? `Peak Concurrent · min ${peakMinute}` : "Peak Concurrent"}
+              value={peakViewers}
+              icon={Users}
+              color={GOLD}
+            />
             <StatCard
               label="Duration"
               value={duration ? fmtDuration(duration) : isLive ? "Live now" : "—"}
@@ -310,34 +438,42 @@ export default function WebinarAnalytics() {
           </div>
         </div>
 
+        {/* ── WATCH TIME ── */}
+        <div>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
+            style={{ color: `${GOLD}50` }}>Watch Time</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard label="Avg Watch Time" value={fmtDuration(avgWatchTime)} icon={Clock} color="#a78bfa" />
+            <StatCard label="Median Watch Time" value={fmtDuration(medianWatchTime)} icon={Clock} color="#c4b5fd" />
+            <StatCard label="Unique Viewers" value={uniqueViewerIds} icon={Users} color="#60a5fa" />
+            <StatCard label="Total Watch Time" value={fmtDuration(totalWatchSeconds)} icon={Video} color={GOLD} />
+          </div>
+        </div>
+
+        {/* ── FUNNEL + STAY RATE ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ConversionFunnel conversion={conversion} />
+          <StayRatePanel stayRate={stayRate} attendees={attendees} />
+        </div>
+
         {/* ── ENGAGEMENT STATS ── */}
         <div>
           <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
             style={{ color: `${GOLD}50` }}>Engagement</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard label="Chat Messages" value={chatMessages} icon={MessageSquare} color="#60a5fa" />
             <StatCard label="Q&A Questions" value={qaQuestions} icon={HelpCircle} color="#fbbf24" />
             <StatCard label="Reactions" value={totalReactions} icon={ThumbsUp} color="#f472b6" />
             <StatCard label="Poll Votes" value={pollVotes} icon={BarChart2} color="#fb923c" />
+            <StatCard label="CTA Clicks" value={ctaClicks} icon={MousePointerClick} color="#34d399" />
           </div>
         </div>
-
-        {/* ── CTA CONVERSION STATS ── */}
-        {ctaClicks > 0 && (
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-              style={{ color: `${GOLD}50` }}>CTA Clicks</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <StatCard label="CTA Clicks" value={ctaClicks} icon={MousePointerClick} color="#34d399" />
-            </div>
-          </div>
-        )}
 
         {/* ── VIEWER HEATMAP ── */}
         <div>
           <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
             style={{ color: `${GOLD}50` }}>Viewer Timeline</h2>
-          <ViewerHeatmap timeline={timeline || []} />
+          <ViewerHeatmap timeline={timeline || []} isLive={isLive} stayRate={stayRate} />
         </div>
 
         {/* ── RECORDINGS ── */}
@@ -454,7 +590,7 @@ export default function WebinarAnalytics() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                    {["Name", "Joined", "Watch Time", "Status"].map(h => (
+                    {["Name", "Joined", "Left", "Watch Time", "Status"].map(h => (
                       <th key={h}
                         className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
                         style={{ textAlign: h === "Watch Time" || h === "Status" ? "center" : "left" }}>
@@ -478,6 +614,12 @@ export default function WebinarAnalytics() {
                       </td>
                       <td className="px-4 py-3 text-zinc-400 text-xs">
                         {a.joinedAt ? format(new Date(a.joinedAt), "MMM d, h:mm a") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-xs">
+                        {a.leftAt ? format(new Date(a.leftAt), "h:mm a") : "—"}
+                        {a.dropOffMinute != null && (
+                          <span className="ml-1.5 text-[10px] text-zinc-600">min {a.dropOffMinute}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-zinc-300 font-semibold">{fmtDuration(a.watchedSeconds || 0)}</span>

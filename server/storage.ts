@@ -482,6 +482,7 @@ export interface IStorage {
   getWebinarRegistrations(webinarId: string): Promise<WebinarRegistration[]>;
   createWebinarRegistration(data: InsertWebinarRegistration): Promise<WebinarRegistration>;
   updateWebinarRegistration(id: string, data: Partial<InsertWebinarRegistration>): Promise<WebinarRegistration | undefined>;
+  markWebinarRegistrationAttended(id: string, watchedDuration?: number): Promise<void>;
   getVideoEvents(userId: string): Promise<VideoEvent[]>;
   getVideoEvent(id: string): Promise<VideoEvent | undefined>;
   createVideoEvent(data: InsertVideoEvent): Promise<VideoEvent>;
@@ -2703,6 +2704,11 @@ class DatabaseStorage implements IStorage {
   async updateWebinarRegistration(id: string, data: Partial<InsertWebinarRegistration>): Promise<WebinarRegistration | undefined> {
     const [row] = await db.update(webinarRegistrations).set(data).where(eq(webinarRegistrations.id, id)).returning();
     return row;
+  }
+  async markWebinarRegistrationAttended(id: string, watchedDuration?: number): Promise<void> {
+    const set: { attended: boolean; watchedDuration?: number } = { attended: true };
+    if (typeof watchedDuration === "number" && watchedDuration > 0) set.watchedDuration = Math.round(watchedDuration);
+    await db.update(webinarRegistrations).set(set).where(eq(webinarRegistrations.id, id));
   }
   async getVideoEvents(userId: string): Promise<VideoEvent[]> {
     return db.select().from(videoEvents).where(eq(videoEvents.userId, userId)).orderBy(desc(videoEvents.createdAt));
