@@ -50,6 +50,11 @@ import PublicBooking from "@/pages/PublicBooking";
 import CancelBooking from "@/pages/CancelBooking";
 import RescheduleBooking from "@/pages/RescheduleBooking";
 import EmbedBooking from "@/pages/EmbedBooking";
+import WebinarFunnelLanding from "@/pages/public/WebinarFunnelLanding";
+import WebinarFunnelLive from "@/pages/public/WebinarFunnelLive";
+import WebinarFunnels from "@/pages/client/WebinarFunnels";
+import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
+import WebinarFunnelRegistrations from "@/pages/client/WebinarFunnelRegistrations";
 
 import ClientDashboard from "@/pages/client/Dashboard";
 import ClientDocuments from "@/pages/client/Documents";
@@ -280,6 +285,8 @@ function Router() {
       <Route path="/embed/:id">{() => <EmbedPlayer />}</Route>
       <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
       <Route path="/c/:slug">{() => <ChannelView />}</Route>
+      <Route path="/w/:slug/live">{() => <WebinarFunnelLive />}</Route>
+      <Route path="/w/:slug">{() => <WebinarFunnelLanding />}</Route>
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
@@ -354,6 +361,9 @@ function Router() {
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
+      <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
+      <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
+      <Route path="/tools/webinars">{() => <Guard component={WebinarFunnels} />}</Route>
       <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
       <Route path="/tools/bio-generator/generate">{() => <Guard component={BioGenerateFromScratch} />}</Route>
       <Route path="/tools/bio-generator/improve">{() => <Guard component={BioImprove} />}</Route>

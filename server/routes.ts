@@ -13,6 +13,10 @@ import { storage, pool, db } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
+import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES } from "@shared/schema";
+import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE } from "@shared/webinarFunnel";
+import { z } from "zod";
+import { randomBytes } from "crypto";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
@@ -10718,6 +10722,221 @@ Rules:
     const sub = await storage.createFormSubmission(form.id, { respondentName, respondentEmail, metadata: { userAgent: req.headers["user-agent"] } }, answers);
     res.json({ success: true, submissionId: sub.id });
   });
+
+  // ── Webinar Funnels (YouTube Live registration + watch pages) ─────────────
+  // Namespaced under /api/webinar-funnels because /api/webinars belongs to the
+  // existing LiveKit webinar studio. Public read endpoint: /api/public/webinars/:slug
+  {
+    const optStr = (max: number) =>
+      z.union([z.string().trim().max(max), z.null()]).optional()
+        .transform(v => (v === undefined ? undefined : v && v.length ? v : null));
+    const httpUrl = z.union([
+      z.string().trim().max(2000).refine(v => v === "" || /^https?:\/\/[^\s]+$/i.test(v), "CTA URL must start with http:// or https://"),
+      z.null(),
+    ]).optional().transform(v => (v === undefined ? undefined : v ? v : null));
+    const funnelBody = z.object({
+      title: z.string().trim().min(1, "Title is required").max(200),
+      description: optStr(5000),
+      hostName: optStr(120),
+      scheduledAt: z.string().refine(v => !isNaN(Date.parse(v)), "Invalid date/time").transform(v => new Date(v)),
+      youtube: z.union([z.string().trim().max(500), z.null()]).optional(),
+      ctaText: optStr(120),
+      ctaUrl: httpUrl,
+      status: z.enum(WEBINAR_FUNNEL_STATUSES).optional(),
+      slug: z.string().trim().toLowerCase().regex(WEBINAR_SLUG_RE, "Slug may only contain a-z, 0-9 and dashes").optional(),
+    });
+
+    const resolveVideoId = (input: string | null | undefined): { ok: true; id: string | null | undefined } | { ok: false } => {
+      if (input === undefined) return { ok: true, id: undefined };
+      if (input === null || input === "") return { ok: true, id: null };
+      const id = parseYouTubeVideoId(input);
+      return id ? { ok: true, id } : { ok: false };
+    };
+
+    const slugTaken = async (slug: string, exceptId?: string) => {
+      const [row] = await db.select({ id: webinarFunnels.id }).from(webinarFunnels).where(eq(webinarFunnels.slug, slug));
+      return !!row && row.id !== exceptId;
+    };
+
+    const uniqueSlugFor = async (title: string) => {
+      const base = slugifyWebinarTitle(title);
+      for (let i = 0; i < 5; i++) {
+        const candidate = `${base}-${randomBytes(3).toString("hex")}`;
+        if (!(await slugTaken(candidate))) return candidate;
+      }
+      return `${base}-${randomBytes(6).toString("hex")}`;
+    };
+
+    const zodMessage = (err: z.ZodError) => err.errors[0]?.message || "Invalid input";
+
+    const getOwnedFunnel = async (id: string, userId: string) => {
+      const [row] = await db.select().from(webinarFunnels)
+        .where(and(eq(webinarFunnels.id, id), eq(webinarFunnels.userId, userId)));
+      return row;
+    };
+
+    // List (owner)
+    app.get("/api/webinar-funnels", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const rows = await db
+          .select({
+            funnel: webinarFunnels,
+            registrationCount: sql<number>`(SELECT COUNT(*)::int FROM webinar_funnel_registrations r WHERE r.webinar_id = "webinar_funnels"."id")`,
+          })
+          .from(webinarFunnels)
+          .where(eq(webinarFunnels.userId, userId))
+          .orderBy(desc(webinarFunnels.scheduledAt));
+        res.json(rows.map(r => ({ ...r.funnel, registrationCount: Number(r.registrationCount) || 0 })));
+      } catch (e: any) {
+        console.error("[webinar-funnels] list error:", e.message);
+        res.status(500).json({ message: "Failed to load webinars" });
+      }
+    });
+
+    // Create (owner)
+    app.post("/api/webinar-funnels", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const parsed = funnelBody.safeParse(req.body ?? {});
+        if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
+        const body = parsed.data;
+        const video = resolveVideoId(body.youtube);
+        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        let slug = body.slug;
+        if (slug) {
+          if (await slugTaken(slug)) return res.status(409).json({ message: "That link is already taken" });
+        } else {
+          slug = await uniqueSlugFor(body.title);
+        }
+        const [row] = await db.insert(webinarFunnels).values({
+          userId,
+          slug,
+          title: body.title,
+          description: body.description ?? null,
+          hostName: body.hostName ?? null,
+          scheduledAt: body.scheduledAt,
+          youtubeVideoId: video.id ?? null,
+          ctaText: body.ctaText ?? null,
+          ctaUrl: body.ctaUrl ?? null,
+          status: body.status ?? "draft",
+        }).returning();
+        res.status(201).json({ ...row, registrationCount: 0 });
+      } catch (e: any) {
+        console.error("[webinar-funnels] create error:", e.message);
+        res.status(500).json({ message: "Failed to create webinar" });
+      }
+    });
+
+    // Get one (owner)
+    app.get("/api/webinar-funnels/:id", requireAuth, async (req: Request, res: Response) => {
+      const row = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+      if (!row) return res.status(404).json({ message: "Not found" });
+      res.json(row);
+    });
+
+    // Update (owner)
+    app.patch("/api/webinar-funnels/:id", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const existing = await getOwnedFunnel(p(req.params.id), userId);
+        if (!existing) return res.status(404).json({ message: "Not found" });
+        const parsed = funnelBody.partial().safeParse(req.body ?? {});
+        if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
+        const body = parsed.data;
+        const video = resolveVideoId(body.youtube);
+        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        if (body.slug && body.slug !== existing.slug && (await slugTaken(body.slug, existing.id))) {
+          return res.status(409).json({ message: "That link is already taken" });
+        }
+        const updates: Partial<typeof webinarFunnels.$inferInsert> = {};
+        if (body.title !== undefined) updates.title = body.title;
+        if (body.description !== undefined) updates.description = body.description;
+        if (body.hostName !== undefined) updates.hostName = body.hostName;
+        if (body.scheduledAt !== undefined) updates.scheduledAt = body.scheduledAt;
+        if (video.id !== undefined) updates.youtubeVideoId = video.id;
+        if (body.ctaText !== undefined) updates.ctaText = body.ctaText;
+        if (body.ctaUrl !== undefined) updates.ctaUrl = body.ctaUrl;
+        if (body.status !== undefined) updates.status = body.status;
+        if (body.slug !== undefined) updates.slug = body.slug;
+        if (Object.keys(updates).length === 0) return res.json(existing);
+        const [row] = await db.update(webinarFunnels).set(updates)
+          .where(and(eq(webinarFunnels.id, existing.id), eq(webinarFunnels.userId, userId)))
+          .returning();
+        res.json(row);
+      } catch (e: any) {
+        console.error("[webinar-funnels] update error:", e.message);
+        res.status(500).json({ message: "Failed to update webinar" });
+      }
+    });
+
+    // Delete (owner) — registrations cascade
+    app.delete("/api/webinar-funnels/:id", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const deleted = await db.delete(webinarFunnels)
+        .where(and(eq(webinarFunnels.id, p(req.params.id)), eq(webinarFunnels.userId, userId)))
+        .returning({ id: webinarFunnels.id });
+      if (!deleted.length) return res.status(404).json({ message: "Not found" });
+      res.json({ success: true });
+    });
+
+    // Registrations (owner)
+    app.get("/api/webinar-funnels/:id/registrations", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const funnel = await getOwnedFunnel(p(req.params.id), userId);
+      if (!funnel) return res.status(404).json({ message: "Not found" });
+      const rows = await db.select().from(webinarFunnelRegistrations)
+        .where(eq(webinarFunnelRegistrations.webinarId, funnel.id))
+        .orderBy(desc(webinarFunnelRegistrations.createdAt));
+      res.json(rows);
+    });
+
+    const registerBody = z.object({
+      name: z.string().trim().min(1, "Name is required").max(120),
+      email: z.string().trim().toLowerCase().max(254).email("Enter a valid email"),
+      phone: z.string().trim().max(32).regex(/^[0-9+()\-.\s]*$/, "Enter a valid phone number").optional().nullable(),
+    });
+
+    // Public: register for a published webinar
+    app.post("/api/webinar-funnels/:slug/register", async (req: Request, res: Response) => {
+      try {
+        const slug = p(req.params.slug).toLowerCase();
+        const [funnel] = await db.select().from(webinarFunnels).where(eq(webinarFunnels.slug, slug));
+        if (!funnel || funnel.status !== "published") return res.status(404).json({ message: "Webinar not found" });
+        const parsed = registerBody.safeParse(req.body ?? {});
+        if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
+        const { name, email, phone } = parsed.data;
+        // Idempotent per email: re-registering returns success without a duplicate row
+        const [already] = await db.select({ id: webinarFunnelRegistrations.id }).from(webinarFunnelRegistrations)
+          .where(and(eq(webinarFunnelRegistrations.webinarId, funnel.id), eq(webinarFunnelRegistrations.email, email)));
+        if (!already) {
+          await db.insert(webinarFunnelRegistrations).values({ webinarId: funnel.id, name, email, phone: phone || null });
+        }
+        res.status(already ? 200 : 201).json({ success: true });
+      } catch (e: any) {
+        console.error("[webinar-funnels] register error:", e.message);
+        res.status(500).json({ message: "Registration failed. Please try again." });
+      }
+    });
+
+    // Public: data for /w/:slug and /w/:slug/live (published or ended only)
+    app.get("/api/public/webinars/:slug", async (req: Request, res: Response) => {
+      const slug = p(req.params.slug).toLowerCase();
+      const [f] = await db.select().from(webinarFunnels).where(eq(webinarFunnels.slug, slug));
+      if (!f || (f.status !== "published" && f.status !== "ended")) return res.status(404).json({ message: "Webinar not found" });
+      res.json({
+        slug: f.slug,
+        title: f.title,
+        description: f.description,
+        hostName: f.hostName,
+        scheduledAt: f.scheduledAt,
+        youtubeVideoId: f.youtubeVideoId,
+        ctaText: f.ctaText,
+        ctaUrl: f.ctaUrl,
+        status: f.status,
+      });
+    });
+  }
 
   // All contacts across user's forms (CRM)
   app.get("/api/form-contacts", requireAuth, async (req: Request, res: Response) => {

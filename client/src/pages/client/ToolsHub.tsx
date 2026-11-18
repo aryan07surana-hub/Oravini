@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
-import { ClipboardList, ChevronRight, LayoutTemplate, User } from "lucide-react";
+import { ClipboardList, ChevronRight, LayoutTemplate, User, Radio } from "lucide-react";
 
 const GOLD = "#d4b461";
 
@@ -11,6 +11,13 @@ const TOOLS = [
     description: "Build multi-step forms, quizzes and lead-capture surveys with a visual builder.",
     icon: ClipboardList,
     route: "/tools/forms",
+  },
+  {
+    id: "webinar-funnels",
+    label: "Webinar Funnels",
+    description: "Run YouTube Live webinars with a registration page, live countdown and CTA — and capture every lead.",
+    icon: Radio,
+    route: "/tools/webinars",
   },
   {
     id: "board-builder",
