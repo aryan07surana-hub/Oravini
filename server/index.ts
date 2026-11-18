@@ -1235,6 +1235,41 @@ async function runMigrations() {
     console.warn("[migration] dm_ai_configs skipped:", e.message);
   }
 
+  // ── landing_leads owner scope + phone (mirrors migrations/add_landing_leads_owner_phone.sql) ──
+  // Additive only. Marketing landing page leads (/api/lp/:slug/lead) need a phone column
+  // and per-owner email uniqueness; previously every such insert failed (missing column +
+  // global UNIQUE(email)). Platform leads keep owner_id NULL and stay unique by email.
+  try {
+    await pool.query(`
+      ALTER TABLE landing_leads
+        ADD COLUMN IF NOT EXISTS phone TEXT,
+        ADD COLUMN IF NOT EXISTS owner_id VARCHAR
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_landing_leads_owner ON landing_leads (owner_id)`);
+    console.log("[migration] landing_leads phone/owner_id ensured");
+  } catch (e: any) {
+    console.error("[migration] landing_leads phone/owner_id FAILED:", e.message);
+  }
+  {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS landing_leads_owner_email_uniq
+          ON landing_leads ((COALESCE(owner_id, '')), email)
+      `);
+      // Only dropped after the replacement index exists (same transaction).
+      await client.query(`ALTER TABLE landing_leads DROP CONSTRAINT IF EXISTS landing_leads_email_unique`);
+      await client.query("COMMIT");
+      console.log("[migration] landing_leads per-owner email uniqueness ensured");
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("[migration] landing_leads per-owner email uniqueness FAILED (old constraint kept):", e.message);
+    } finally {
+      client.release();
+    }
+  }
+
   // ── Webinar Funnels (YouTube Live registration + watch pages) ──
   try {
     await pool.query(`

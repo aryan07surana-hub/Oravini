@@ -684,7 +684,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     try {
       const result = { landingLeads: 0, users: 0, dmLeads: 0, skipped: 0 };
       // Landing leads
-      const { rows: leads } = await pool.query(`SELECT * FROM landing_leads`);
+      // Platform leads only: owner-scoped landing page leads are already in their owner's CRM.
+      const { rows: leads } = await pool.query(`SELECT * FROM landing_leads WHERE owner_id IS NULL`);
       for (const l of leads) {
         if (!l.email) { result.skipped++; continue; }
         const [existing] = await db.select().from(crmContacts).where(eq(crmContacts.email, l.email));
