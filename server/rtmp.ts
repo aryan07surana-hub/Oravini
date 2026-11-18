@@ -2,6 +2,7 @@
 import NodeMediaServer from "node-media-server";
 import path from "path";
 import fs from "fs";
+import { FFMPEG_PATH, ffmpegAvailable, logFfmpegResolution } from "./ffmpegPath";
 
 const HLS_DIR = path.resolve("hls");
 const RTMP_PORT = parseInt(process.env.RTMP_PORT || "1935", 10);
@@ -22,7 +23,15 @@ export function getHttpPort(): number {
 export function startRtmpServer(): NodeMediaServer {
   if (nms) return nms;
 
-  const config = {
+  logFfmpegResolution();
+  // Never hand node-media-server a binary that doesn't exist: if it spawns a
+  // missing ffmpeg it can throw an unhandled 'error' and crash the process.
+  const hasFfmpeg = ffmpegAvailable();
+  if (!hasFfmpeg) {
+    console.warn(`[rtmp] ffmpeg not found at ${FFMPEG_PATH}; skipping relay/trans tasks (RTMP ingest only, no HLS)`);
+  }
+
+  const config: Record<string, any> = {
     rtmp: {
       port: RTMP_PORT,
       chunk_size: 60000,
@@ -35,12 +44,15 @@ export function startRtmpServer(): NodeMediaServer {
       allow_origin: "*",
       mediaroot: HLS_DIR,
     },
-    relay: {
-      ffmpeg: "/opt/homebrew/bin/ffmpeg",
+  };
+
+  if (hasFfmpeg) {
+    config.relay = {
+      ffmpeg: FFMPEG_PATH,
       tasks: [],
-    },
-    trans: {
-      ffmpeg: "/opt/homebrew/bin/ffmpeg",
+    };
+    config.trans = {
+      ffmpeg: FFMPEG_PATH,
       tasks: [
         {
           app: "live",
@@ -50,8 +62,8 @@ export function startRtmpServer(): NodeMediaServer {
           dashFlags: "",
         },
       ],
-    },
-  };
+    };
+  }
 
   nms = new NodeMediaServer(config);
   nms.run();

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-const FFMPEG_PATH = process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg";
+import { FFMPEG_PATH, ffmpegAvailable } from "./ffmpegPath";
 const HLS_DIR = path.resolve("hls");
 
 interface VideoVariant {
@@ -66,6 +66,11 @@ export function isStreamActive(streamKey: string): boolean {
 export function startRelay(ws: WebSocket, streamKey: string, quality: string = "1080p"): RelaySession | null {
   if (activeRelays.has(streamKey)) {
     console.log(`[relay] Stream ${streamKey} already active`);
+    return null;
+  }
+
+  if (!ffmpegAvailable()) {
+    console.warn(`[relay] ffmpeg not found at ${FFMPEG_PATH}; browser broadcast relay disabled for ${streamKey}`);
     return null;
   }
 
@@ -175,8 +180,15 @@ function wireEvents(streamKey: string): void {
     }
   });
 
+  // Writing to stdin after ffmpeg died emits EPIPE on the stream; unhandled,
+  // that would crash the process.
+  ffmpeg.stdin?.on("error", (err) => {
+    console.error(`[relay] ffmpeg stdin error for ${streamKey}: ${err.message}`);
+    cleanupRelay(streamKey);
+  });
+
   ffmpeg.on("error", (err) => {
-    console.error(`[relay] ffmpeg process error for ${streamKey}: ${err.message}`);
+    console.error(`[relay] ffmpeg process error for ${streamKey} (${FFMPEG_PATH}): ${err.message}`);
     cleanupRelay(streamKey);
   });
 
@@ -273,6 +285,10 @@ function concatToReplay(streamKey: string): string | null {
       replayPath,
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
+    if (result.error) {
+      console.error(`[relay] Replay concat could not run ffmpeg (${FFMPEG_PATH}): ${result.error.message}`);
+      return null;
+    }
     if (result.status === 0) {
       fs.rmSync(concatFile, { force: true });
       const size = (fs.statSync(replayPath).size / 1024 / 1024).toFixed(1);
@@ -311,6 +327,10 @@ function concatSingleStream(streamKey: string, streamDir: string, playlist: stri
       "-c", "copy", "-movflags", "+faststart", replayPath,
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
+    if (result.error) {
+      console.error(`[relay] Replay concat could not run ffmpeg (${FFMPEG_PATH}): ${result.error.message}`);
+      return null;
+    }
     if (result.status === 0) {
       fs.rmSync(concatFile, { force: true });
       const size = (fs.statSync(replayPath).size / 1024 / 1024).toFixed(1);
