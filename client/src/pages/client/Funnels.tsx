@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
@@ -31,14 +31,8 @@ const FUNNEL_TEMPLATES = [
 
 // ── AI Build Modal ─────────────────────────────────────────────────────────────
 
-const AI_PROGRESS_STEPS = [
-  { label: "Analyzing your offer…",     duration: 2200 },
-  { label: "Crafting your hook & angle…", duration: 2000 },
-  { label: "Writing page copy…",        duration: 3500 },
-  { label: "Building upsell flow…",     duration: 3000 },
-  { label: "Wiring routing logic…",     duration: 1800 },
-  { label: "Finalizing your funnel…",   duration: 1500 },
-];
+// Seeds the builder's AI Copilot chat (read once by FunnelBuilder.tsx).
+const CHAT_SEED_KEY = (funnelId: string) => `funnel-chat-seed:${funnelId}`;
 
 function AIBuildModal({ onClose, onDone }: {
   onClose: () => void;
@@ -47,43 +41,53 @@ function AIBuildModal({ onClose, onDone }: {
   const [description, setDescription] = useState("");
   const [template, setTemplate] = useState("vsl");
   const [building, setBuilding] = useState(false);
-  const [progressIdx, setProgressIdx] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
-  const progressTimer = useRef<ReturnType<typeof setTimeout>>();
   const tmpl = FUNNEL_TEMPLATES.find(t => t.id === template)!;
 
-  const advanceProgress = (idx: number) => {
-    if (idx >= AI_PROGRESS_STEPS.length - 1) return;
-    progressTimer.current = setTimeout(() => {
-      setProgressIdx(idx + 1);
-      advanceProgress(idx + 1);
-    }, AI_PROGRESS_STEPS[idx].duration);
-  };
+  // Real elapsed time while the request is in flight (no fake progress steps).
+  useEffect(() => {
+    if (!building) return;
+    setElapsed(0);
+    const started = Date.now();
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [building]);
 
   const build = async () => {
-    if (!description.trim()) return;
+    const prompt = description.trim();
+    if (!prompt || building) return;
     setBuilding(true);
     setError("");
-    setProgressIdx(0);
-    advanceProgress(0);
 
     try {
       const r = await fetch("/api/funnels/ai-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ description: description.trim(), template }),
+        body: JSON.stringify({ description: prompt, template }),
       });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.message || "Generation failed");
-      clearTimeout(progressTimer.current);
-      setProgressIdx(AI_PROGRESS_STEPS.length - 1);
-      setTimeout(() => onDone(data.funnel.id), 600);
+
+      const steps: any[] = Array.isArray(data.steps) ? data.steps : [];
+      const emptySteps = steps.filter(s => !Array.isArray(s.sections) || s.sections.length === 0).map(s => s.name);
+      try {
+        sessionStorage.setItem(CHAT_SEED_KEY(data.funnel.id), JSON.stringify([
+          { role: "user", text: prompt },
+          {
+            role: "assistant",
+            text: `I built "${data.funnel.name}" with ${steps.length} page${steps.length === 1 ? "" : "s"}. `
+              + (emptySteps.length ? `I couldn't write copy for ${emptySteps.join(", ")} — ask me to fill ${emptySteps.length === 1 ? "it" : "them"} in. ` : "")
+              + `Tell me what to change next — e.g. "make the hero headline punchier" or "add an upsell step".`,
+            changes: steps.map(s => `${s.name}: ${(s.sections || []).length} sections`),
+          },
+        ]));
+      } catch { /* storage unavailable — builder just opens with an empty chat */ }
+      onDone(data.funnel.id);
     } catch (e: any) {
-      clearTimeout(progressTimer.current);
       setError(e.message);
       setBuilding(false);
-      setProgressIdx(0);
     }
   };
 
@@ -110,7 +114,7 @@ function AIBuildModal({ onClose, onDone }: {
             </div>
             <div>
               <p className="text-white font-black text-base">Build Funnel with AI</p>
-              <p className="text-zinc-500 text-xs">Describe your offer — AI writes every page</p>
+              <p className="text-zinc-500 text-xs">Describe your offer — AI writes every page, then you refine it by chat</p>
             </div>
           </div>
           {!building && <button onClick={onClose} className="absolute top-4 right-4 text-zinc-600 hover:text-zinc-400 transition-colors"><X className="w-5 h-5" /></button>}
@@ -128,29 +132,12 @@ function AIBuildModal({ onClose, onDone }: {
               </div>
             </div>
 
-            {/* Steps */}
-            <div className="w-full space-y-2 max-w-sm">
-              {AI_PROGRESS_STEPS.map((step, i) => (
-                <motion.div
-                  key={step.label}
-                  animate={{ opacity: i <= progressIdx ? 1 : 0.25 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center"
-                    style={{ background: i < progressIdx ? "#22c55e18" : i === progressIdx ? `${GOLD}18` : "rgba(255,255,255,0.04)", border: `1px solid ${i < progressIdx ? "#22c55e40" : i === progressIdx ? GOLD + "40" : "rgba(255,255,255,0.08)"}` }}>
-                    {i < progressIdx
-                      ? <Check className="w-2.5 h-2.5 text-green-400" />
-                      : i === progressIdx
-                        ? <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GOLD }} />
-                        : null}
-                  </div>
-                  <p className="text-sm" style={{ color: i < progressIdx ? "#22c55e" : i === progressIdx ? "#fff" : "#3f3f46" }}>{step.label}</p>
-                </motion.div>
-              ))}
+            <div className="text-center space-y-1.5">
+              <p className="text-white text-sm font-bold">Writing every page of your {tmpl.name}…</p>
+              <p className="text-zinc-500 text-xs">This usually takes 20–60 seconds. {elapsed > 0 && <span className="tabular-nums">{elapsed}s elapsed</span>}</p>
             </div>
 
-            <p className="text-zinc-600 text-xs text-center">Writing every headline, bullet, and CTA for your entire funnel…</p>
+            <p className="text-zinc-600 text-xs text-center">When it's done you'll land in the builder, where the AI Copilot keeps the conversation going.</p>
           </div>
         ) : (
           /* ── Input State ─────────────────────────────────────────────── */
