@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
+import { FunnelWebinarBlock, useFunnelWebinar } from "@/components/funnel/FunnelWebinarBlock";
 import { getUtmParams } from "@/lib/utm";
 import { Loader2, ArrowRight, CheckCircle, Star, Play, Timer, DollarSign, X, Shield, Sparkles, ChevronDown } from "lucide-react";
 
@@ -533,6 +534,23 @@ function ExitIntentPopup({ config, accent }: { config: any; accent: string }) {
   );
 }
 
+// ── Webinar step (registration → live → replay) ───────────────────────────────
+
+// Registration-only sections are hidden once the webinar is live / over.
+const REGISTRATION_ONLY_SECTIONS = new Set(["form", "countdown"]);
+
+function WebinarStepContent({ funnelSlug, step, sections, accent }: { funnelSlug: string; step: any; sections: any[]; accent: string }) {
+  const { settings, phase } = useFunnelWebinar(funnelSlug, step.slug, step.webinar);
+  if (!settings || !phase) return null;
+  const visible = phase === "registration" ? sections : sections.filter((s: any) => !REGISTRATION_ONLY_SECTIONS.has(s.type));
+  return (
+    <>
+      <FunnelWebinarBlock settings={settings} phase={phase} funnelSlug={funnelSlug} stepSlug={step.slug} accent={accent} />
+      {visible.map((s: any) => <Section key={s.id} section={s} accent={accent} funnelSlug={funnelSlug} stepSlug={step.slug} />)}
+    </>
+  );
+}
+
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
 export default function PublicFunnelStep({ notFound }: { notFound?: React.ReactNode } = {}) {
@@ -584,7 +602,9 @@ export default function PublicFunnelStep({ notFound }: { notFound?: React.ReactN
       <div className="pointer-events-none fixed top-0 left-0 right-0 h-96" style={{ background: `radial-gradient(ellipse 120% 40% at 50% 0%, ${accent}10 0%, transparent 65%)` }} />
 
       <div className="relative z-10 max-w-5xl mx-auto pb-32">
-        {sections.length > 0 ? (
+        {step.type === "webinar" && step.webinar ? (
+          <WebinarStepContent funnelSlug={funnelSlug} step={step} sections={sections} accent={accent} />
+        ) : sections.length > 0 ? (
           sections.map((s: any) => <Section key={s.id} section={s} accent={accent} funnelSlug={funnelSlug} stepSlug={step.slug} />)
         ) : (
           <div className="flex items-center justify-center h-80">

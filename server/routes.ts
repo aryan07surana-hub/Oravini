@@ -16,6 +16,7 @@ import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMedia
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES } from "@shared/schema";
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE } from "@shared/webinarFunnel";
+import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
@@ -320,6 +321,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         updated_at TIMESTAMP DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_fsteps_funnel ON funnel_steps(funnel_id);
+      -- webinar step settings (title, scheduledAt, youtubeId, status, offerCta, ...); NULL for non-webinar steps
+      ALTER TABLE funnel_steps ADD COLUMN IF NOT EXISTS webinar JSONB;
       -- add canvas columns to existing tables if missing
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='funnel_steps' AND column_name='canvas_x') THEN
@@ -16982,9 +16985,10 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
       for (let i = 0; i < steps.length; i++) {
         const stepSlug = `step-${i + 1}-${Date.now().toString(36)}`;
         await pool.query(
-          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [funnel.id, steps[i].name, steps[i].type, stepSlug, i, JSON.stringify([]), "gold"]
+          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme, webinar)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [funnel.id, steps[i].name, steps[i].type, stepSlug, i, JSON.stringify([]), "gold",
+           steps[i].type === "webinar" ? JSON.stringify(defaultFunnelWebinar(steps[i].name)) : null]
         );
       }
       const { rows: stepRows } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position", [funnel.id]);
@@ -17034,10 +17038,12 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
       const { rows: maxPos } = await pool.query("SELECT COALESCE(MAX(position), -1) AS pos FROM funnel_steps WHERE funnel_id = $1", [req.params.id]);
       const pos = maxPos[0].pos + 1;
       const stepSlug = `step-${pos + 1}-${Date.now().toString(36)}`;
+      // New webinar steps start with default settings (scheduled one week out)
+      const webinar = type === "webinar" ? JSON.stringify(defaultFunnelWebinar(name)) : null;
       const { rows } = await pool.query(
-        `INSERT INTO funnel_steps (funnel_id, name, type, slug, position)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [req.params.id, name, type, stepSlug, pos]
+        `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, webinar)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [req.params.id, name, type, stepSlug, pos, webinar]
       );
       res.status(201).json(rows[0]);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -17050,6 +17056,15 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
       const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
       if (!f[0]) return res.status(403).json({ message: "Forbidden" });
       const { name, type, sections, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x, canvas_y } = req.body;
+      // Webinar settings: validated + merged over the stored value (partial updates allowed, e.g. { status: "live" })
+      let webinarJson: string | null = null;
+      if (req.body.webinar !== undefined && req.body.webinar !== null) {
+        const { rows: cur } = await pool.query("SELECT webinar, name FROM funnel_steps WHERE id = $1 AND funnel_id = $2", [req.params.stepId, req.params.id]);
+        if (!cur[0]) return res.status(404).json({ message: "Not found" });
+        const result = normalizeFunnelWebinar(req.body.webinar, cur[0].webinar ?? defaultFunnelWebinar(cur[0].name));
+        if (!result.ok) return res.status(400).json({ message: result.message });
+        webinarJson = JSON.stringify(result.value);
+      }
       const { rows } = await pool.query(
         `UPDATE funnel_steps SET
           name = COALESCE($1, name),
@@ -17064,9 +17079,10 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
           position = COALESCE($10, position),
           canvas_x = COALESCE($11, canvas_x),
           canvas_y = COALESCE($12, canvas_y),
+          webinar = COALESCE($15::jsonb, webinar),
           updated_at = now()
          WHERE id = $13 AND funnel_id = $14 RETURNING *`,
-        [name, type, sections ? JSON.stringify(sections) : null, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x ?? null, canvas_y ?? null, req.params.stepId, req.params.id]
+        [name, type, sections ? JSON.stringify(sections) : null, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x ?? null, canvas_y ?? null, req.params.stepId, req.params.id, webinarJson]
       );
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
       res.json(rows[0]);
@@ -17618,6 +17634,20 @@ Request: "${message.trim()}"`;
       if (!steps[0]) return res.status(404).json({ message: "Step not found" });
       await pool.query("UPDATE funnel_steps SET visits = visits + 1 WHERE id = $1", [steps[0].id]);
       res.json({ funnel: funnels[0], step: steps[0] });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar step status for the public page to poll (does NOT count a visit)
+  app.get("/api/f/:slug/:stepSlug/webinar", async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT s.webinar FROM funnel_steps s JOIN funnels f ON f.id = s.funnel_id
+          WHERE f.slug = $1 AND f.status = 'active' AND s.slug = $2 AND s.type = 'webinar'`,
+        [req.params.slug, req.params.stepSlug]
+      );
+      if (!rows[0]?.webinar) return res.status(404).json({ message: "Not found" });
+      res.set("Cache-Control", "no-store");
+      res.json({ webinar: rows[0].webinar });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
