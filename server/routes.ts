@@ -11,7 +11,7 @@ import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
 import { hashPassword } from "./auth";
-import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser } from "./meta";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
@@ -2295,7 +2295,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   let _cachedIgAccountId: string | null = null;
   let _igAccountCacheTime = 0;
 
-  async function getIgAccountIdCached(): Promise<string | null> {
+  // With a userId: prefer the IG account id stored in that user's meta_tokens row
+  // (OAuth connect). Without one, or when the user has no row: legacy global
+  // lookup, cached for an hour.
+  async function getIgAccountIdCached(userId?: string): Promise<string | null> {
+    if (userId) {
+      try {
+        const creds = await getUserMetaCredentials(userId);
+        if (creds) return creds.igAccountId;
+      } catch (e: any) {
+        console.warn(`[meta] could not read meta_tokens for user ${userId}: ${e?.message ?? e}`);
+      }
+    }
     const now = Date.now();
     if (_cachedIgAccountId && now - _igAccountCacheTime < 60 * 60 * 1000) return _cachedIgAccountId;
     try {
@@ -2308,8 +2319,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return _cachedIgAccountId;
   }
 
-  app.get("/api/meta/account", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/meta/account", requireAuth, async (req: Request, res: Response) => {
     try {
+      const userId = (req.user as any).id;
+
+      // Per-user OAuth connection (meta_tokens row): report from the stored row,
+      // validated lightly with the user's own page token.
+      const creds = await getUserMetaCredentials(userId).catch(() => null);
+      if (creds) {
+        if (!creds.igAccountId) {
+          return res.json({ connected: false, tokenValid: true, message: "No Instagram Business Account linked to this token." });
+        }
+        let profile: any;
+        try {
+          profile = await metaGet(`/${creds.igAccountId}`, { fields: "username,followers_count,media_count" }, userId);
+        } catch (e: any) {
+          console.warn(`[meta/account] token check failed for user ${userId}: ${e?.message ?? e}`);
+          return res.json({ connected: false, tokenExpired: true, message: "Access token is expired or invalid. Please refresh it." });
+        }
+        return res.json({
+          connected: true, tokenValid: true,
+          expiresAt: creds.expiresAt ?? undefined,
+          scopes: creds.scope ? creds.scope.split(",").map(s => s.trim()).filter(Boolean) : undefined,
+          igAccountId: creds.igAccountId,
+          igUsername: creds.igUsername || profile?.username || "",
+          pageName: creds.fbPageName || "",
+          followersCount: profile?.followers_count,
+          mediaCount: profile?.media_count,
+        });
+      }
+
+      // Legacy global-token path (unchanged).
       const tokenInfo = await getTokenInfo();
       if (!tokenInfo.valid) {
         return res.json({ connected: false, tokenExpired: true, message: "Access token is expired or invalid. Please refresh it." });
@@ -2356,9 +2396,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Try Meta API first
       try {
-        const igAccountId = await getIgAccountIdCached();
+        const userId = (req.user as any).id;
+        const igAccountId = await getIgAccountIdCached(userId);
         if (igAccountId) {
-          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl, userId);
           if (metaResult) {
             console.log("[sync-post] Meta API ✓");
             return res.json({ ...metaResult, source: "meta" });
@@ -2410,9 +2451,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Try Meta API first
       try {
-        const igAccountId = await getIgAccountIdCached();
+        const userId = (req.user as any).id;
+        const igAccountId = await getIgAccountIdCached(userId);
         if (igAccountId) {
-          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl, userId);
           if (metaResult) {
             v = metaResult.views; l = metaResult.likes; c = metaResult.comments; s = metaResult.saves;
             source = "meta";
@@ -2466,13 +2508,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Try Meta API first (only for Instagram profiles matching connected account)
       if (platform !== "youtube") {
         try {
-          const igAccountId = await getIgAccountIdCached();
+          const userId = (req.user as any).id;
+          const igAccountId = await getIgAccountIdCached(userId);
           if (igAccountId) {
-            const connAcct = await getConnectedIGAccount();
+            const connAcct = await getConnectedIGAccount(userId);
             const reqHandle = normalizedInstagram?.username || "";
             const connHandle = (connAcct?.igUsername || "").toLowerCase();
             if (reqHandle && connHandle && reqHandle === connHandle) {
-              const media = await getIGMedia(igAccountId, 30);
+              const media = await getIGMedia(igAccountId, 30, userId);
               if (media.length > 0) {
                 syncItems = media.map((m: any) => ({
                   postUrl: m.permalink,
@@ -3018,17 +3061,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let dataSource = "apify";
 
       try {
-        const igAccountId = await getIgAccountIdCached();
+        const igAccountId = await getIgAccountIdCached(clientId);
         if (igAccountId) {
-          const connAcct = await getConnectedIGAccount();
+          const connAcct = await getConnectedIGAccount(clientId);
           // Check if the profile handle matches connected account
           const reqHandle = normalized.username;
           const connHandle = (connAcct?.igUsername || "").toLowerCase();
           if (reqHandle && connHandle && reqHandle === connHandle) {
-            const media = await getIGMedia(igAccountId, 50);
+            const media = await getIGMedia(igAccountId, 50, clientId);
             if (media.length > 0) {
               for (const m of media) {
-                const insights = await getMediaInsights(m.id, m.media_type);
+                const insights = await getMediaInsights(m.id, m.media_type, clientId);
                 normalisedPosts.push({
                   postUrl: m.permalink,
                   caption: m.caption || "",
