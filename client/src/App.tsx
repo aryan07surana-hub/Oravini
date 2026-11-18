@@ -245,7 +245,7 @@ function HomeRedirect() {
 }
 
 // Known app hostnames — custom domain detection skips these
-const APP_HOSTNAMES = ["localhost", "oravini.com", "www.oravini.com", "app.oravini.com"];
+const APP_HOSTNAMES = ["localhost", "oravini.com", "www.oravini.com", "app.oravini.com", "onrender.com"]; // onrender.com: Render service + PR preview hosts (*.onrender.com)
 const isCustomDomain = !APP_HOSTNAMES.some(h => window.location.hostname === h || window.location.hostname.endsWith(`.${h}`));
 
 /** Shown at /f/:slug when the slug is neither a published form nor an active funnel. */
