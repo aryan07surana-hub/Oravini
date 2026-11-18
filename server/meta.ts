@@ -12,18 +12,30 @@ export interface UserMetaCredentials {
   token: string;
   igAccountId: string | null;
   fbPageId: string | null;
+  igUsername: string | null;
+  fbPageName: string | null;
+  expiresAt: Date | null;
+  scope: string | null;
 }
 
 export async function getUserMetaCredentials(userId: string): Promise<UserMetaCredentials | null> {
   const r = await pool.query(
-    "SELECT access_token, ig_account_id, fb_page_id FROM meta_tokens WHERE user_id = $1 LIMIT 1",
+    "SELECT access_token, ig_account_id, fb_page_id, ig_username, fb_page_name, expires_at, scope FROM meta_tokens WHERE user_id = $1 LIMIT 1",
     [userId],
   );
   const row = r.rows[0];
   if (!row?.access_token) return null;
   const token = decryptToken(row.access_token);
   if (!token) return null;
-  return { token, igAccountId: row.ig_account_id ?? null, fbPageId: row.fb_page_id ?? null };
+  return {
+    token,
+    igAccountId: row.ig_account_id ?? null,
+    fbPageId: row.fb_page_id ?? null,
+    igUsername: row.ig_username ?? null,
+    fbPageName: row.fb_page_name ?? null,
+    expiresAt: row.expires_at ? new Date(row.expires_at) : null,
+    scope: row.scope ?? null,
+  };
 }
 
 // ── Get active token ──────────────────────────────────────────────────────────
@@ -51,8 +63,10 @@ export async function saveTokenToDB(token: string): Promise<void> {
 }
 
 // ── Core fetch helper ────────────────────────────────────────────────────────
-export async function metaGet(path: string, params: Record<string, string> = {}): Promise<any> {
-  const token = await getActiveToken();
+// With a userId, uses that user's meta_tokens token (falls back to the legacy
+// global token when the user has no row).
+export async function metaGet(path: string, params: Record<string, string> = {}, userId?: string): Promise<any> {
+  const token = await getActiveToken(userId);
   if (!token) throw new Error("META_ACCESS_TOKEN not configured");
   const url = new URL(`${META_BASE}${path}`);
   url.searchParams.set("access_token", token);
@@ -64,11 +78,11 @@ export async function metaGet(path: string, params: Record<string, string> = {})
 }
 
 // ── Token info ───────────────────────────────────────────────────────────────
-export async function getTokenInfo(): Promise<{ valid: boolean; expiresAt?: Date; userId?: string; scopes?: string[] }> {
+export async function getTokenInfo(userId?: string): Promise<{ valid: boolean; expiresAt?: Date; userId?: string; scopes?: string[] }> {
   try {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const token = await getActiveToken();
+    const token = await getActiveToken(userId);
     if (!token || !appId || !appSecret) return { valid: false };
     const res = await fetch(`${META_BASE}/debug_token?input_token=${token}&access_token=${appId}|${appSecret}`);
     const data = await res.json() as any;
@@ -107,7 +121,26 @@ export async function exchangeForLongLivedToken(shortToken: string): Promise<{ a
 }
 
 // ── Get Pages and linked Instagram Business Account ───────────────────────────
-export async function getConnectedIGAccount(): Promise<{ pageId: string; pageName: string; igAccountId: string; igUsername: string } | null> {
+// With a userId whose meta_tokens row exists: return the page/IG ids stored by the
+// OAuth callback directly (the stored token is a PAGE token, which cannot call
+// /me/accounts). Otherwise: legacy global-token Graph lookup.
+export async function getConnectedIGAccount(userId?: string): Promise<{ pageId: string; pageName: string; igAccountId: string; igUsername: string } | null> {
+  if (userId) {
+    try {
+      const creds = await getUserMetaCredentials(userId);
+      if (creds) {
+        if (!creds.igAccountId) return null;
+        return {
+          pageId: creds.fbPageId || "",
+          pageName: creds.fbPageName || "",
+          igAccountId: creds.igAccountId,
+          igUsername: creds.igUsername || "",
+        };
+      }
+    } catch (e: any) {
+      console.warn(`[meta] could not read meta_tokens for user ${userId}: ${e?.message ?? e}`);
+    }
+  }
   try {
     const pages = await metaGet("/me/accounts", { fields: "id,name,instagram_business_account{id,username}" });
     if (!pages?.data?.length) return null;
@@ -128,29 +161,29 @@ export async function getConnectedIGAccount(): Promise<{ pageId: string; pageNam
 }
 
 // ── Get IG account profile ────────────────────────────────────────────────────
-export async function getIGProfile(igAccountId: string): Promise<any> {
+export async function getIGProfile(igAccountId: string, userId?: string): Promise<any> {
   return metaGet(`/${igAccountId}`, {
     fields: "id,username,followers_count,media_count,biography,profile_picture_url,website,name",
-  });
+  }, userId);
 }
 
 // ── Get all media for IG account ─────────────────────────────────────────────
-export async function getIGMedia(igAccountId: string, limit = 50): Promise<any[]> {
+export async function getIGMedia(igAccountId: string, limit = 50, userId?: string): Promise<any[]> {
   const data = await metaGet(`/${igAccountId}/media`, {
     fields: "id,caption,permalink,timestamp,media_type,like_count,comments_count,thumbnail_url,is_shared_to_feed",
     limit: String(limit),
-  });
+  }, userId);
   return data?.data || [];
 }
 
 // ── Get insights for a single media post ─────────────────────────────────────
-export async function getMediaInsights(mediaId: string, mediaType: string): Promise<Record<string, number>> {
+export async function getMediaInsights(mediaId: string, mediaType: string, userId?: string): Promise<Record<string, number>> {
   try {
     const isVideo = mediaType === "VIDEO" || mediaType === "REELS";
     const metric = isVideo
       ? "plays,video_views,impressions,reach,saved,comments,likes,shares"
       : "impressions,reach,saved,comments,likes,shares";
-    const data = await metaGet(`/${mediaId}/insights`, { metric });
+    const data = await metaGet(`/${mediaId}/insights`, { metric }, userId);
     const result: Record<string, number> = {};
     (data?.data || []).forEach((item: any) => {
       result[item.name] = item.values?.[0]?.value ?? item.value ?? 0;
@@ -237,15 +270,15 @@ export async function replyToInstagramComment(commentId: string, messageText: st
 }
 
 // ── Fetch a post's metrics by its permalink (used for auto-sync) ──────────────
-export async function syncPostByPermalink(igAccountId: string, permalink: string): Promise<{
+export async function syncPostByPermalink(igAccountId: string, permalink: string, userId?: string): Promise<{
   views: number; likes: number; comments: number; saves: number;
 } | null> {
   try {
-    const media = await getIGMedia(igAccountId, 100);
+    const media = await getIGMedia(igAccountId, 100, userId);
     const normalise = (url: string) => url.replace(/\/$/, "").toLowerCase();
     const found = media.find((m: any) => normalise(m.permalink) === normalise(permalink));
     if (!found) return null;
-    const insights = await getMediaInsights(found.id, found.media_type);
+    const insights = await getMediaInsights(found.id, found.media_type, userId);
     return {
       views: insights.plays ?? insights.video_views ?? 0,
       likes: found.like_count || insights.likes || 0,
