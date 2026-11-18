@@ -492,6 +492,8 @@ export interface IStorage {
   getWebinarRecordings(userId: string): Promise<WebinarRecording[]>;
   getWebinarRecording(id: string): Promise<WebinarRecording | undefined>;
   getWebinarRecordingsByWebinarId(webinarId: string): Promise<WebinarRecording[]>;
+  getWebinarRecordingByShareToken(shareToken: string): Promise<WebinarRecording | undefined>;
+  incrementWebinarRecordingViews(id: string): Promise<void>;
   createWebinarRecording(data: InsertWebinarRecording): Promise<WebinarRecording>;
   updateWebinarRecording(id: string, data: Partial<InsertWebinarRecording>): Promise<WebinarRecording | undefined>;
   deleteWebinarRecording(id: string): Promise<void>;
@@ -2748,6 +2750,13 @@ class DatabaseStorage implements IStorage {
   }
   async deleteWebinarRecording(id: string): Promise<void> {
     await db.delete(webinarRecordings).where(eq(webinarRecordings.id, id));
+  }
+  async getWebinarRecordingByShareToken(shareToken: string): Promise<WebinarRecording | undefined> {
+    const [row] = await db.select().from(webinarRecordings).where(eq(webinarRecordings.shareToken, shareToken));
+    return row;
+  }
+  async incrementWebinarRecordingViews(id: string): Promise<void> {
+    await db.update(webinarRecordings).set({ views: sqlExpr`${webinarRecordings.views} + 1` }).where(eq(webinarRecordings.id, id));
   }
   async getWebinarRecordingsByWebinarId(webinarId: string): Promise<WebinarRecording[]> {
     return db.select().from(webinarRecordings).where(eq(webinarRecordings.webinarId, webinarId)).orderBy(desc(webinarRecordings.createdAt));

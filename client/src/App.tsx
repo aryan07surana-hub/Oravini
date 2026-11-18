@@ -107,6 +107,8 @@ import CaptionWriterPage from "@/pages/client/CaptionWriter";
 import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
+import WatchRecording from "@/pages/public/WatchRecording";
+import Recordings from "@/pages/client/Recordings";
 import PanelistInvite from "@/pages/public/PanelistInvite";
 import PanelistStudio from "@/pages/public/PanelistStudio";
 import WatchVideo from "@/pages/public/WatchVideo";
@@ -270,6 +272,7 @@ function Router() {
       <Route path="/reschedule/:bookingId">{() => <RescheduleBooking />}</Route>
       <Route path="/book/embed/:slug">{() => <EmbedBooking />}</Route>
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/r/:token">{() => <WatchRecording />}</Route>
       <Route path="/webinar-invite/:token">{() => <PanelistInvite />}</Route>
       <Route path="/webinar-panelist/:id">{() => <PanelistStudio />}</Route>
       <Route path="/join/:code">{() => <WatchWebinar />}</Route>
@@ -333,6 +336,7 @@ function Router() {
       <Route path="/video-clip-editor">{() => <Guard component={VideoClipEditor} />}</Route>
       <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
       <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
+      <Route path="/recordings">{() => <Guard component={Recordings} />}</Route>
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
       <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>

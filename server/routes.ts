@@ -17,6 +17,7 @@ import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSum
 import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
+import { saveMedia } from "./mediaStorage";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { computeWebinarTimeline, computeStayRates, matchAttendedRegistrations, sessionEndMs, dropOffMinute, median, normEmail, pct } from "./webinar-analytics";
@@ -12836,6 +12837,16 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
         const registrations = await storage.getWebinarRegistrations(p(req.params.id));
         console.log(`[webinar] Sending live notification to ${registrations.length} registrants for ${webinar.title}`);
       }
+      // LiveKit sessions are auto-recorded to the Recordings library when egress storage is configured.
+      // Fire-and-forget: a recording failure must never affect going live.
+      if (!usingRelay) {
+        try {
+          const { beginWebinarAutoRecording } = await import("./webinarAutoRecording");
+          beginWebinarAutoRecording(p(req.params.id));
+        } catch (recErr: any) {
+          console.warn(`[webinar] Auto-recording unavailable: ${recErr.message}`);
+        }
+      }
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -12858,6 +12869,14 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       } catch (err) {
         console.error(`[ws] Error processing message: ${err}`);
       }
+      }
+      // Stop the auto-recording egress before tearing down the room; the finished
+      // file is registered in the Recordings library in the background.
+      try {
+        const { endWebinarAutoRecording } = await import("./webinarAutoRecording");
+        await endWebinarAutoRecording(p(req.params.id));
+      } catch (recErr: any) {
+        console.warn(`[webinar] Auto-recording stop: ${recErr.message}`);
       }
       try {
         const { deleteWebinarRoom } = await import("./livekit");
@@ -14293,9 +14312,61 @@ Return JSON only:
 
   // Webinar Recordings
   app.get("/api/recordings", requireAuth, async (req, res) => {
-    const user = req.user as any;
-    const recordings = await storage.getWebinarRecordings(user.id);
-    res.json(recordings);
+    try {
+      const user = req.user as any;
+      const [recordings, webinars] = await Promise.all([
+        storage.getWebinarRecordings(user.id),
+        storage.getWebinars(user.id).catch(() => [] as any[]),
+      ]);
+      // Additive: attach the source webinar's title/date for the Recordings library.
+      const byId = new Map((webinars as any[]).map(w => [w.id, w]));
+      res.json(recordings.map(r => {
+        const w: any = r.webinarId ? byId.get(r.webinarId) : null;
+        return {
+          ...r,
+          webinarTitle: w?.title ?? null,
+          webinarDate: w ? (w.startedAt || w.scheduledAt || null) : null,
+        };
+      }));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const rec = await storage.getWebinarRecording(p(req.params.id));
+      if (!rec || rec.userId !== user.id) return res.status(404).json({ message: "Recording not found" });
+      const updates: Record<string, any> = {};
+      if (typeof req.body.title === "string" && req.body.title.trim()) updates.title = req.body.title.trim();
+      if (typeof req.body.isPublic === "boolean") updates.isPublic = req.body.isPublic;
+      if (typeof req.body.thumbnailUrl === "string" || req.body.thumbnailUrl === null) updates.thumbnailUrl = req.body.thumbnailUrl;
+      if (updates.isPublic && !rec.shareToken) {
+        updates.shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      }
+      if (!Object.keys(updates).length) return res.json(rec);
+      const updated = await storage.updateWebinarRecording(rec.id, updates);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public replay of a shared recording (only when the owner made it public)
+  app.get("/api/public/recordings/:token", async (req, res) => {
+    try {
+      const rec = await storage.getWebinarRecordingByShareToken(p(req.params.token));
+      if (!rec || !rec.isPublic) return res.status(404).json({ message: "Recording not found" });
+      storage.incrementWebinarRecordingViews(rec.id).catch(() => {});
+      const webinar = rec.webinarId ? await storage.getWebinar(rec.webinarId).catch(() => undefined) : undefined;
+      res.json({
+        id: rec.id,
+        title: rec.title,
+        recordingUrl: rec.recordingUrl,
+        thumbnailUrl: rec.thumbnailUrl,
+        duration: rec.duration,
+        createdAt: rec.createdAt,
+        webinarTitle: webinar?.title ?? null,
+        webinarDate: webinar ? (webinar.startedAt || webinar.scheduledAt || null) : null,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/recordings", requireAuth, async (req, res) => {
@@ -14315,7 +14386,10 @@ Return JSON only:
 
   app.delete("/api/recordings/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteWebinarRecording(p(req.params.id));
+      const user = req.user as any;
+      const rec = await storage.getWebinarRecording(p(req.params.id));
+      if (!rec || rec.userId !== user.id) return res.status(404).json({ message: "Recording not found" });
+      await storage.deleteWebinarRecording(rec.id);
       res.json({ message: "Deleted" });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -14326,13 +14400,14 @@ Return JSON only:
       const user = req.user as any;
       const webinarId = p(req.params.id);
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      const recordingUrl = `/uploads/${req.file.filename}`;
+      // Cloudinary when configured, otherwise the local /uploads file (same as before).
+      const recordingUrl = await saveMedia(req.file.path, req.file.filename);
       const title = (req.body.title as string) || "Webinar Recording";
       const duration = req.body.duration ? Number(req.body.duration) : null;
       const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const rec = await storage.createWebinarRecording({
         webinarId, userId: user.id, title, recordingUrl,
-        thumbnailUrl: null, duration, fileSize: req.file.size, shareToken, isPublic: false,
+        thumbnailUrl: null, duration, fileSize: String(req.file.size), shareToken, isPublic: false,
       });
       res.status(201).json(rec);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

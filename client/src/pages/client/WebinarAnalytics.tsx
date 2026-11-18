@@ -2,38 +2,18 @@ import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft, Users, MessageSquare, HelpCircle, ThumbsUp,
-  Hand, Clock, Video, TrendingUp, Download, BarChart2, Zap, Target, MousePointerClick,
+  Clock, Video, TrendingUp, Download, BarChart2, MousePointerClick, ChevronRight, Film, ArrowUpDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
-  ComposedChart, Area, Bar, XAxis, Tooltip,
+  ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 
 const GOLD = "#d4b461";
-
-function StatCard({
-  label, value, icon: Icon, color,
-}: { label: string; value: string | number; icon: any; color?: string }) {
-  const c = color || GOLD;
-  return (
-    <div className="rounded-2xl p-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: `${GOLD}55` }}>{label}</span>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${c}14`, border: `1px solid ${c}22` }}>
-          <Icon className="w-3.5 h-3.5" style={{ color: c }} />
-        </div>
-      </div>
-      <span className="text-3xl font-black" style={{
-        background: `linear-gradient(135deg, #fff 0%, ${c} 100%)`,
-        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-        letterSpacing: "-0.02em",
-      }}>{value}</span>
-    </div>
-  );
-}
 
 function fmtDuration(secs: number): string {
   if (!secs) return "—";
@@ -50,56 +30,103 @@ function fmtPct(n: number | undefined | null): string {
   return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 }
 
+function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-end justify-between gap-4 mb-4">
+      <h2 className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: `${GOLD}60` }}>{children}</h2>
+      {right}
+    </div>
+  );
+}
+
+function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-3xl ${className}`} style={{ background: "linear-gradient(180deg, #0e0e13 0%, #0a0a0e 100%)", border: `1px solid ${GOLD}14` }}>
+      {children}
+    </div>
+  );
+}
+
+/* ── Hero: Registered → Attended → Clicked CTA ───────────────────────────── */
 function ConversionFunnel({ conversion }: { conversion: any }) {
   const registered = conversion?.registered ?? 0;
   const attended = conversion?.attended ?? 0;
   const clicked = conversion?.clickedCta ?? 0;
   const top = Math.max(registered, attended, clicked, 1);
   const steps = [
-    { label: "Registered", value: registered, color: "#60a5fa", note: null as string | null },
-    { label: "Attended", value: attended, color: "#34d399", note: `${fmtPct(conversion?.showRate)} show rate` },
-    { label: "Clicked CTA", value: clicked, color: GOLD, note: `${fmtPct(conversion?.ctaPerAttendee)} of attendees` },
+    { label: "Registered", value: registered, color: "#60a5fa", icon: Users },
+    { label: "Attended", value: attended, color: "#34d399", icon: TrendingUp },
+    { label: "Clicked CTA", value: clicked, color: GOLD, icon: MousePointerClick },
   ];
+  const transitions = [
+    { label: "Show rate", value: conversion?.showRate, sub: "attended / registered" },
+    { label: "CTA / attendee", value: conversion?.ctaPerAttendee, sub: "clicked / attended" },
+  ];
+
   return (
-    <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
-      <div>
-        <h3 className="text-sm font-black text-white tracking-tight">Conversion Funnel</h3>
-        <p className="text-[11px] text-zinc-500 mt-0.5">Registered → attended → clicked CTA</p>
+    <Panel className="p-6 sm:p-8 h-full">
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: `${GOLD}70` }}>Conversion funnel</p>
+          <h3 className="text-xl font-black text-white tracking-tight mt-1">From sign-up to sale</h3>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">Overall</p>
+          <p className="text-2xl font-black" style={{ color: GOLD }}>{fmtPct(conversion?.ctaPerRegistration)}</p>
+          <p className="text-[10px] text-zinc-600">clicked / registered</p>
+        </div>
       </div>
-      <div className="space-y-3">
-        {steps.map(st => (
-          <div key={st.label}>
-            <div className="flex items-baseline justify-between mb-1.5 gap-3">
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">{st.label}</span>
-              <span className="flex items-baseline gap-2">
-                {st.note && <span className="text-[10px] text-zinc-500">{st.note}</span>}
-                <span className="text-lg font-black text-white">{st.value}</span>
-              </span>
+
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] items-stretch gap-3">
+        {steps.map((st, i) => {
+          const Icon = st.icon;
+          const h = Math.max((st.value / top) * 100, st.value > 0 ? 8 : 4);
+          return (
+            <div key={st.label} className="contents">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${st.color}14`, border: `1px solid ${st.color}28` }}>
+                    <Icon className="w-3.5 h-3.5" style={{ color: st.color }} />
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">{st.label}</span>
+                </div>
+                <p className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-none">{st.value.toLocaleString()}</p>
+                <div className="mt-5 h-28 rounded-2xl flex items-end overflow-hidden" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                  <div className="w-full rounded-2xl transition-all duration-700" style={{
+                    height: `${h}%`,
+                    background: `linear-gradient(180deg, ${st.color}cc 0%, ${st.color}33 100%)`,
+                    boxShadow: `0 -8px 30px ${st.color}22`,
+                  }} />
+                </div>
+              </div>
+              {i < transitions.length && (
+                <div className="flex md:flex-col items-center justify-center gap-2 py-2 md:py-0 md:pt-10">
+                  <ChevronRight className="w-4 h-4 text-zinc-600 rotate-90 md:rotate-0" />
+                  <div className="rounded-full px-3 py-1 text-center" style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}22` }}>
+                    <p className="text-sm font-black" style={{ color: GOLD }}>{fmtPct(transitions[i].value)}</p>
+                  </div>
+                  <p className="text-[9px] uppercase tracking-[0.14em] text-zinc-600 text-center whitespace-nowrap">{transitions[i].label}</p>
+                </div>
+              )}
             </div>
-            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-              <div className="h-full rounded-full transition-all"
-                style={{ width: `${Math.max((st.value / top) * 100, st.value > 0 ? 3 : 0)}%`, background: st.color }} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="grid grid-cols-3 gap-3 pt-1">
-        {[
-          { label: "Show rate", value: conversion?.showRate, sub: "attended / registered" },
-          { label: "CTA / attendee", value: conversion?.ctaPerAttendee, sub: "clicked / attended" },
-          { label: "CTA / registrant", value: conversion?.ctaPerRegistration, sub: "clicked / registered" },
-        ].map(r => (
-          <div key={r.label} className="rounded-xl p-3" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}14` }}>
-            <p className="text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: `${GOLD}70` }}>{r.label}</p>
-            <p className="text-xl font-black text-white mt-1">{fmtPct(r.value)}</p>
-            <p className="text-[9px] text-zinc-600 mt-0.5">{r.sub}</p>
-          </div>
-        ))}
-      </div>
+    </Panel>
+  );
+}
+
+function KpiTile({ label, value, sub, color = GOLD }: { label: string; value: string | number; sub?: string; color?: string }) {
+  return (
+    <div className="rounded-2xl px-4 py-3.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className="text-2xl font-black mt-1 tracking-tight" style={{ color }}>{value}</p>
+      {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
     </div>
   );
 }
 
+/* ── Stay rate bars ─────────────────────────────────────────────────────── */
 function StayRatePanel({ stayRate, attendees }: { stayRate: any; attendees: number }) {
   const marks = [
     { key: "p25", label: "25% in" },
@@ -108,178 +135,297 @@ function StayRatePanel({ stayRate, attendees }: { stayRate: any; attendees: numb
   ];
   const hasData = !!stayRate && attendees > 0;
   return (
-    <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
-      <div>
-        <h3 className="text-sm font-black text-white tracking-tight">Stay Rate</h3>
-        <p className="text-[11px] text-zinc-500 mt-0.5">% of {attendees} attendee{attendees === 1 ? "" : "s"} still watching at each point</p>
-      </div>
+    <Panel className="p-6 h-full">
+      <h3 className="text-sm font-black text-white tracking-tight">Stay rate</h3>
+      <p className="text-[11px] text-zinc-500 mt-0.5 mb-6">% of {attendees} attendee{attendees === 1 ? "" : "s"} still watching at each checkpoint</p>
       {!hasData ? (
-        <p className="text-xs text-zinc-600 py-6 text-center">No viewer sessions yet.</p>
+        <p className="text-xs text-zinc-600 py-10 text-center">No viewer sessions yet.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-4 items-end h-48">
           {marks.map(m => {
             const d = stayRate[m.key] || { pct: 0, viewers: 0, minute: 0 };
             const color = d.pct >= 60 ? "#34d399" : d.pct >= 30 ? GOLD : "#f87171";
             return (
-              <div key={m.key}>
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
-                    {m.label} <span className="text-zinc-600 normal-case tracking-normal font-semibold">· min {d.minute}</span>
-                  </span>
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-[10px] text-zinc-500">{d.viewers} watching</span>
-                    <span className="text-lg font-black" style={{ color }}>{d.pct}%</span>
-                  </span>
+              <div key={m.key} className="flex flex-col items-center h-full">
+                <span className="text-xl font-black mb-2" style={{ color }}>{d.pct}%</span>
+                <div className="flex-1 w-full max-w-[64px] rounded-xl flex items-end overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="w-full rounded-xl transition-all duration-700" style={{ height: `${Math.max(d.pct, 2)}%`, background: `linear-gradient(180deg, ${color} 0%, ${color}40 100%)` }} />
                 </div>
-                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${d.pct}%`, background: color }} />
-                </div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 mt-3">{m.label}</span>
+                <span className="text-[10px] text-zinc-600">min {d.minute} · {d.viewers} watching</span>
               </div>
             );
           })}
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
 
-function ViewerHeatmap({ timeline, isLive, stayRate }: { timeline: any[]; isLive?: boolean; stayRate?: any }) {
+/* ── Drop-off area chart ────────────────────────────────────────────────── */
+function DropOffChart({ timeline, isLive, stayRate }: { timeline: any[]; isLive?: boolean; stayRate?: any }) {
   if (!timeline || timeline.length < 2) {
     return (
-      <div className="rounded-2xl p-10 text-center" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
-        <div className="w-10 h-10 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: `${GOLD}12` }}>
-          <TrendingUp className="w-5 h-5" style={{ color: `${GOLD}60` }} />
+      <Panel className="p-12 text-center">
+        <div className="w-11 h-11 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: `${GOLD}12` }}>
+          <TrendingUp className="w-5 h-5" style={{ color: `${GOLD}70` }} />
         </div>
-        <p className="text-zinc-500 text-sm font-semibold">
+        <p className="text-zinc-400 text-sm font-semibold">
           {isLive ? "Collecting viewer data…" : "No viewer sessions recorded yet"}
         </p>
-        <p className="text-zinc-700 text-xs mt-1">
+        <p className="text-zinc-600 text-xs mt-1">
           {isLive
             ? "The drop-off curve fills in minute by minute as viewers watch."
-            : "Run a live webinar to generate the drop-off curve and engagement heatmap."}
+            : "Run a live webinar to generate the drop-off curve."}
         </p>
-      </div>
+      </Panel>
     );
   }
 
-  const maxViewers    = Math.max(...timeline.map(t => t.viewers), 1);
-  const ctaMinutes    = timeline.filter(t => t.ctaClicks > 0);
-  const peakMinute    = timeline.reduce((p, c) => c.viewers > p.viewers ? c : p, timeline[0]);
-  const halfViewers   = maxViewers / 2;
-  const halfIdx       = timeline.findIndex(t => t.minute > 0 && t.viewers <= halfViewers);
-  const retentionMin  = halfIdx > 0 ? timeline[halfIdx].minute : null;
+  const maxViewers = Math.max(...timeline.map(t => t.viewers), 1);
+  const ctaMinutes = timeline.filter(t => t.ctaClicks > 0);
+  const peakPoint = timeline.reduce((p, c) => c.viewers > p.viewers ? c : p, timeline[0]);
+  const peakIdx = timeline.indexOf(peakPoint);
+  const halfIdx = timeline.findIndex((t, i) => i > peakIdx && t.viewers <= maxViewers / 2);
+  const retentionMin = halfIdx > 0 ? timeline[halfIdx].minute : null;
+  const endViewers = timeline[timeline.length - 1]?.viewers ?? 0;
+  const data = timeline.map(t => ({
+    ...t,
+    retention: Math.round((t.viewers / maxViewers) * 100),
+    engagement: (t.chats || 0) + (t.reactions || 0) + (t.questions || 0) + (t.pollVotes || 0),
+  }));
+  const maxEngagement = Math.max(...data.map(d => d.engagement), 1);
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const d = payload[0]?.payload;
     if (!d) return null;
+    const row = (label: string, value: number, cls: string) => value > 0 ? (
+      <div className="flex justify-between gap-4"><span className="text-zinc-400">{label}</span><span className={`font-bold ${cls}`}>{value}</span></div>
+    ) : null;
     return (
-      <div className="rounded-xl p-3 text-xs shadow-2xl" style={{ background: "#141417", border: `1px solid ${GOLD}30`, minWidth: 148 }}>
+      <div className="rounded-xl p-3 text-xs shadow-2xl" style={{ background: "#141417", border: `1px solid ${GOLD}30`, minWidth: 160 }}>
         <p className="font-black mb-2" style={{ color: GOLD }}>Minute {d.minute}</p>
         <div className="space-y-1">
           <div className="flex justify-between gap-4"><span className="text-zinc-400">Viewers</span><span className="font-bold text-white">{d.viewers}</span></div>
-          {d.chats    > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Chat</span><span className="font-bold text-blue-400">{d.chats}</span></div>}
-          {d.reactions > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Reactions</span><span className="font-bold text-pink-400">{d.reactions}</span></div>}
-          {d.questions > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Questions</span><span className="font-bold text-amber-400">{d.questions}</span></div>}
-          {d.pollVotes > 0 && <div className="flex justify-between gap-4"><span className="text-zinc-400">Poll votes</span><span className="font-bold text-orange-400">{d.pollVotes}</span></div>}
-          {d.ctaClicks > 0 && <div className="flex justify-between gap-4"><span style={{ color: GOLD }} className="font-bold">⚡ CTA Clicks</span><span className="font-bold" style={{ color: GOLD }}>{d.ctaClicks}</span></div>}
+          <div className="flex justify-between gap-4"><span className="text-zinc-400">Of peak</span><span className="font-bold text-white">{d.retention}%</span></div>
+          {row("Chat", d.chats, "text-blue-400")}
+          {row("Reactions", d.reactions, "text-pink-400")}
+          {row("Questions", d.questions, "text-amber-400")}
+          {row("Poll votes", d.pollVotes, "text-orange-400")}
+          {d.ctaClicks > 0 && <div className="flex justify-between gap-4"><span className="font-bold" style={{ color: GOLD }}>CTA clicks</span><span className="font-bold" style={{ color: GOLD }}>{d.ctaClicks}</span></div>}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="rounded-2xl p-5 space-y-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
-      <div className="flex items-start justify-between gap-4">
+    <Panel className="p-6 sm:p-7">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-sm font-black text-white tracking-tight">Viewer Drop-off Curve</h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">Concurrent viewers per minute · chat & reaction bursts · CTA conversion moments</p>
+          <h3 className="text-lg font-black text-white tracking-tight">Viewer drop-off</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Concurrent viewers each minute · engagement bursts below · dashed lines mark CTA clicks</p>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-4 flex-wrap">
           {[
-            { color: `${GOLD}70`, label: "Viewers" },
-            { color: "rgba(96,165,250,0.7)", label: "Chat" },
-            { color: "rgba(244,114,182,0.7)", label: "Reactions" },
-            { color: GOLD, label: "CTA Click", dot: true },
-          ].map(({ color, label, dot }) => (
+            { color: GOLD, label: "Viewers" },
+            { color: "rgba(96,165,250,0.7)", label: "Engagement" },
+            { color: GOLD, label: "CTA click", dashed: true },
+          ].map(({ color, label, dashed }) => (
             <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-              {dot
-                ? <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-                : <span className="w-3 h-2 rounded-sm" style={{ background: color }} />
-              }
+              {dashed
+                ? <span className="w-3 h-0 border-t-2 border-dashed" style={{ borderColor: color }} />
+                : <span className="w-3 h-2 rounded-sm" style={{ background: color }} />}
               {label}
             </span>
           ))}
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={timeline} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: -12 }}>
           <defs>
-            <linearGradient id="hmViewerGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={GOLD} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={GOLD} stopOpacity={0.03} />
+            <linearGradient id="dropOffGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={GOLD} stopOpacity={0.5} />
+              <stop offset="100%" stopColor={GOLD} stopOpacity={0.02} />
             </linearGradient>
           </defs>
+          <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis
             dataKey="minute"
             tick={{ fill: "#52525b", fontSize: 10 }}
             tickLine={false}
-            axisLine={false}
+            axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
             tickFormatter={m => `${m}m`}
-            interval={Math.max(1, Math.floor(timeline.length / 8))}
+            interval={Math.max(0, Math.floor(data.length / 10))}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: `${GOLD}30`, strokeWidth: 1 }} />
+          <YAxis
+            yAxisId="viewers"
+            tick={{ fill: "#52525b", fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            width={40}
+          />
+          {/* Engagement uses its own hidden axis, capped to the bottom ~30% of the chart */}
+          <YAxis yAxisId="engagement" hide domain={[0, maxEngagement * 3.3]} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: `${GOLD}40`, strokeWidth: 1 }} />
 
-          {/* Stay-rate checkpoints (25 / 50 / 75% of duration) */}
           {stayRate && ["p25", "p50", "p75"].map(k => stayRate[k] && stayRate[k].minute > 0 ? (
-            <ReferenceLine key={k} x={stayRate[k].minute} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+            <ReferenceLine key={k} yAxisId="viewers" x={stayRate[k].minute} stroke="rgba(255,255,255,0.10)" strokeWidth={1}
+              label={{ value: k.replace("p", "") + "%", position: "top", fill: "#52525b", fontSize: 9 }} />
           ) : null)}
-
-          {/* CTA click reference lines */}
           {ctaMinutes.map(t => (
-            <ReferenceLine key={t.minute} x={t.minute} stroke={GOLD} strokeWidth={1.5} strokeDasharray="3 3" />
+            <ReferenceLine key={`cta-${t.minute}`} yAxisId="viewers" x={t.minute} stroke={GOLD} strokeWidth={1.5} strokeDasharray="4 4" />
           ))}
 
-          {/* Viewer dropout area */}
+          <Bar yAxisId="engagement" dataKey="engagement" fill="rgba(96,165,250,0.45)" radius={[2, 2, 0, 0]} maxBarSize={8} />
           <Area
+            yAxisId="viewers"
             type="monotone"
             dataKey="viewers"
-            fill="url(#hmViewerGrad)"
+            fill="url(#dropOffGrad)"
             stroke={GOLD}
-            strokeWidth={2}
+            strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, fill: GOLD, strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: GOLD, stroke: "#0a0a0e", strokeWidth: 2 }}
           />
-
-          {/* Engagement bars — scaled so they appear at bottom of chart */}
-          <Bar dataKey="chats"     fill="rgba(96,165,250,0.55)"  radius={[2,2,0,0]} maxBarSize={6} />
-          <Bar dataKey="reactions" fill="rgba(244,114,182,0.55)" radius={[2,2,0,0]} maxBarSize={6} />
         </ComposedChart>
       </ResponsiveContainer>
 
-      {/* Insight pills */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-          style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}20`, color: GOLD }}>
-          <TrendingUp className="w-3 h-3" />
-          Peak: {peakMinute.viewers} viewers @ min {peakMinute.minute}
-        </div>
-        {retentionMin && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-            style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#f87171" }}>
-            50% dropped off @ min {retentionMin}
-          </div>
-        )}
-        {ctaMinutes.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-            style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}20`, color: GOLD }}>
-            <Zap className="w-3 h-3" />
-            CTA fired at min {ctaMinutes.map(t => t.minute).join(", ")}
-          </div>
-        )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+        <KpiTile label="Peak" value={peakPoint.viewers} sub={`at minute ${peakPoint.minute}`} />
+        <KpiTile label="50% drop-off" value={retentionMin != null ? `min ${retentionMin}` : "—"} sub={retentionMin != null ? "half of peak gone" : "never fell below half"} color="#f87171" />
+        <KpiTile label="Still watching at end" value={`${Math.round((endViewers / maxViewers) * 100)}%`} sub={`${endViewers} of ${maxViewers} peak`} color="#34d399" />
+        <KpiTile label="CTA moments" value={ctaMinutes.length} sub={ctaMinutes.length ? `min ${ctaMinutes.slice(0, 4).map(t => t.minute).join(", ")}${ctaMinutes.length > 4 ? "…" : ""}` : "no clicks yet"} />
       </div>
-    </div>
+    </Panel>
+  );
+}
+
+/* ── Engagement counters ────────────────────────────────────────────────── */
+function EngagementPanel({ items, engagementRate, completionRate }: {
+  items: { label: string; value: number; icon: any; color: string }[];
+  engagementRate: number; completionRate: number;
+}) {
+  return (
+    <Panel className="p-6 h-full">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h3 className="text-sm font-black text-white tracking-tight">Engagement</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Everything your audience did during the session</p>
+        </div>
+        <div className="flex gap-5 text-right">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Engagement rate</p>
+            <p className="text-lg font-black" style={{ color: GOLD }}>{fmtPct(engagementRate)}</p>
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">Completion</p>
+            <p className="text-lg font-black text-emerald-400">{fmtPct(completionRate)}</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {items.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="rounded-2xl p-4" style={{ background: `${color}08`, border: `1px solid ${color}1c` }}>
+            <div className="flex items-center gap-2">
+              <Icon className="w-3.5 h-3.5" style={{ color }} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</span>
+            </div>
+            <p className="text-3xl font-black text-white mt-2 tracking-tight">{value.toLocaleString()}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+type AttendeeSort = "watch" | "joined" | "name";
+
+function AttendeeTable({ attendeeList, duration }: { attendeeList: any[]; duration: number }) {
+  const [sort, setSort] = useState<AttendeeSort>("watch");
+  const rows = useMemo(() => {
+    const list = [...attendeeList];
+    if (sort === "watch") list.sort((x, y) => (y.watchedSeconds || 0) - (x.watchedSeconds || 0));
+    if (sort === "joined") list.sort((x, y) => new Date(x.joinedAt || 0).getTime() - new Date(y.joinedAt || 0).getTime());
+    if (sort === "name") list.sort((x, y) => String(x.name || "").localeCompare(String(y.name || "")));
+    return list;
+  }, [attendeeList, sort]);
+  const maxWatch = Math.max(duration || 0, ...attendeeList.map(r => r.watchedSeconds || 0), 1);
+
+  return (
+    <Panel className="overflow-hidden">
+      <div className="flex items-center justify-between gap-4 px-6 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div>
+          <h3 className="text-sm font-black text-white tracking-tight">Attendees</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{attendeeList.length} viewer session{attendeeList.length === 1 ? "" : "s"} · join & leave times, watch duration</p>
+        </div>
+        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <ArrowUpDown className="w-3 h-3 text-zinc-500 mx-1.5" />
+          {([["watch", "Watch time"], ["joined", "Joined"], ["name", "Name"]] as [AttendeeSort, string][]).map(([k, label]) => (
+            <button key={k} onClick={() => setSort(k)}
+              className="text-[10px] font-bold uppercase tracking-[0.1em] px-2.5 py-1 rounded-lg transition-colors"
+              style={sort === k ? { background: `${GOLD}20`, color: GOLD } : { color: "#71717a" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead className="sticky top-0" style={{ background: "#0d0d12" }}>
+            <tr>
+              {["Attendee", "Joined", "Left", "Watch duration", "Status"].map(h => (
+                <th key={h} className="text-left px-6 py-3 text-[10px] font-black text-zinc-500 uppercase tracking-[0.14em]">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r: any, i: number) => {
+              const w = r.watchedSeconds || 0;
+              return (
+                <tr key={r.id || i} className="transition-colors hover:bg-white/[0.02]" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                  <td className="px-6 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                        style={{ background: `hsl(${((r.name || "?").charCodeAt(0) * 37) % 360}, 40%, 30%)` }}>
+                        {(r.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-white text-sm font-semibold truncate max-w-[200px]">{r.name || "Anonymous"}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3.5 text-zinc-400 text-xs whitespace-nowrap">
+                    {r.joinedAt ? format(new Date(r.joinedAt), "MMM d, h:mm a") : "—"}
+                  </td>
+                  <td className="px-6 py-3.5 text-zinc-400 text-xs whitespace-nowrap">
+                    {r.leftAt ? format(new Date(r.leftAt), "h:mm a") : "—"}
+                    {r.dropOffMinute != null && <span className="ml-1.5 text-[10px] text-zinc-600">min {r.dropOffMinute}</span>}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden max-w-[140px]" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (w / maxWatch) * 100)}%`, background: GOLD }} />
+                      </div>
+                      <span className="text-zinc-200 text-xs font-bold whitespace-nowrap">{fmtDuration(w)}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3.5">
+                    {r.active ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Watching
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-zinc-500" style={{ background: "rgba(255,255,255,0.04)" }}>Left</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }
 
@@ -299,27 +445,22 @@ export default function WebinarAnalytics() {
     enabled: !!webinarId,
   });
 
-  const { data: reportData } = useQuery<any>({
-    queryKey: [`/api/webinars/${webinarId}/report`],
-    enabled: !!webinarId,
-  });
-
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen" style={{ background: "#09090b" }}>
+    <div className="flex items-center justify-center min-h-screen" style={{ background: "#040406" }}>
       <div className="w-6 h-6 rounded-full border-2 animate-spin"
         style={{ borderColor: GOLD, borderTopColor: "transparent" }} />
     </div>
   );
 
   if (error || !analytics) return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4" style={{ background: "#09090b" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4" style={{ background: "#040406" }}>
       <p className="text-zinc-400">Could not load analytics.</p>
       <Button onClick={() => nav("/video-marketing")} variant="ghost" className="text-zinc-400">← Back</Button>
     </div>
   );
 
   const a = analytics || {};
-  const webinar = a.webinar || null;
+  const webinar = a.webinar || {};
   const registrations = a.registrations ?? 0;
   const attended = a.attended ?? 0;
   const uniqueViewers = a.uniqueViewers ?? 0;
@@ -354,370 +495,241 @@ export default function WebinarAnalytics() {
     ctaPerRegistration: registrations > 0 ? Math.round((ctaClicks / registrations) * 1000) / 10 : 0,
   };
 
-  const attendanceRate = registrations > 0 ? Math.round((attended / registrations) * 100) : 0;
   const isLive = webinar?.status === "live";
+  const hasAnyData = registrations > 0 || attendeeList.length > 0 || timeline.length > 1 || chatTranscript.length > 0;
 
   return (
     <div className="min-h-screen relative" style={{ background: "#040406", color: "#fff" }}>
-      <svg className="absolute inset-0 w-full h-full opacity-[0.025] pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-        <filter id="wa-grain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-        <rect width="100%" height="100%" filter="url(#wa-grain)"/>
-      </svg>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 120% 40% at 50% 0%, ${GOLD}08 0%, transparent 60%)` }} />
+      <div className="absolute inset-x-0 top-0 h-[520px] pointer-events-none" style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${GOLD}0d 0%, transparent 70%)` }} />
+
       {/* ── HEADER ── */}
-      <div className="relative z-40 sticky top-0" style={{ background: "rgba(4,4,6,0.96)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${GOLD}14` }}>
-        <div className="flex gap-0.5 px-6 pt-2">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-1.5 flex-1 rounded-sm" style={{ background: i % 2 === 0 ? `${GOLD}20` : "transparent", border: `1px solid ${GOLD}12` }} />
-          ))}
-        </div>
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-3">
+      <div className="relative z-40 sticky top-0" style={{ background: "rgba(4,4,6,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${GOLD}14` }}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => nav(`/webinar-studio/${webinarId}`)}
-              className="p-1.5 rounded-lg transition-colors" style={{ color: `${GOLD}60` }}
-              onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
-              onMouseLeave={e => (e.currentTarget.style.color = `${GOLD}60`)}>
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0"
+              style={{ color: `${GOLD}90`, background: `${GOLD}0c`, border: `1px solid ${GOLD}1c` }}
+              aria-label="Back to studio">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <BarChart2 className="w-3.5 h-3.5" style={{ color: GOLD }} />
-                <p className="font-black text-white" style={{ letterSpacing: "-0.01em" }}>{webinar.title}</p>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] text-zinc-600">
-                  {webinar.scheduledAt ? format(new Date(webinar.scheduledAt), "MMM d, yyyy 'at' h:mm a") : ""}
-                </span>
-                <Badge className="text-[10px] h-4 px-1.5 py-0 border-none" style={{
+                <p className="font-black text-white truncate" style={{ letterSpacing: "-0.01em" }}>{webinar.title || "Webinar"}</p>
+                <Badge className="text-[10px] h-4 px-1.5 py-0 border-none flex-shrink-0" style={{
                   background: isLive ? "#ef444422" : webinar.status === "completed" ? "#10b98122" : "#52525b22",
                   color: isLive ? "#f87171" : webinar.status === "completed" ? "#34d399" : "#a1a1aa",
-                }}>{webinar.status}</Badge>
-                {isLive && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-red-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
-                  </span>
-                )}
+                }}>{isLive ? "● live" : webinar.status}</Badge>
               </div>
+              <p className="text-[11px] text-zinc-500 mt-0.5">
+                {webinar.scheduledAt ? format(new Date(webinar.scheduledAt), "EEEE, MMM d, yyyy 'at' h:mm a") : ""}
+                {duration ? ` · ${fmtDuration(duration)}` : ""}
+              </p>
             </div>
           </div>
-          <Button size="sm" onClick={() => nav(`/webinar-studio/${webinarId}`)}
-            className="gap-1.5 font-black text-xs uppercase tracking-wide"
-            style={{ background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}30` }}>
-            <Video className="w-3.5 h-3.5" /> Studio
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button size="sm" variant="ghost" onClick={() => nav("/recordings")}
+              className="gap-1.5 font-bold text-xs text-zinc-400 hover:text-white hidden sm:inline-flex">
+              <Film className="w-3.5 h-3.5" /> Recordings
+            </Button>
+            <Button size="sm" onClick={() => nav(`/webinar-studio/${webinarId}`)}
+              className="gap-1.5 font-black text-xs uppercase tracking-wide"
+              style={{ background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}30` }}>
+              <Video className="w-3.5 h-3.5" /> Studio
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <div className="relative max-w-7xl mx-auto px-6 py-10 space-y-12">
 
-        {/* ── OVERVIEW STATS ── */}
-        <div>
-          <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>Overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Registrations" value={registrations} icon={Users} color="#60a5fa" />
-            <StatCard
-              label="Attended"
-              value={attended > 0 ? `${attended} (${attendanceRate}%)` : attended}
-              icon={TrendingUp}
-              color="#34d399"
-            />
-            <StatCard
-              label={peakMinute != null ? `Peak Concurrent · min ${peakMinute}` : "Peak Concurrent"}
-              value={peakViewers}
-              icon={Users}
-              color={GOLD}
-            />
-            <StatCard
-              label="Duration"
-              value={duration ? fmtDuration(duration) : isLive ? "Live now" : "—"}
-              icon={Clock}
-              color="#a78bfa"
-            />
+        {/* ── HERO: funnel + key numbers ── */}
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+          <div className="xl:col-span-8">
+            <ConversionFunnel conversion={conversion} />
           </div>
-        </div>
-
-        {/* ── WATCH TIME ── */}
-        <div>
-          <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>Watch Time</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Avg Watch Time" value={fmtDuration(avgWatchTime)} icon={Clock} color="#a78bfa" />
-            <StatCard label="Median Watch Time" value={fmtDuration(medianWatchTime)} icon={Clock} color="#c4b5fd" />
-            <StatCard label="Unique Viewers" value={uniqueViewerIds} icon={Users} color="#60a5fa" />
-            <StatCard label="Total Watch Time" value={fmtDuration(totalWatchSeconds)} icon={Video} color={GOLD} />
-          </div>
-        </div>
-
-        {/* ── FUNNEL + STAY RATE ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ConversionFunnel conversion={conversion} />
-          <StayRatePanel stayRate={stayRate} attendees={attendees} />
-        </div>
-
-        {/* ── ENGAGEMENT STATS ── */}
-        <div>
-          <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>Engagement</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            <StatCard label="Chat Messages" value={chatMessages} icon={MessageSquare} color="#60a5fa" />
-            <StatCard label="Q&A Questions" value={qaQuestions} icon={HelpCircle} color="#fbbf24" />
-            <StatCard label="Reactions" value={totalReactions} icon={ThumbsUp} color="#f472b6" />
-            <StatCard label="Poll Votes" value={pollVotes} icon={BarChart2} color="#fb923c" />
-            <StatCard label="CTA Clicks" value={ctaClicks} icon={MousePointerClick} color="#34d399" />
-          </div>
-        </div>
-
-        {/* ── VIEWER HEATMAP ── */}
-        <div>
-          <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>Viewer Timeline</h2>
-          <ViewerHeatmap timeline={timeline || []} isLive={isLive} stayRate={stayRate} />
-        </div>
-
-        {/* ── RECORDINGS ── */}
-        {recordings && recordings.length > 0 && (
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>
-              Recordings ({recordings.length})
-            </h2>
-            <div className="space-y-3">
-              {recordings.map((rec: any) => (
-                <div
-                  key={rec.id}
-                  className="rounded-2xl p-4 flex items-center gap-4"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${GOLD}15` }}>
-                    <Video className="w-5 h-5" style={{ color: GOLD }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{rec.title}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {rec.fileSize || ""}
-                      {rec.duration ? ` · ${fmtDuration(rec.duration)}` : ""}
-                      {rec.createdAt ? ` · ${format(new Date(rec.createdAt), "MMM d, yyyy")}` : ""}
-                    </p>
-                  </div>
-                  <a
-                    href={rec.recordingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                    style={{ background: `${GOLD}18`, color: GOLD }}>
-                    <Download className="w-3.5 h-3.5" /> Download
-                  </a>
-                </div>
-              ))}
+          <Panel className="xl:col-span-4 p-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-4" style={{ color: `${GOLD}70` }}>Audience & watch time</p>
+            <div className="grid grid-cols-2 gap-3">
+              <KpiTile label="Registrations" value={registrations} color="#60a5fa" />
+              <KpiTile label="Attended" value={attended} sub={`${fmtPct(showRate)} show rate`} color="#34d399" />
+              <KpiTile label="Peak concurrent" value={peakViewers} sub={peakMinute != null ? `at minute ${peakMinute}` : undefined} />
+              <KpiTile label="Unique viewers" value={uniqueViewerIds} color="#60a5fa" />
+              <KpiTile label="Avg watch" value={fmtDuration(avgWatchTime)} color="#a78bfa" />
+              <KpiTile label="Median watch" value={fmtDuration(medianWatchTime)} color="#c4b5fd" />
+              <KpiTile label="Total watch" value={fmtDuration(totalWatchSeconds)} />
+              <KpiTile label="Duration" value={duration ? fmtDuration(duration) : isLive ? "Live now" : "—"} color="#a78bfa" />
             </div>
-            {recordings[0]?.recordingUrl && (
-              <div
-                className="mt-4 rounded-2xl overflow-hidden"
-                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                <video
-                  src={recordings[0].recordingUrl}
-                  controls
-                  className="w-full max-h-96 bg-black"
-                />
-              </div>
-            )}
+          </Panel>
+        </section>
+
+        {/* ── DROP-OFF CHART ── */}
+        <section>
+          <SectionLabel>Viewer timeline</SectionLabel>
+          <DropOffChart timeline={timeline} isLive={isLive} stayRate={stayRate} />
+        </section>
+
+        {/* ── STAY RATE + ENGAGEMENT ── */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-5">
+            <StayRatePanel stayRate={stayRate} attendees={attendees} />
           </div>
+          <div className="lg:col-span-7">
+            <EngagementPanel
+              engagementRate={engagementRate}
+              completionRate={completionRate}
+              items={[
+                { label: "Chat", value: chatMessages, icon: MessageSquare, color: "#60a5fa" },
+                { label: "Q&A", value: qaQuestions, icon: HelpCircle, color: "#fbbf24" },
+                { label: "Reactions", value: totalReactions, icon: ThumbsUp, color: "#f472b6" },
+                { label: "Poll votes", value: pollVotes, icon: BarChart2, color: "#fb923c" },
+                { label: "CTA clicks", value: ctaClicks, icon: MousePointerClick, color: "#34d399" },
+                { label: "Watch hours", value: Math.round((totalWatchSeconds / 3600) * 10) / 10, icon: Clock, color: GOLD },
+              ]}
+            />
+          </div>
+        </section>
+
+        {/* ── ATTENDEE TABLE ── */}
+        {attendeeList.length > 0 && (
+          <section>
+            <SectionLabel>Per-attendee</SectionLabel>
+            <AttendeeTable attendeeList={attendeeList} duration={duration} />
+          </section>
         )}
 
         {/* ── ENGAGEMENT LEADERBOARD ── */}
         {engagementScores && engagementScores.length > 0 && (
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4" style={{ color: `${GOLD}50` }}>
-              Top Engaged Attendees ({engagementScores.length})
-            </h2>
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                    {["#", "Attendee", "Engagement", "Chat", "Polls", "Reactions", "CTAs", "Watch Time"].map(h => (
-                      <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {engagementScores.slice(0, 20).map((s: any, i: number) => (
-                    <tr key={s.id || i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-                      <td className="px-3 py-3 text-zinc-500 font-mono text-xs">#{i + 1}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                            style={{ background: `hsl(${(i * 53) % 360}, 45%, 35%)` }}>
-                            {(s.viewerName || "?").charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-white text-xs font-semibold">{s.viewerName || "Anonymous"}</p>
-                            {s.viewerEmail && <p className="text-[10px] text-zinc-600">{s.viewerEmail}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden max-w-[80px]">
-                            <div className="h-full rounded-full" style={{ width: `${s.engagementScore || 0}%`, background: GOLD }} />
-                          </div>
-                          <span className="text-xs font-bold" style={{ color: GOLD }}>{Math.round(s.engagementScore || 0)}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.chatMessages || 0}</td>
-                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.pollsVoted || 0}</td>
-                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.reactionsCount || 0}</td>
-                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.ctaClicks || 0}</td>
-                      <td className="px-3 py-3 text-zinc-300 text-xs">{fmtDuration(s.watchDuration || 0)}</td>
+          <section>
+            <SectionLabel>Top engaged attendees ({engagementScores.length})</SectionLabel>
+            <Panel className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[720px]">
+                  <thead>
+                    <tr style={{ background: "rgba(255,255,255,0.025)" }}>
+                      {["#", "Attendee", "Engagement", "Chat", "Polls", "Reactions", "CTAs", "Watch time"].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-[10px] font-black text-zinc-500 uppercase tracking-[0.14em]">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody>
+                    {engagementScores.slice(0, 20).map((s: any, i: number) => (
+                      <tr key={s.id || i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td className="px-4 py-3 text-zinc-500 font-mono text-xs">#{i + 1}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-white text-xs font-semibold">{s.viewerName || "Anonymous"}</p>
+                          {s.viewerEmail && <p className="text-[10px] text-zinc-600">{s.viewerEmail}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden max-w-[80px]">
+                              <div className="h-full rounded-full" style={{ width: `${s.engagementScore || 0}%`, background: GOLD }} />
+                            </div>
+                            <span className="text-xs font-bold" style={{ color: GOLD }}>{Math.round(s.engagementScore || 0)}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-300 text-xs">{s.chatMessages || 0}</td>
+                        <td className="px-4 py-3 text-zinc-300 text-xs">{s.pollsVoted || 0}</td>
+                        <td className="px-4 py-3 text-zinc-300 text-xs">{s.reactionsCount || 0}</td>
+                        <td className="px-4 py-3 text-zinc-300 text-xs">{s.ctaClicks || 0}</td>
+                        <td className="px-4 py-3 text-zinc-300 text-xs">{fmtDuration(s.watchDuration || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </section>
         )}
 
-        {/* ── ATTENDEE LIST ── */}
-        {attendeeList && attendeeList.length > 0 && (
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>
-              Attendees ({attendeeList.length})
-            </h2>
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                    {["Name", "Joined", "Left", "Watch Time", "Status"].map(h => (
-                      <th key={h}
-                        className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
-                        style={{ textAlign: h === "Watch Time" || h === "Status" ? "center" : "left" }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {attendeeList.map((a: any, i: number) => (
-                    <tr key={a.id || i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                            style={{ background: `hsl(${(i * 67) % 360}, 45%, 35%)` }}>
-                            {(a.name || "?").charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-white text-sm">{a.name || "Anonymous"}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {a.joinedAt ? format(new Date(a.joinedAt), "MMM d, h:mm a") : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {a.leftAt ? format(new Date(a.leftAt), "h:mm a") : "—"}
-                        {a.dropOffMinute != null && (
-                          <span className="ml-1.5 text-[10px] text-zinc-600">min {a.dropOffMinute}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-zinc-300 font-semibold">{fmtDuration(a.watchedSeconds || 0)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {a.active ? (
-                          <Badge className="bg-green-500/10 text-green-400">Active</Badge>
-                        ) : (
-                          <Badge variant="outline">Left</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* ── RECORDINGS ── */}
+        {recordings.length > 0 && (
+          <section>
+            <SectionLabel right={
+              <button onClick={() => nav("/recordings")} className="text-[11px] font-bold flex items-center gap-1" style={{ color: GOLD }}>
+                Open library <ChevronRight className="w-3 h-3" />
+              </button>
+            }>Recordings ({recordings.length})</SectionLabel>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {recordings[0]?.recordingUrl && (
+                <Panel className="lg:col-span-8 overflow-hidden">
+                  <video src={recordings[0].recordingUrl} controls preload="metadata" className="w-full aspect-video bg-black" />
+                </Panel>
+              )}
+              <div className="lg:col-span-4 space-y-3">
+                {recordings.map((rec: any) => (
+                  <div key={rec.id} className="rounded-2xl p-4 flex items-center gap-3"
+                    style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}15` }}>
+                      <Video className="w-4 h-4" style={{ color: GOLD }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{rec.title}</p>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        {rec.duration ? fmtDuration(rec.duration) : ""}
+                        {rec.createdAt ? `${rec.duration ? " · " : ""}${format(new Date(rec.createdAt), "MMM d, yyyy")}` : ""}
+                      </p>
+                    </div>
+                    <a href={rec.recordingUrl} target="_blank" rel="noopener noreferrer"
+                      className="p-2 rounded-lg flex-shrink-0" style={{ background: `${GOLD}18`, color: GOLD }} aria-label="Download recording">
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </section>
         )}
 
         {/* ── CHAT + Q&A TRANSCRIPTS ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {chatTranscript && chatTranscript.length > 0 && (
-            <div>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>
-                Chat Transcript ({chatTranscript.length})
-              </h2>
-              <div
-                className="rounded-2xl overflow-y-auto max-h-80"
-                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div className="p-4 space-y-3">
+        {(chatTranscript.length > 0 || qaLog.length > 0) && (
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {chatTranscript.length > 0 && (
+              <div>
+                <SectionLabel>Chat transcript ({chatTranscript.length})</SectionLabel>
+                <Panel className="overflow-y-auto max-h-80 p-5 space-y-3">
                   {chatTranscript.map((m: any, i: number) => (
                     <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-semibold" style={{ color: "#60a5fa" }}>
-                        {m.name || "Anonymous"}
-                      </span>
+                      <span className="text-[10px] font-semibold" style={{ color: "#60a5fa" }}>{m.name || "Anonymous"}</span>
                       <p className="text-xs text-zinc-300 leading-relaxed">{m.text}</p>
-                      <span className="text-[9px] text-zinc-600">
-                        {m.ts ? format(new Date(m.ts), "h:mm a") : ""}
-                      </span>
+                      <span className="text-[9px] text-zinc-600">{m.ts ? format(new Date(m.ts), "h:mm a") : ""}</span>
                     </div>
                   ))}
-                </div>
+                </Panel>
               </div>
-            </div>
-          )}
-
-          {qaLog && qaLog.length > 0 && (
-            <div>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-            style={{ color: `${GOLD}50` }}>
-                Q&A Log ({qaLog.length})
-              </h2>
-              <div
-                className="rounded-2xl overflow-y-auto max-h-80"
-                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div className="p-4 space-y-3">
+            )}
+            {qaLog.length > 0 && (
+              <div>
+                <SectionLabel>Q&A log ({qaLog.length})</SectionLabel>
+                <Panel className="overflow-y-auto max-h-80 p-5 space-y-3">
                   {qaLog.map((q: any, i: number) => (
                     <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-semibold" style={{ color: "#fbbf24" }}>
-                        {q.name || "Anonymous"}
-                      </span>
+                      <span className="text-[10px] font-semibold" style={{ color: "#fbbf24" }}>{q.name || "Anonymous"}</span>
                       <p className="text-xs text-zinc-300 leading-relaxed">{q.question}</p>
-                      <span className="text-[9px] text-zinc-600">
-                        {q.ts ? format(new Date(q.ts), "h:mm a") : ""}
-                      </span>
+                      <span className="text-[9px] text-zinc-600">{q.ts ? format(new Date(q.ts), "h:mm a") : ""}</span>
                     </div>
                   ))}
-                </div>
+                </Panel>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </section>
+        )}
 
         {/* ── EMPTY STATE ── */}
-        {!recordings?.length &&
-          !attendeeList?.length &&
-          !chatTranscript?.length &&
-          !qaLog?.length && (
-          <div
-            className="rounded-2xl p-12 text-center"
-            style={{ border: "1px dashed rgba(255,255,255,0.1)" }}>
+        {!hasAnyData && !recordings.length && (
+          <div className="rounded-3xl p-12 text-center" style={{ border: "1px dashed rgba(255,255,255,0.1)" }}>
             <BarChart2 className="w-12 h-12 mx-auto mb-3 text-zinc-700" />
             <p className="text-zinc-400 font-semibold mb-1">No event data yet</p>
             <p className="text-xs text-zinc-600 max-w-sm mx-auto">
               Analytics are collected live as attendees join your webinar.
               Go live in the Studio to start tracking chat, reactions, Q&A, and attendees.
             </p>
-            <Button
-              size="sm"
-              className="mt-4 gap-1.5 font-semibold"
-              style={{ background: GOLD, color: "#000" }}
+            <Button size="sm" className="mt-4 gap-1.5 font-semibold" style={{ background: GOLD, color: "#000" }}
               onClick={() => nav(`/webinar-studio/${webinarId}`)}>
               <Video className="w-3.5 h-3.5" /> Open Studio
             </Button>
           </div>
         )}
-
       </div>
     </div>
   );
