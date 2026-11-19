@@ -16,7 +16,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { Request, Response, NextFunction } from "express";
 
 const OR_BASE = "https://openrouter.ai/api/v1/chat/completions";
-const GROQ_BASE = "https://api.groq.com/openai/v1/chat/completions";
+// AI_GROQ_BASE_URL: optional override (local test harness / compatible proxy). Default unchanged.
+const GROQ_BASE = process.env.AI_GROQ_BASE_URL || "https://api.groq.com/openai/v1/chat/completions";
 const TIMEOUT_MS = 30000;
 const OR_HEADERS = { "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 

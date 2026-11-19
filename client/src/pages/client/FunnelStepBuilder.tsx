@@ -9,8 +9,12 @@ import {
   Type, Video, List, MessageSquare, Zap, Timer,
   DollarSign, HelpCircle, User, Minus, Image, Send,
   Shield, TrendingUp, CornerDownRight, RefreshCw,
-  MousePointer, Layers, ChevronRight, Radio,
+  MousePointer, Layers, ChevronRight, LayoutTemplate, Radio,
 } from "lucide-react";
+import ThemedPage, { applyFieldEdit } from "@/components/pages/ThemedPage";
+import TemplateGallery from "@/components/pages/TemplateGallery";
+import { instantiateTemplate, type PageTemplate } from "@shared/pageTemplates";
+import type { PageTheme } from "@shared/pageEngine";
 import { WebinarStepPanel, draftFromSettings, previewSettings, type WebinarDraft } from "@/components/funnel/WebinarStepPanel";
 import { FunnelWebinarBlock } from "@/components/funnel/FunnelWebinarBlock";
 import { getFunnelWebinarPhase, type FunnelWebinarSettings } from "@shared/funnelWebinar";
@@ -782,6 +786,10 @@ export default function FunnelStepBuilder() {
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  // Unified page engine theme (set by the template gallery). null = classic step renderer.
+  const [theme, setTheme] = useState<PageTheme | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
 
   // Webinar steps: settings draft (hydrated once per step so refetches don't wipe edits) + right-panel tab
   const isWebinarStep = step?.type === "webinar";
@@ -807,8 +815,30 @@ export default function FunnelStepBuilder() {
     if (step) {
       setSections(Array.isArray(step.sections) ? step.sections : []);
       setColorScheme(step.color_scheme || "gold");
+      setTheme(step.theme || null);
     }
   }, [step]);
+
+  const patchStep = useCallback(async (body: Record<string, any>) => {
+    const r = await fetch(`/api/funnels/${funnelId}/steps/${stepId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Save failed");
+    qc.invalidateQueries({ queryKey: [`/api/funnels/${funnelId}`] });
+    return r.json();
+  }, [funnelId, stepId, qc]);
+
+  const applyTemplate = async (tpl: PageTemplate) => {
+    if (sections.length && !confirm(`Replace this step's ${sections.length} sections with the "${tpl.name}" template?`)) return;
+    setGalleryBusy(true);
+    try {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const { theme: t, sections: secs } = instantiateTemplate(tpl);
+      await patchStep({ sections: secs, theme: t });
+      setSections(secs as any); setTheme(t); setDirty(false);
+      setGalleryOpen(false);
+    } finally { setGalleryBusy(false); }
+  };
 
   const accent = ACCENT_MAP[colorScheme] || GOLD;
 
@@ -959,11 +989,21 @@ export default function FunnelStepBuilder() {
           <div className="flex items-center gap-1.5 text-xs text-zinc-600">
             <MousePointer className="w-3 h-3" />Click any text to edit inline · Chat to AI for anything else
           </div>
+          <div className="flex items-center gap-1.5">
+          {theme && (
+            <button data-testid="step-classic" onClick={async () => { if (confirm("Switch this step back to the classic design? Sections are kept.")) { await patchStep({ theme: null }); setTheme(null); } }}
+              className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-zinc-500 hover:text-white">Classic design</button>
+          )}
+          <button data-testid="step-templates" onClick={() => setGalleryOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all" style={{ background:`${GOLD}12`, color:GOLD, border:`1px solid ${GOLD}35` }}>
+            <LayoutTemplate className="w-3.5 h-3.5" />Templates
+          </button>
           <button onClick={() => save()} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all"
             style={{ background:`linear-gradient(135deg,${accent},${accent}cc)`, color:BG }}>
             {saving?<Loader2 className="w-3.5 h-3.5 animate-spin" />:<>Save</>}
           </button>
+          </div>
         </div>
 
         {/* Canvas */}
@@ -981,7 +1021,13 @@ export default function FunnelStepBuilder() {
                   funnelSlug={data?.slug || ""} stepSlug={step.slug} accent={accent} preview />
               </div>
             )}
-            {sections.length === 0 ? (
+            {theme ? (
+              <div data-testid="step-themed-canvas">
+                <ThemedPage theme={theme} sections={sections as any} editable device={previewMode}
+                  onField={(sid, path, value) => updateSections(applyFieldEdit(sections as any, sid, path, value) as any)}
+                  selectedId={selectedId} onSelect={(sid) => { setSelectedId(sid); setSelectedSectionType(sections.find(x => x.id === sid)?.type || null); }} />
+              </div>
+            ) : sections.length === 0 ? (
               isWebinarStep && webinarPreview ? (
                 <div><p className="text-center text-zinc-700 text-xs pb-8">Add sections (benefits, bio, testimonials…) to show below the webinar room.</p></div>
               ) :
@@ -1035,6 +1081,9 @@ export default function FunnelStepBuilder() {
         />
         )}
       </div>
+      <TemplateGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} busy={galleryBusy}
+        initialCategory={step.type === "sales" || step.type === "upsell" || step.type === "downsell" ? "sales" : "landing"}
+        title="Apply a template to this step" confirmLabel="Apply to this step" onSelect={applyTemplate} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   ChevronDown, ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
+import ThemedPage from "@/components/pages/ThemedPage";
 import { getUtmParams } from "@/lib/utm";
 
 const GOLD = "#d4b461";
@@ -470,9 +471,29 @@ function WebinarLandingPage({ landingPage: lp, webinar: wb }: { landingPage: any
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
-export default function PublicLandingPage() {
+/** Studio pages (page.theme set) render through the unified ThemedPage engine; classic pages are unchanged. */
+function StudioLandingPage({ page, slug }: { page: any; slug: string }) {
+  useEffect(() => { getUtmParams(); if (page.title) document.title = page.title; }, [page.title]);
+  return (
+    <ThemedPage
+      theme={page.theme}
+      sections={Array.isArray(page.sections) ? page.sections : []}
+      onLead={async (lead) => {
+        const r = await fetch(`/api/lp/${encodeURIComponent(slug)}/lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...lead, ...getUtmParams() }),
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Something went wrong");
+      }}
+    />
+  );
+}
+
+export default function PublicLandingPage({ slugOverride }: { slugOverride?: string } = {}) {
   const [, params] = useRoute("/lp/:slug");
-  const slug = params?.slug ?? "";
+  // slugOverride: page served by Host (custom domain / subdomain) at "/"
+  const slug = slugOverride ?? params?.slug ?? "";
   const [, nav] = useLocation();
 
   const [data, setData] = useState<any>(null);
@@ -504,6 +525,7 @@ export default function PublicLandingPage() {
     </div>
   );
 
+  if (data.type === "marketing" && data.page?.theme) return <StudioLandingPage page={data.page} slug={slug} />;
   if (data.type === "marketing") return <MarketingLandingPage page={data.page} slug={slug} />;
   return <WebinarLandingPage landingPage={data.landingPage} webinar={data.webinar} />;
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
+import ThemedPage from "@/components/pages/ThemedPage";
 import { FunnelWebinarBlock, useFunnelWebinar } from "@/components/funnel/FunnelWebinarBlock";
 import { getUtmParams } from "@/lib/utm";
 import { Loader2, ArrowRight, CheckCircle, Star, Play, Timer, DollarSign, X, Shield, Sparkles, ChevronDown } from "lucide-react";
@@ -551,13 +552,29 @@ function WebinarStepContent({ funnelSlug, step, sections, accent }: { funnelSlug
   );
 }
 
+/** Webinar step that also has a template theme: webinar room first, then the themed sections. */
+function ThemedWebinarStep({ funnelSlug, step, onLead }: { funnelSlug: string; step: any; onLead: (lead: any) => Promise<void> }) {
+  const { settings, phase } = useFunnelWebinar(funnelSlug, step.slug, step.webinar);
+  const sections: any[] = Array.isArray(step.sections) ? step.sections : [];
+  if (!settings || !phase) return null;
+  const visible = phase === "registration" ? sections : sections.filter((s: any) => !REGISTRATION_ONLY_SECTIONS.has(s.type));
+  return (
+    <div style={{ background: step.theme?.palette?.bg || BG }}>
+      <FunnelWebinarBlock settings={settings} phase={phase} funnelSlug={funnelSlug} stepSlug={step.slug} accent={step.theme?.palette?.primary || "#d4b461"} />
+      <ThemedPage theme={step.theme} sections={visible} onLead={onLead} />
+    </div>
+  );
+}
+
 // ── Public Funnel Step Page ───────────────────────────────────────────────────
 
-export default function PublicFunnelStep({ notFound }: { notFound?: React.ReactNode } = {}) {
+export default function PublicFunnelStep({ notFound, funnelSlugOverride, stepSlugOverride }: { notFound?: React.ReactNode; funnelSlugOverride?: string; stepSlugOverride?: string } = {}) {
   const [match1, params1] = useRoute("/f/:slug");
   const [match2, params2] = useRoute("/f/:slug/:stepSlug");
-  const funnelSlug = (params1?.slug || params2?.slug) ?? "";
-  const stepSlug = params2?.stepSlug;
+  const [, navTo] = useLocation();
+  // overrides: funnel served by Host (custom domain / subdomain)
+  const funnelSlug = funnelSlugOverride ?? (params1?.slug || params2?.slug) ?? "";
+  const stepSlug = funnelSlugOverride ? stepSlugOverride : params2?.stepSlug;
   // Remember UTM params from the entry URL so a later opt-in step can still send them.
   useEffect(() => { getUtmParams(); }, []);
 
@@ -587,6 +604,22 @@ export default function PublicFunnelStep({ notFound }: { notFound?: React.ReactN
   );
 
   const { funnel, step } = data;
+
+  // Themed steps (template gallery / unified page engine) render with ThemedPage.
+  if (step.theme) {
+    const onLead = async (lead: any) => {
+      const r = await fetch(`/api/f/${encodeURIComponent(funnelSlug)}/${encodeURIComponent(step.slug)}/lead`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...lead, ...getUtmParams() }),
+      });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(out.message || "Something went wrong");
+      if (out.nextSlug) navTo(funnelSlugOverride ? `/${out.nextSlug}` : `/f/${out.funnelSlug}/${out.nextSlug}`);
+    };
+    // Webinar steps keep their registration → live → replay room above the themed sections.
+    if (step.type === "webinar" && step.webinar) return <ThemedWebinarStep funnelSlug={funnelSlug} step={step} onLead={onLead} />;
+    return <ThemedPage theme={step.theme} sections={Array.isArray(step.sections) ? step.sections : []} onLead={onLead} />;
+  }
   const accent = ACCENT_MAP[step.color_scheme || "gold"] || "#d4b461";
   const sections: any[] = Array.isArray(step.sections) ? step.sections : [];
   const isOffer = ["upsell", "downsell", "sales"].includes(step.type);
