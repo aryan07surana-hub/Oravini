@@ -26,6 +26,8 @@ import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSum
 import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
+import { COMPETITOR_CREDIT_COSTS, canUseCompetitorAnalysis } from "@shared/competitorCredits";
+import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
@@ -4628,9 +4630,26 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   }
 
   app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
+    const _u4 = req.user as any;
+    const ANALYSIS_COST = COMPETITOR_CREDIT_COSTS.deepAnalysis;
+    const meter = newApifyMeter("deep-analysis");
+    let charged = false;
     try {
-      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl, clientId } = req.body;
-      if (!rawClientUrl || !rawCompetitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl } = req.body;
+      // Admins may run an analysis on behalf of a client (clientId); everyone else
+      // can only save analyses to their own account.
+      const clientId: string = _u4.role === "admin" ? String(req.body.clientId || _u4.id) : _u4.id;
+      if (!rawClientUrl || !rawCompetitorUrl) return res.status(400).json({ message: "clientUrl and competitorUrl are required" });
+
+      // Server-side plan gate — Competitor Analysis is a Growth+ feature.
+      if (!canUseCompetitorAnalysis(_u4)) {
+        return res.status(403).json({
+          message: "Deep Competitor Analysis is included in the Growth plan and above. Upgrade your plan to unlock it.",
+          upgradeRequired: true,
+          requiredPlan: "growth",
+          currentPlan: _u4.plan || "free",
+        });
+      }
 
       const clientUrl = normalizeInstagramUrl(rawClientUrl);
       const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
@@ -4638,38 +4657,67 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
       if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
 
-      const _u4 = req.user as any;
-      if (_u4.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u4.id, 12, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      // Balance pre-check only — credits are charged once the required scrapes succeed.
+      if (_u4.role !== "admin" && _u4.plan !== "elite") {
+        const bal = await storage.upsertCreditBalance(_u4.id, _u4.plan || "free");
+        const total = bal.monthlyCredits + bal.bonusCredits;
+        if (total < ANALYSIS_COST) return res.status(402).json({ message: `Not enough credits. You need ${ANALYSIS_COST} but have ${total}.`, insufficientCredits: true, balance: bal });
       }
-
-      // Scrape reels (primary) + posts in parallel for richer data
-      const [clientReels, competitorReels, clientPostItems, competitorPostItems] = await Promise.all([
-        apifyInstagram({ directUrls: [clientUrl], resultsType: "reels", resultsLimit: 20 }).catch((err: any) => { console.error("[competitor/analyze] client reels failed:", err.message); return [] as any[]; }),
-        apifyInstagram({ directUrls: [competitorUrl], resultsType: "reels", resultsLimit: 20 }).catch((err: any) => { console.error("[competitor/analyze] competitor reels failed:", err.message); return [] as any[]; }),
-        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 15 }).catch(() => [] as any[]),
-        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 15 }).catch(() => [] as any[]),
-      ]);
-
-      // Merge reels + posts, deduplicate by url/shortCode, reels first
-      const dedup = (arr: any[]) => {
-        const seen = new Set<string>();
-        return arr.filter(p => { const k = p.url || p.shortCode || p.id; if (!k || seen.has(k)) return false; seen.add(k); return true; });
-      };
-      const clientItems = dedup([...clientReels, ...clientPostItems]);
-      const competitorItems = dedup([...competitorReels, ...competitorPostItems]);
 
       const clientHandle = extractHandle(clientUrl) ?? "@unknown";
       const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
 
+      // ONE Apify call per profile (posts grid incl. reels), cached per handle for 24h.
+      // Before this change: 4 uncached calls (reels + posts for each profile).
+      const [clientScrape, competitorScrape] = await Promise.allSettled([
+        scrapeProfilePosts(clientUrl, clientHandle, { meter, limit: 30 }),
+        scrapeProfilePosts(competitorUrl, competitorHandle, { meter, limit: 30 }),
+      ]);
+      if (clientScrape.status === "rejected" || competitorScrape.status === "rejected") {
+        const failed: Array<{ handle: string; role: "you" | "competitor"; reason: string }> = [];
+        if (clientScrape.status === "rejected") failed.push({ handle: clientHandle, role: "you", reason: String(clientScrape.reason?.message || clientScrape.reason) });
+        if (competitorScrape.status === "rejected") failed.push({ handle: competitorHandle, role: "competitor", reason: String(competitorScrape.reason?.message || competitorScrape.reason) });
+        console.warn(meterSummary(meter), "→ aborted, required scrape failed:", failed.map(f => f.handle).join(", "));
+        return res.status(502).json({
+          message: `We couldn't fetch Instagram data for ${failed.map(f => f.handle).join(" and ")}, so no report was generated and no credits were charged. ${failed[0].reason}`,
+          failedProfiles: failed,
+          creditsCharged: 0,
+        });
+      }
+
+      // Required data is in hand — charge now.
+      if (_u4.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        charged = true;
+      }
+
+      const dedup = (arr: any[]) => {
+        const seen = new Set<string>();
+        return arr.filter(p => { const k = p.url || p.shortCode || p.id; if (!k || seen.has(k)) return false; seen.add(k); return true; });
+      };
+      const clientItems = dedup(clientScrape.value.items);
+      const competitorItems = dedup(competitorScrape.value.items);
+
       const clientData = processProfileMetrics(clientItems, clientHandle);
       const competitorData = processProfileMetrics(competitorItems, competitorHandle);
 
-      if (!clientData && !competitorData) return res.status(404).json({ message: "Could not scrape either profile. Make sure they are public Instagram accounts." });
-
       const clientPosts = buildPostList(clientItems);
       const competitorPosts = buildPostList(competitorItems);
+
+      // Optional: transcript mining of the competitor's top 20 reels. Runs alongside
+      // the main AI call; cached transcripts are free, new ones have a time budget.
+      const competitorReels = reelsFromScrape(competitorItems, 20);
+      const transcriptPromise: Promise<TranscriptInsights | null> = (async () => {
+        if (!competitorReels.length) return null;
+        try {
+          const tmap = await ensureTranscripts(competitorReels, competitorHandle, { deadlineMs: Number(process.env.COMPETITOR_TRANSCRIPT_BUDGET_MS || 40000) });
+          return await mineTranscriptPatterns(competitorReels, tmap, competitorHandle);
+        } catch (e: any) {
+          console.warn("[competitor/analyze] transcript mining failed:", e.message);
+          return null;
+        }
+      })();
 
       const systemPrompt = `You are the world's best Instagram competitive intelligence analyst. You reverse-engineer exactly WHY content goes viral and produce specific, immediately actionable strategies. ALWAYS output valid JSON only — no markdown, no preamble, no text outside the JSON object. Every field must contain REAL, SPECIFIC insights from the actual data provided — never generic advice.`;
 
@@ -4756,19 +4804,59 @@ Return this EXACT JSON structure (all fields required):
 
 REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 highest-view competitor items. hookLibrary = 10-15 hooks from competitor captions. contentPatterns = 4-6 patterns. gapAnalysis.gaps = 5-7 gaps.`;
 
-      const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
       let report: any = {};
       try {
+        const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
-      } catch {
-        report = { overview: { assessment: "competitive", summary: raw, outperformingIn: [] } };
+        if (!report || typeof report !== "object" || !report.overview) throw new Error("AI report missing overview");
+      } catch (aiErr: any) {
+        if (charged) await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (AI failed)", _u4.plan || "free");
+        charged = false;
+        console.warn(meterSummary(meter), "→ AI step failed:", aiErr.message);
+        return res.status(502).json({
+          message: "The AI couldn't produce a complete report this time. Your credits were refunded — please retry in a minute (your Instagram data is cached, so the retry is fast).",
+          creditsRefunded: _u4.role !== "admin" ? ANALYSIS_COST : 0,
+        });
       }
+
+      const transcriptInsights = await transcriptPromise;
+
+      // Tell the user exactly which parts rest on thinner data.
+      const warnings: Array<{ area: string; message: string }> = [];
+      const MIN_POSTS = 12;
+      if (clientItems.length < MIN_POSTS) warnings.push({ area: "metrics", message: `Only ${clientItems.length} posts were available for ${clientHandle} (we aim for 20+), so your averages are less reliable.` });
+      if (competitorItems.length < MIN_POSTS) warnings.push({ area: "metrics", message: `Only ${competitorItems.length} posts were available for ${competitorHandle} (we aim for 20+), so their averages are less reliable.` });
+      if ((clientData?.avgViews ?? 0) === 0) warnings.push({ area: "views", message: `${clientHandle} has no reels/videos with view counts in the scraped posts — view comparisons for you are unavailable.` });
+      if ((competitorData?.avgViews ?? 0) === 0) warnings.push({ area: "views", message: `${competitorHandle} has no reels/videos with view counts in the scraped posts — view comparisons and Viral DNA are based on likes/comments only.` });
+      const clientReelCount = clientItems.filter((p: any) => p.type === "Video").length;
+      if (clientReelCount < 5 || competitorReels.length < 5) warnings.push({ area: "reels", message: `Reel-by-reel comparison is based on ${clientReelCount} of your reels and ${competitorReels.length} of theirs.` });
+      if (!competitorReels.length) {
+        warnings.push({ area: "transcripts", message: `${competitorHandle} has no reels in the scraped posts, so there is no spoken hook/CTA analysis.` });
+      } else if (!transcriptInsights) {
+        warnings.push({ area: "transcripts", message: "Reel transcripts couldn't be processed this time, so the Spoken Hooks & CTAs section is missing." });
+      } else if (transcriptInsights.transcribed < transcriptInsights.reelsConsidered) {
+        const t = transcriptInsights;
+        const parts = [t.pending ? `${t.pending} still processing` : "", t.noSpeech ? `${t.noSpeech} with no speech` : "", t.failed ? `${t.failed} couldn't be downloaded` : ""].filter(Boolean).join(", ");
+        warnings.push({ area: "transcripts", message: `Spoken hook/CTA patterns are based on ${t.transcribed} of ${t.reelsConsidered} top reels (${parts}).${t.pending ? " Re-run later to include the rest — finished transcripts are cached." : ""}` });
+      }
+      const expected = ["reelComparison", "contentPatterns", "viralDNA", "gapAnalysis", "hookLibrary", "postingStrategy", "audienceInsights", "scorecard"];
+      const missing = expected.filter(k => report[k] == null || (Array.isArray(report[k]) && report[k].length === 0));
+      if (missing.length) warnings.push({ area: "ai", message: `The AI left these sections empty: ${missing.join(", ")}.` });
 
       report.clientMetrics = clientData;
       report.competitorMetrics = competitorData;
       report.clientPosts = clientPosts;
       report.competitorPosts = competitorPosts;
+      report.transcriptInsights = transcriptInsights;
+      report.dataQuality = {
+        warnings,
+        clientPostCount: clientItems.length,
+        competitorPostCount: competitorItems.length,
+        dataFetchedAt: { client: clientScrape.value.fetchedAt, competitor: competitorScrape.value.fetchedAt },
+        fromCache: { client: clientScrape.value.cached, competitor: competitorScrape.value.cached },
+        apify: { calls: meter.calls, cacheHits: meter.cacheHits, items: meter.items },
+      };
 
       const saved = await storage.createCompetitorAnalysis({
         clientId,
@@ -4779,9 +4867,14 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
         report,
       });
 
+      console.log(meterSummary(meter), `→ analysis ${saved.id} saved (${warnings.length} data-quality notes)`);
       return res.json(saved);
     } catch (err: any) {
-      return res.status(500).json({ message: err.message });
+      if (charged) {
+        await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (failed)", _u4.plan || "free").catch(() => {});
+      }
+      console.warn(meterSummary(meter), "→ error:", err.message);
+      return res.status(500).json({ message: err.message, creditsRefunded: charged ? ANALYSIS_COST : 0 });
     }
   });
 
@@ -4791,21 +4884,32 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
       const { myReelUrl, competitorReelUrl } = req.body;
       if (!myReelUrl || !competitorReelUrl) return res.status(400).json({ message: "myReelUrl and competitorReelUrl are required" });
       const _uCr = req.user as any;
-      if (_uCr.role !== "admin") {
-        const crCredit = await storage.deductCredits(_uCr.id, 5, "competitor_reels", "Reel vs Reel Comparison", _uCr.plan || "free");
-        if (!crCredit.success) return res.status(402).json({ message: crCredit.message, insufficientCredits: true });
+      const CR_COST = COMPETITOR_CREDIT_COSTS.compareReels;
+      if (_uCr.role !== "admin" && _uCr.plan !== "elite") {
+        const bal = await storage.upsertCreditBalance(_uCr.id, _uCr.plan || "free");
+        if (bal.monthlyCredits + bal.bonusCredits < CR_COST) return res.status(402).json({ message: `Not enough credits. You need ${CR_COST} but have ${bal.monthlyCredits + bal.bonusCredits}.`, insufficientCredits: true });
       }
 
       // Scrape both reels in parallel using the shared instagram-scraper actor
       const [myItems, compItems] = await Promise.all([
         apifyInstagram({ directUrls: [myReelUrl], resultsType: "posts", resultsLimit: 1 }),
         apifyInstagram({ directUrls: [competitorReelUrl], resultsType: "posts", resultsLimit: 1 }),
-      ]);
+      ]).catch((e: any) => { throw Object.assign(new Error(`Couldn't fetch the reels from Instagram — no credits were charged. ${e.message}`), { status: 502 }); });
 
       const myPost = myItems?.[0] ?? null;
       const compPost = compItems?.[0] ?? null;
 
-      if (!myPost && !compPost) return res.status(404).json({ message: "Could not scrape either reel. Make sure the posts are public." });
+      // Both reels are required for a comparison — never compare against an empty side.
+      if (!myPost || !compPost) {
+        const which = !myPost && !compPost ? "either reel" : !myPost ? "your reel" : "the competitor reel";
+        return res.status(404).json({ message: `Could not scrape ${which}. Make sure the post is public. No credits were charged.`, creditsCharged: 0 });
+      }
+      let crCharged = false;
+      if (_uCr.role !== "admin") {
+        const crCredit = await storage.deductCredits(_uCr.id, CR_COST, "competitor_reels", "Reel vs Reel Comparison", _uCr.plan || "free");
+        if (!crCredit.success) return res.status(402).json({ message: crCredit.message, insufficientCredits: true });
+        crCharged = true;
+      }
 
       const formatPost = (p: any) => ({
         url: p?.url ?? p?.shortCode ? `https://instagram.com/p/${p.shortCode}` : "N/A",
@@ -4873,6 +4977,10 @@ Return this EXACT JSON:
         const jsonMatch = rawAi.match(/\{[\s\S]*\}/);
         ai = JSON.parse(jsonMatch ? jsonMatch[0] : rawAi);
       } catch { ai = {}; }
+      if (!ai || !ai.winner) {
+        if (crCharged) await storage.refundCredits(_uCr.id, CR_COST, "competitor_reels", "Reel vs Reel Comparison (AI failed)", _uCr.plan || "free");
+        return res.status(502).json({ message: "The AI couldn't compare these reels right now. Your credits were refunded — please retry.", creditsRefunded: crCharged ? CR_COST : 0 });
+      }
 
       return res.json({
         myReel: { ...my, er: myEr },
@@ -4881,7 +4989,7 @@ Return this EXACT JSON:
       });
     } catch (err: any) {
       console.error("compare-reels error:", err.message);
-      return res.status(500).json({ message: err.message });
+      return res.status(err.status || 500).json({ message: err.message });
     }
   });
 
@@ -4891,14 +4999,17 @@ Return this EXACT JSON:
       const { analysisId } = req.body;
       if (!analysisId) return res.status(400).json({ message: "analysisId required" });
       const _uSs = req.user as any;
-      if (_uSs.role !== "admin") {
-        const ssCredit = await storage.deductCredits(_uSs.id, 10, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
-        if (!ssCredit.success) return res.status(402).json({ message: ssCredit.message, insufficientCredits: true });
-      }
-
+      const SS_COST = COMPETITOR_CREDIT_COSTS.stealStrategy;
       const analyses = await storage.getCompetitorAnalyses((req as any).user.id);
       const analysis = analyses.find((a: any) => a.id === analysisId);
       if (!analysis) return res.status(404).json({ message: "Analysis not found" });
+
+      let ssCharged = false;
+      if (_uSs.role !== "admin") {
+        const ssCredit = await storage.deductCredits(_uSs.id, SS_COST, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
+        if (!ssCredit.success) return res.status(402).json({ message: ssCredit.message, insufficientCredits: true });
+        ssCharged = true;
+      }
 
       const report = analysis.report as any;
       const hooks = (report?.hookLibrary || []).slice(0, 10).map((h: any) => h.hook).join(", ");
@@ -4956,13 +5067,14 @@ Return this EXACT JSON:
 
 RULES: Make contentPlan have all 30 days with specific topics and exact hooks to use — not placeholders. Make hookSystem have 15 hooks with real copy-paste text. Make reelIdeas and carouselIdeas specific to the niche (infer niche from @${analysis.competitorHandle}'s content). All 4 weeks of growthPlaybook must have specific, different tasks. Return ONLY valid JSON.`;
 
-      const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
       let stealStrategy: any = {};
       try {
+        const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         stealStrategy = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
       } catch {
-        return res.status(500).json({ message: "AI returned invalid response. Please try again." });
+        if (ssCharged) await storage.refundCredits(_uSs.id, SS_COST, "steal_strategy", "Steal Strategy 30-Day Plan (AI failed)", _uSs.plan || "free");
+        return res.status(502).json({ message: "AI returned an invalid response. Your credits were refunded — please try again.", creditsRefunded: ssCharged ? SS_COST : 0 });
       }
 
       // Save steal strategy into the analysis report
@@ -4977,7 +5089,9 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
   app.get("/api/competitor/analyses", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const analyses = await storage.getCompetitorAnalyses(user.id);
+      // Admins viewing a client's study see that client's analyses (matches the clientId used on create).
+      const ownerId = user.role === "admin" && typeof req.query.clientId === "string" && req.query.clientId ? req.query.clientId : user.id;
+      const analyses = await storage.getCompetitorAnalyses(ownerId);
       return res.json(analyses);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4986,6 +5100,11 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
 
   app.delete("/api/competitor/analyses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = req.user as any;
+      if (user.role !== "admin") {
+        const own = await storage.getCompetitorAnalyses(user.id);
+        if (!own.some((a: any) => a.id === p(req.params.id))) return res.status(404).json({ message: "Analysis not found" });
+      }
       await storage.deleteCompetitorAnalysis(p(req.params.id));
       return res.json({ success: true });
     } catch (err: any) {
@@ -4996,21 +5115,11 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
   // ── Competitor Watchlist ───────────────────────────────────────────────────
 
   async function scanWatchlistItem(item: any): Promise<void> {
-    const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_IG_SCRAPER_TOKEN || process.env.APIFY_TOKEN;
-    if (!token) throw new Error("No Apify token configured");
-
-    const url = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=60`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: [item.handle], proxy: { useApifyProxy: true } }),
-    });
-    if (!resp.ok) throw new Error(`Apify returned ${resp.status}`);
-
-    const profileItems: any[] = await resp.json();
-    if (!profileItems.length) throw new Error("No profile data returned");
-
-    const profile = profileItems[0];
+    // Shared cached+metered profile fetch: a manual scan within 30 min of any other
+    // scan of the same handle (cron, another user, add-to-watchlist) reuses it.
+    const meter = newApifyMeter("watchlist-manual-scan");
+    const { profile } = await fetchProfile(item.handle, { meter, maxAgeMs: 30 * 60 * 1000 });
+    console.log(meterSummary(meter), `→ @${normalizeHandle(item.handle)}`);
     const followerCount: number | null = profile.followersCount ?? null;
     const followingCount: number | null = profile.followingCount ?? null;
     const postCount: number | null = profile.postsCount ?? null;
@@ -5054,6 +5163,7 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
       avgEngagement,
       bio,
       recentPosts,
+      postsPerWeek: postsPerWeekFromTimestamps(posts.map((p: any) => p.timestamp)),
     });
 
     await storage.updateWatchlistItem(item.id, {
@@ -5169,8 +5279,58 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
 
   app.get("/api/competitor/watchlist/:id/snapshots", requireAuth, async (req: Request, res: Response) => {
     try {
-      const snapshots = await storage.getCompetitorSnapshots(p(req.params.id));
+      const user = req.user as any;
+      const items = await storage.getCompetitorWatchlist(user.id);
+      if (!items.some((i: any) => i.id === p(req.params.id))) return res.status(404).json({ message: "Watchlist item not found" });
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 30));
+      const snapshots = await storage.getCompetitorSnapshots(p(req.params.id), limit);
       return res.json(snapshots);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET trend series for one watched competitor: follower growth, engagement and
+  // posting cadence, one point per day (last snapshot of the day).
+  app.get("/api/competitor/watchlist/:id/trends", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const items = await storage.getCompetitorWatchlist(user.id);
+      const item = items.find((i: any) => i.id === p(req.params.id));
+      if (!item) return res.status(404).json({ message: "Watchlist item not found" });
+      const days = Math.min(365, Math.max(7, Number(req.query.days) || 90));
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ON (scanned_at::date) scanned_at, follower_count, post_count, avg_views, avg_likes, avg_engagement, posts_per_week, recent_posts
+         FROM competitor_snapshots WHERE watchlist_id = $1 AND scanned_at > NOW() - ($2::text || ' days')::interval
+         ORDER BY scanned_at::date ASC, scanned_at DESC`,
+        [item.id, String(days)],
+      );
+      let prevFollowers: number | null = null;
+      const points = rows.map((r: any) => {
+        const followers = r.follower_count != null ? Number(r.follower_count) : null;
+        const ppw = r.posts_per_week != null
+          ? Number(r.posts_per_week)
+          : postsPerWeekFromTimestamps((Array.isArray(r.recent_posts) ? r.recent_posts : []).map((x: any) => x.timestamp));
+        const pt = {
+          date: new Date(r.scanned_at).toISOString().slice(0, 10),
+          followers,
+          followerDelta: followers != null && prevFollowers != null ? followers - prevFollowers : null,
+          postCount: r.post_count != null ? Number(r.post_count) : null,
+          avgViews: r.avg_views != null ? Math.round(Number(r.avg_views)) : null,
+          avgLikes: r.avg_likes != null ? Math.round(Number(r.avg_likes)) : null,
+          avgEngagement: r.avg_engagement != null ? +Number(r.avg_engagement).toFixed(2) : null,
+          postsPerWeek: ppw,
+        };
+        if (followers != null) prevFollowers = followers;
+        return pt;
+      });
+      // Weekly posting cadence from post_count deltas (actual posts published per week).
+      const weekKey = (d: string) => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
+      const lastByWeek = new Map<string, number>();
+      for (const pt of points) if (pt.postCount != null) lastByWeek.set(weekKey(pt.date), pt.postCount);
+      const weeks = [...lastByWeek.entries()];
+      const weekly = weeks.slice(1).map(([weekStart, count], i) => ({ weekStart, postsPublished: Math.max(0, count - weeks[i][1]) }));
+      return res.json({ id: item.id, handle: item.handle, days, snapshotDays: points.length, points, weekly });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -5281,9 +5441,11 @@ Return this EXACT JSON:
       const post = await storage.getDetectedPost(req.params.postId as string);
       if (!post || post.userId !== user.id) return res.status(404).json({ message: "Post not found" });
 
+      let ideasCharged = false;
       if (user.role !== "admin") {
-        const credit = await storage.deductCredits(user.id, 3, "content_ideas", "Generate Content Ideas from Competitor", user.plan || "free");
+        const credit = await storage.deductCredits(user.id, COMPETITOR_CREDIT_COSTS.feedIdeas, "content_ideas", "Generate Content Ideas from Competitor", user.plan || "free");
         if (!credit.success) return res.status(402).json({ message: credit.message, insufficientCredits: true });
+        ideasCharged = true;
       }
 
       const analysis = post.aiAnalysis as any ?? {};
@@ -5311,11 +5473,14 @@ Return this EXACT JSON:
   ]
 }`;
 
-      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
       let parsed: any = {};
-      try { parsed = JSON.parse(raw); } catch { return res.status(500).json({ message: "AI returned invalid response. Retry." }); }
+      try { parsed = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 2000)); } catch { parsed = {}; }
 
-      const ideas = (parsed.ideas || []).slice(0, 5);
+      const ideas = (Array.isArray(parsed.ideas) ? parsed.ideas : []).slice(0, 5);
+      if (!ideas.length) {
+        if (ideasCharged) await storage.refundCredits(user.id, COMPETITOR_CREDIT_COSTS.feedIdeas, "content_ideas", "Generate Content Ideas (AI failed)", user.plan || "free");
+        return res.status(502).json({ message: "AI returned an invalid response. Your credits were refunded — please retry.", creditsRefunded: ideasCharged ? COMPETITOR_CREDIT_COSTS.feedIdeas : 0 });
+      }
       const saved = await Promise.all(ideas.map((idea: any) =>
         storage.createContentIdea({
           userId: user.id,
@@ -5462,15 +5627,68 @@ Return this EXACT JSON:
       for (const row of formatBreakdown) {
         (fmtByHandle[row.handle] = fmtByHandle[row.handle] ?? []).push(row);
       }
-      const ranked = leaderboard.map((row: any, i: number) => ({
-        ...row,
-        rank: i + 1,
-        formatBreakdown: fmtByHandle[row.handle] ?? [],
-        followerGrowth: row.prev_follower_count && row.follower_count
-          ? row.follower_count - row.prev_follower_count
-          : null,
-      }));
-      return res.json(ranked);
+      const ranked = leaderboard.map((row: any, i: number) => {
+        const { recent_posts, ...rest } = row;
+        const postsPerWeek = row.posts_per_week != null
+          ? Number(row.posts_per_week)
+          : postsPerWeekFromTimestamps((Array.isArray(recent_posts) ? recent_posts : []).map((x: any) => x.timestamp));
+        return {
+          ...rest,
+          posts_per_week: postsPerWeek,
+          rank: i + 1,
+          formatBreakdown: fmtByHandle[row.handle] ?? [],
+          followerGrowth: row.prev_follower_count && row.follower_count
+            ? row.follower_count - row.prev_follower_count
+            : null,
+        };
+      });
+      // Niche benchmarks: percentile bands computed ONLY from this user's watched set.
+      const metrics = ["follower_count", "avg_views", "avg_likes", "avg_engagement", "posts_per_week"];
+      const { bands, perRow } = computeBenchmarks(ranked, metrics);
+      const withBands = ranked.map((r: any) => ({ ...r, bands: perRow[String(r.id)] ?? {} }));
+      if (req.query.withBenchmarks === "1") {
+        return res.json({
+          rows: withBands,
+          benchmarks: {
+            scope: "watchlist",
+            label: `Within your watchlist (${ranked.length} account${ranked.length === 1 ? "" : "s"})`,
+            n: ranked.length,
+            reliable: ranked.length >= 4,
+            note: ranked.length < 4
+              ? "Fewer than 4 watched accounts — bands only split above/below the median."
+              : ranked.length < 10
+                ? "Top 10% needs 10+ watched accounts, so the highest band shown is Top 25%."
+                : null,
+            metrics: bands,
+          },
+        });
+      }
+      return res.json(withBands);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Weekly auto-brief: "3 posts to make this week and why" ─────────────────
+  app.get("/api/competitor/briefs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      return res.json(await listWeeklyBriefs(user.id, 8));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Generates this week's brief on demand if the Monday job hasn't produced one yet.
+  // Idempotent per user+week (no AI call when it already exists); admins can force a rebuild.
+  app.post("/api/competitor/briefs/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const result = await generateWeeklyBrief(user.id, { force: user.role === "admin" && !!req.body?.force });
+      if (!result.brief) {
+        return res.status(400).json({ message: "Not enough watchlist data yet — add competitors to your Watch List and run a scan so we can find this week's winners." });
+      }
+      return res.json({ ...result.brief, created: result.created });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -5567,18 +5785,33 @@ Format it clearly with section labels. Make it feel authentic and NOT like a cop
       const { profileUrl } = req.body;
       if (!profileUrl) return res.status(400).json({ message: "profileUrl is required" });
       const _uMa = req.user as any;
-      if (_uMa.role !== "admin") {
-        const maCredit = await storage.deductCredits(_uMa.id, 7, "methodology", "Content DNA Analysis", _uMa.plan || "free");
-        if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
-      }
+      const MA_COST = COMPETITOR_CREDIT_COSTS.methodologyAnalyze;
 
       const normUrl = normalizeInstagramUrl(profileUrl);
       if (!normUrl) return res.status(400).json({ message: "Invalid Instagram profile URL. Use a profile link (e.g. instagram.com/handle), not a reel or post." });
-
-      const items = await apifyInstagram({ directUrls: [normUrl], resultsType: "posts", resultsLimit: 30 });
-      if (!items || items.length === 0) return res.status(404).json({ message: "Could not scrape this profile. Make sure it's a public Instagram account." });
+      if (_uMa.role !== "admin" && _uMa.plan !== "elite") {
+        const bal = await storage.upsertCreditBalance(_uMa.id, _uMa.plan || "free");
+        if (bal.monthlyCredits + bal.bonusCredits < MA_COST) return res.status(402).json({ message: `Not enough credits. You need ${MA_COST} but have ${bal.monthlyCredits + bal.bonusCredits}.`, insufficientCredits: true });
+      }
 
       const handle = extractHandle(normUrl) ?? "@unknown";
+      // Shares the deep-analysis scrape cache (same actor + payload shape, 24h TTL).
+      const maMeter = newApifyMeter("content-dna");
+      let items: any[];
+      try {
+        items = (await scrapeProfilePosts(normUrl, handle, { meter: maMeter, limit: 30 })).items;
+      } catch (e: any) {
+        console.warn(meterSummary(maMeter), "→ scrape failed");
+        return res.status(502).json({ message: `${e.message} No credits were charged.`, creditsCharged: 0 });
+      }
+      console.log(meterSummary(maMeter));
+      let maCharged = false;
+      if (_uMa.role !== "admin") {
+        const maCredit = await storage.deductCredits(_uMa.id, MA_COST, "methodology", "Content DNA Analysis", _uMa.plan || "free");
+        if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
+        maCharged = true;
+      }
+
       const metrics = processProfileMetrics(items, handle);
       const posts = buildPostList(items);
 
@@ -5625,9 +5858,17 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
   ]
 }`;
 
-      const rawText = await callAnthropic(systemPrompt, userPrompt, 3000);
-      const cleaned = rawText.replace(/```json|```/g, "").trim();
-      const profile = JSON.parse(cleaned);
+      let profile: any;
+      try {
+        const rawText = await callAnthropic(systemPrompt, userPrompt, 3000);
+        const cleaned = rawText.replace(/```json|```/g, "").trim();
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        profile = JSON.parse(m ? m[0] : cleaned);
+      } catch {
+        if (maCharged) await storage.refundCredits(_uMa.id, MA_COST, "methodology", "Content DNA Analysis (AI failed)", _uMa.plan || "free");
+        return res.status(502).json({ message: "The AI couldn't build your Content DNA right now. Your credits were refunded — please retry.", creditsRefunded: maCharged ? MA_COST : 0 });
+      }
+      if (items.length < 12) profile.dataNote = `Based on only ${items.length} posts — results are less reliable than the usual 20-30.`;
       return res.json(profile);
     } catch (err: any) {
       console.error("Methodology analyze error:", err);
@@ -5659,10 +5900,13 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
     try {
       const { content, dna, tool } = req.body;
       if (!content || !tool) return res.status(400).json({ message: "content and tool are required" });
+      if (!["improve", "hooks", "score", "abtest"].includes(tool)) return res.status(400).json({ message: "Invalid tool type" });
       const _uMi = req.user as any;
+      let miCharged = false;
       if (_uMi.role !== "admin") {
-        const miCredit = await storage.deductCredits(_uMi.id, 2, "methodology", "Content Methodology Tool", _uMi.plan || "free");
+        const miCredit = await storage.deductCredits(_uMi.id, COMPETITOR_CREDIT_COSTS.methodologyImprove, "methodology", "Content Methodology Tool", _uMi.plan || "free");
         if (!miCredit.success) return res.status(402).json({ message: miCredit.message, insufficientCredits: true });
+        miCharged = true;
       }
 
       const dnaContext = dna?.fingerprint
@@ -5758,7 +6002,8 @@ Return ONLY this exact JSON:
         );
         return res.json(JSON.parse(raw));
       } catch (e) { /* fall through */ }
-      return res.status(500).json({ message: "AI improvement failed" });
+      if (miCharged) await storage.refundCredits(_uMi.id, COMPETITOR_CREDIT_COSTS.methodologyImprove, "methodology", "Content Methodology Tool (AI failed)", _uMi.plan || "free");
+      return res.status(502).json({ message: "AI improvement failed. Your credits were refunded — please retry.", creditsRefunded: miCharged ? COMPETITOR_CREDIT_COSTS.methodologyImprove : 0 });
     } catch (err: any) {
       console.error("Methodology improve error:", err);
       return res.status(500).json({ message: err.message || "Improvement failed" });

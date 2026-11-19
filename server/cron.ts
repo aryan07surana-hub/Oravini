@@ -5,6 +5,7 @@ import { processEmSendQueue, processBroadcastQueue } from "./routes/email-market
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 import { aiChatJson } from "./aiService";
+import { newApifyMeter, meterSummary, fetchProfile, normalizeHandle, getDormantHandles, isUnchangedSnapshot, postsPerWeekFromTimestamps, generateWeeklyBrief } from "./competitorIntel";
 
 async function apifyInstagram(payload: object): Promise<any[]> {
   const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
@@ -722,32 +723,74 @@ async function sendWeeklyDigest() {
   log("Weekly digest: complete", "cron");
 }
 
-async function scanCompetitorWatchlist() {
+// Weekly auto-brief: "3 posts to make this week and why" from each user's
+// watchlist winners. Saved in-app (competitor_weekly_briefs). There is no existing
+// platform email path for competitor digests, so this is in-app only.
+export async function generateWeeklyBriefs() {
+  log("Weekly brief: starting", "cron");
+  const userIds = await storage.getUserIdsWithWatchlist();
+  let created = 0, skipped = 0, failed = 0;
+  for (const userId of userIds) {
+    try {
+      const r = await generateWeeklyBrief(userId);
+      if (r.created) created++; else skipped++;
+      if (r.created) await new Promise(res => setTimeout(res, 1500));
+    } catch (e: any) {
+      failed++;
+      log(`Weekly brief: error for user ${userId} — ${e.message}`, "cron");
+    }
+  }
+  log(`Weekly brief: complete — created=${created} skipped=${skipped} failed=${failed}`, "cron");
+}
+
+export async function scanCompetitorWatchlist() {
   log("Competitor watch: starting scan", "cron");
   // Map userId → detected posts this scan cycle (for trend detection)
   const trendBuffer: Map<string, Array<{ handle: string; caption: string | null; watchlistId: string }>> = new Map();
   try {
     const items = await storage.getAllActiveWatchlistItems();
     if (items.length === 0) return;
-    log(`Competitor watch: scanning ${items.length} item(s)`, "cron");
+
+    // Scan economics:
+    //  1. Dedupe — many users can watch the same account; fetch each handle ONCE per cycle.
+    //  2. Adaptive cadence — accounts whose post count hasn't changed in 48h are only
+    //     re-fetched every 8h instead of every 2h (decided from the DB, zero Apify cost).
+    //  3. Cache-first — a manual scan / add-to-watchlist in the last 90 min is reused.
+    const meter = newApifyMeter("watchlist-cron");
+    const ACTIVE_GAP_MS = 100 * 60 * 1000;      // cron runs every 2h
+    const DORMANT_GAP_MS = 8 * 60 * 60 * 1000;
+    const groups = new Map<string, typeof items>();
+    for (const it of items) {
+      const h = normalizeHandle(it.handle);
+      if (!h) continue;
+      if (!groups.has(h)) groups.set(h, []);
+      groups.get(h)!.push(it);
+    }
+    const dormant = await getDormantHandles([...groups.keys()]).catch(() => new Set<string>());
+    const stats = { watchlistItems: items.length, uniqueHandles: groups.size, fetched: 0, fromCache: 0, skippedNotDue: 0, skippedDormant: 0, failed: 0, unchangedSnapshotsSkipped: 0 };
+    const profiles = new Map<string, any>();
+    for (const [h, group] of groups) {
+      const oldestScan = Math.min(...group.map(i => (i.lastScannedAt ? new Date(i.lastScannedAt).getTime() : 0)));
+      const isDormant = dormant.has(h);
+      if (Date.now() - oldestScan < (isDormant ? DORMANT_GAP_MS : ACTIVE_GAP_MS)) {
+        if (isDormant) stats.skippedDormant++; else stats.skippedNotDue++;
+        continue;
+      }
+      try {
+        const r = await fetchProfile(h, { meter, maxAgeMs: 90 * 60 * 1000 });
+        profiles.set(h, r.profile);
+        if (r.cached) stats.fromCache++; else { stats.fetched++; await new Promise(res => setTimeout(res, 3000)); }
+      } catch (e: any) {
+        stats.failed++;
+        log(`Competitor watch: fetch failed @${h} — ${e.message}`, "cron");
+      }
+    }
+    log(`Competitor watch: ${items.length} item(s), ${groups.size} unique handle(s), ${profiles.size} due`, "cron");
 
     for (const item of items) {
+      const profile = profiles.get(normalizeHandle(item.handle));
+      if (!profile) continue;
       try {
-        const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
-        if (!token) break;
-
-        const url = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=60`;
-        const resp = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ usernames: [item.handle], proxy: { useApifyProxy: true } }),
-        });
-        if (!resp.ok) continue;
-
-        const profileItems: any[] = await resp.json();
-        if (!profileItems.length) continue;
-
-        const profile = profileItems[0];
         const followerCount: number | null = profile.followersCount ?? null;
         const followingCount: number | null = profile.followingCount ?? null;
         const postCount: number | null = profile.postsCount ?? null;
@@ -780,19 +823,25 @@ async function scanCompetitorWatchlist() {
 
         const lastSnap = await storage.getLatestSnapshot(item.id);
 
-        await storage.createCompetitorSnapshot({
-          watchlistId: item.id,
-          userId: item.userId,
-          followerCount,
-          followingCount,
-          postCount,
-          avgViews,
-          avgLikes,
-          avgComments,
-          avgEngagement,
-          bio,
-          recentPosts,
-        });
+        // Skip redundant snapshot rows when nothing moved (keeps >=1 row per 12h for trend charts).
+        if (isUnchangedSnapshot(lastSnap, { postCount, followerCount })) {
+          stats.unchangedSnapshotsSkipped++;
+        } else {
+          await storage.createCompetitorSnapshot({
+            watchlistId: item.id,
+            userId: item.userId,
+            followerCount,
+            followingCount,
+            postCount,
+            avgViews,
+            avgLikes,
+            avgComments,
+            avgEngagement,
+            bio,
+            recentPosts,
+            postsPerWeek: postsPerWeekFromTimestamps(posts.map((p: any) => p.timestamp)),
+          });
+        }
 
         await storage.updateWatchlistItem(item.id, {
           lastScannedAt: new Date(),
@@ -945,8 +994,6 @@ async function scanCompetitorWatchlist() {
         }
 
         log(`Competitor watch: scanned @${item.handle}`, "cron");
-        // Rate limit: 3s between scans
-        await new Promise(r => setTimeout(r, 3000));
       } catch (e: any) {
         log(`Competitor watch: error scanning @${item.handle} — ${e.message}`, "cron");
       }
@@ -955,7 +1002,8 @@ async function scanCompetitorWatchlist() {
     for (const [userId, posts] of trendBuffer.entries()) {
       detectNicheTrends(userId, posts).catch(() => {});
     }
-    log("Competitor watch: daily scan complete", "cron");
+    log(`${meterSummary(meter)} cycle=${JSON.stringify(stats)}`, "cron");
+    log("Competitor watch: scan complete", "cron");
   } catch (e: any) {
     log(`Competitor watch: scan error — ${e.message}`, "cron");
   }
@@ -1170,27 +1218,23 @@ export async function scanWatchlistForUser(userId: string): Promise<{
 }> {
   const remaining = _incrementScanCount(userId);
   const items = await storage.getUserWatchlistItems(userId);
+  const meter = newApifyMeter("watchlist-scan-now");
   const results: any[] = [];
   const now = Date.now();
   const ms14d = 14 * 24 * 3600 * 1000;
 
   for (const item of items) {
     try {
-      const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
-      if (!token) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
-
-      const apifyUrl = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=60`;
-      const apResp = await fetch(apifyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usernames: [item.handle], proxy: { useApifyProxy: true } }),
-      });
-      if (!apResp.ok) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
-
-      const profileItems: any[] = await apResp.json();
-      if (!profileItems.length) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
-
-      const profile = profileItems[0];
+      let profile: any;
+      let fromCache = false;
+      try {
+        const r = await fetchProfile(item.handle, { meter, maxAgeMs: 30 * 60 * 1000 });
+        profile = r.profile; fromCache = r.cached;
+      } catch (e: any) {
+        log(`Scan-now: fetch failed @${item.handle} — ${e.message}`, "cron");
+        results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] });
+        continue;
+      }
       const rawPosts: any[] = profile.latestPosts || [];
       const followerCount: number | null = profile.followersCount ?? null;
       const avgViews = rawPosts.length > 0 ? rawPosts.reduce((s: number, p: any) => s + (p.videoViewCount || 0), 0) / rawPosts.length : 0;
@@ -1209,19 +1253,23 @@ export async function scanWatchlistForUser(userId: string): Promise<{
         type: p.videoViewCount ? "reel" : "image",
       }));
 
-      await storage.createCompetitorSnapshot({
-        watchlistId: item.id,
-        userId: item.userId,
-        followerCount,
-        followingCount: profile.followingCount ?? null,
-        postCount: profile.postsCount ?? null,
-        avgViews,
-        avgLikes,
-        avgComments,
-        avgEngagement,
-        bio: profile.biography || null,
-        recentPosts: mappedPosts,
-      });
+      const lastSnapNow = await storage.getLatestSnapshot(item.id);
+      if (!isUnchangedSnapshot(lastSnapNow, { postCount: profile.postsCount ?? null, followerCount })) {
+        await storage.createCompetitorSnapshot({
+          watchlistId: item.id,
+          userId: item.userId,
+          followerCount,
+          followingCount: profile.followingCount ?? null,
+          postCount: profile.postsCount ?? null,
+          avgViews,
+          avgLikes,
+          avgComments,
+          avgEngagement,
+          bio: profile.biography || null,
+          recentPosts: mappedPosts,
+          postsPerWeek: postsPerWeekFromTimestamps(rawPosts.map((p: any) => p.timestamp)),
+        });
+      }
 
       await storage.updateWatchlistItem(item.id, {
         lastScannedAt: new Date(),
@@ -1256,14 +1304,15 @@ export async function scanWatchlistForUser(userId: string): Promise<{
       }
 
       results.push({ handle: item.handle, success: true, newPosts: newPostsFound, viralPosts: viralPostsFound });
-      log(`Scan-now: scanned @${item.handle} — ${newPostsFound.length} new, ${viralPostsFound.length} viral`, "cron");
-      await new Promise(r => setTimeout(r, 2000));
+      log(`Scan-now: scanned @${item.handle} — ${newPostsFound.length} new, ${viralPostsFound.length} viral${fromCache ? " (cached profile)" : ""}`, "cron");
+      if (!fromCache) await new Promise(r => setTimeout(r, 2000));
     } catch (e: any) {
       log(`Scan-now: error @${item.handle} — ${e.message}`, "cron");
       results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] });
     }
   }
 
+  log(meterSummary(meter), "cron");
   let ideasGenerated = 0;
   try { ideasGenerated = await generateIdeasForUser(userId); } catch {}
 
@@ -1283,6 +1332,7 @@ export function startCronJobs() {
   cron.schedule("0 */2 * * *", scanCompetitorWatchlist, { timezone: "UTC" });
   cron.schedule("0 9 * * *", generateDailyContentIdeas, { timezone: "UTC" });
   cron.schedule("0 9 * * 1", sendWeeklyDigest, { timezone: "UTC" }); // Monday 9AM
+  cron.schedule("17 10 * * 1", generateWeeklyBriefs, { timezone: "UTC" }); // Monday 10:17 UTC
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
@@ -1293,5 +1343,5 @@ export function startCronJobs() {
   cron.schedule("*/2 * * * *", processSmsSequences);
   cron.schedule("*/5 * * * *", processEmSendQueue);
   cron.schedule("*/5 * * * *", processBroadcastQueue);
-  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch every 2h; daily ideas 9AM; weekly digest Monday 9AM; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
+  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch every 2h; daily ideas 9AM; weekly digest Monday 9AM; weekly brief Monday 10:17; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
 }

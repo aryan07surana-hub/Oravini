@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from "rea
 import { motion, AnimatePresence } from "framer-motion";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import CreditCostBadge from "@/components/CreditCostBadge";
+import { COMPETITOR_CREDIT_COSTS, canUseCompetitorAnalysis } from "@shared/competitorCredits";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import ViralityTester from "@/pages/client/ViralityTester";
 import CompetitorWatchlist from "@/pages/client/CompetitorWatchlist";
@@ -363,6 +364,7 @@ const SECTIONS = [
   { id: "strategy", label: "Posting Strategy", icon: Calendar, color: "from-cyan-500/20 to-cyan-500/5", border: "border-cyan-500/30", text: "text-cyan-400", desc: "Schedule deep-dive" },
   { id: "audience", label: "Audience Intel", icon: Users, color: "from-orange-500/20 to-orange-500/5", border: "border-orange-500/30", text: "text-orange-400", desc: "Detailed audience report" },
   { id: "scorecard", label: "Scorecard", icon: Trophy, color: "from-primary/20 to-primary/5", border: "border-primary/30", text: "text-primary", desc: "Who's winning?" },
+  { id: "transcripts", label: "Spoken Hooks & CTAs", icon: MessageCircle, color: "from-teal-500/20 to-teal-500/5", border: "border-teal-500/30", text: "text-teal-400", desc: "Mined from top-20 reel audio" },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -689,7 +691,7 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
           className="gap-2 w-full sm:w-auto"
           data-testid="button-compare-reels"
         >
-          {loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{STEPS[step]}</> : <><Sword className="w-3.5 h-3.5" />Compare Reels Head-to-Head</>}
+          {loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{STEPS[step]}</> : <><Sword className="w-3.5 h-3.5" />Compare Reels Head-to-Head<CreditCostBadge cost={COMPETITOR_CREDIT_COSTS.compareReels} level="medium" className="ml-1.5" /></>}
         </Button>
 
         {/* Loading state */}
@@ -2054,7 +2056,7 @@ function StealStrategySection({ analysis, onGenerate, generating }: { analysis: 
           >
             {generating
               ? <><Loader2 className="w-5 h-5 animate-spin" />Generating Your 30-Day Plan…</>
-              : <><Sword className="w-5 h-5" />Generate 30-Day Plan</>
+              : <><Sword className="w-5 h-5" />Generate 30-Day Plan<CreditCostBadge cost={COMPETITOR_CREDIT_COSTS.stealStrategy} level="heavy" className="ml-1" /></>
             }
           </Button>
           {generating && (
@@ -2399,6 +2401,7 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
       case "strategy": return <PostingStrategySection report={report} analysis={localAnalysis} />;
       case "audience": return <AudienceSection report={report} analysis={localAnalysis} />;
       case "scorecard": return <ScorecardSection report={report} analysis={localAnalysis} />;
+      case "transcripts": return <TranscriptInsightsSection report={report} analysis={localAnalysis} />;
       default: return null;
     }
   };
@@ -2425,6 +2428,8 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
           </button>
         </div>
       </div>
+
+      <DataQualityBanner report={report} />
 
       {/* Section grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-tour="competitor-sections">
@@ -2501,6 +2506,153 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
   );
 }
 
+// ─── Data quality + transcript insights ──────────────────────────────────────
+
+function DataQualityBanner({ report }: { report: any }) {
+  const dq = report?.dataQuality;
+  if (!dq) return null;
+  const warnings: Array<{ area: string; message: string }> = dq.warnings ?? [];
+  const age = (d?: string) => {
+    if (!d) return null;
+    const mins = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+    return mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`;
+  };
+  return (
+    <div className="space-y-2" data-testid="data-quality-banner">
+      {warnings.length > 0 && (
+        <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5">
+          <p className="text-xs font-bold text-amber-300 flex items-center gap-1.5 mb-2"><AlertTriangle className="w-3.5 h-3.5" />Parts of this report are based on less data</p>
+          <ul className="space-y-1">
+            {warnings.map((w, i) => <li key={i} className="text-[11px] text-muted-foreground">• {w.message}</li>)}
+          </ul>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground">
+        Based on {dq.clientPostCount} of your posts and {dq.competitorPostCount} of theirs
+        {dq.fromCache?.client || dq.fromCache?.competitor
+          ? ` · Instagram data cached (${[dq.fromCache?.client ? `you: ${age(dq.dataFetchedAt?.client)} old` : null, dq.fromCache?.competitor ? `them: ${age(dq.dataFetchedAt?.competitor)} old` : null].filter(Boolean).join(", ")}) — refreshes every 24h`
+          : " · fresh Instagram data"}
+      </p>
+    </div>
+  );
+}
+
+const OPENING_COLORS: Record<string, string> = {
+  question: "#60a5fa", contrarian: "#f87171", "number/stat": "#fbbf24", story: "#a78bfa",
+  "list/promise": "#34d399", "direct-address": "#f472b6", statement: "#94a3b8",
+};
+
+function TranscriptInsightsSection({ report, analysis }: { report: any; analysis: any }) {
+  const ti = report?.transcriptInsights;
+  if (!ti) {
+    return <EmptyState message="Spoken hook analysis isn't available for this report — it needs the competitor to have reels with audio. Run a new analysis to include it." />;
+  }
+  const fmtSec = (n: number | null | undefined) => (n == null ? "—" : `${Number(n).toFixed(1)}s`);
+  return (
+    <div className="space-y-5" data-testid="transcript-insights">
+      <SectionHeader icon={MessageCircle} title="Spoken Hooks & CTAs" desc={`What @${String(analysis.competitorHandle || "").replace(/^@/, "")} actually SAYS in their top reels — transcribed from audio`} color="from-teal-500/20 to-teal-500/5" />
+      <p className="text-[11px] text-muted-foreground">
+        Based on {ti.transcribed} transcribed of their top {ti.reelsConsidered} reels
+        {ti.noSpeech ? ` · ${ti.noSpeech} music/no-speech` : ""}{ti.pending ? ` · ${ti.pending} still processing` : ""}{ti.failed ? ` · ${ti.failed} unavailable` : ""}.
+      </p>
+
+      {ti.transcribed === 0 ? (
+        <EmptyState message="None of their top reels had transcribable speech yet. Transcripts finish in the background — re-run the analysis later (cached, so it won't cost extra Instagram scraping)." />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Hook delivered by", val: fmtSec(ti.stats?.medianHookSec), hint: "median end of first spoken line" },
+              { label: "Words in first 3s", val: ti.stats?.wordsInFirst3sMedian ?? "—", hint: "median" },
+              { label: "Speaking pace", val: ti.stats?.medianWpm ? `${ti.stats.medianWpm} wpm` : "—", hint: "median" },
+              { label: "Spoken CTA rate", val: ti.stats?.ctaRate != null ? `${ti.stats.ctaRate}%` : "—", hint: "reels with a CTA in the last 30%" },
+            ].map(m => (
+              <div key={m.label} className="p-3 rounded-xl bg-muted/10 border border-border">
+                <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">{m.label}</p>
+                <p className="text-lg font-black text-foreground">{m.val}</p>
+                <p className="text-[9px] text-muted-foreground">{m.hint}</p>
+              </div>
+            ))}
+          </div>
+
+          {ti.openingTypes?.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-3">Opening-line types (with avg views)</p>
+              <ResponsiveContainer width="100%" height={Math.max(120, ti.openingTypes.length * 34)}>
+                <BarChart data={ti.openingTypes} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="type" tick={{ fontSize: 10, fill: "#aaa" }} width={100} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, _n: any, item: any) => [`${v} reels · avg ${Number(item?.payload?.avgViews ?? 0).toLocaleString()} views`, "Count"]} />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                    {ti.openingTypes.map((o: any) => <Cell key={o.type} fill={OPENING_COLORS[o.type] ?? "#94a3b8"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {(ti.hookFormula || ti.ctaFormula || ti.structure) && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[{ k: "Hook formula", v: ti.hookFormula }, { k: "CTA formula", v: ti.ctaFormula }, { k: "Spoken structure", v: ti.structure }].filter(x => x.v).map(x => (
+                <div key={x.k} className="p-3 rounded-xl border border-teal-500/20 bg-teal-500/5">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-teal-300">{x.k}</p>
+                    <CopyButton text={x.v} />
+                  </div>
+                  <p className="text-xs text-foreground">{x.v}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {ti.patterns?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider">Patterns across their reels</p>
+              {ti.patterns.map((p: any, i: number) => (
+                <div key={i} className="p-3 rounded-xl bg-muted/10 border border-border">
+                  <p className="text-xs font-bold text-foreground">{p.pattern}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{p.evidence}</p>
+                  <p className="text-[11px] text-teal-300 mt-1">→ {p.howToUse}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {ti.ctaPhrases?.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">Spoken CTA phrasing</p>
+              <div className="flex flex-wrap gap-2">
+                {ti.ctaPhrases.map((c: any) => (
+                  <span key={c.phrase} className="text-[11px] px-2.5 py-1 rounded-lg border border-border bg-muted/10">"{c.phrase}" <span className="text-muted-foreground">×{c.count}</span></span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {ti.examples?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider">Top reels — what they said first</p>
+              {ti.examples.map((ex: any, i: number) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-border">
+                  <span className="text-[10px] font-black text-muted-foreground w-14 flex-shrink-0">{Number(ex.views || 0).toLocaleString()} views</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground">"{ex.hookLine}"</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{ex.openingType} · first line ends at {fmtSec(ex.hookSec)}{ex.ctaPhrase ? ` · CTA: "${ex.ctaPhrase}"` : " · no spoken CTA"}</p>
+                  </div>
+                  {ex.url && <a href={ex.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground"><ExternalLink className="w-3.5 h-3.5" /></a>}
+                </div>
+              ))}
+            </div>
+          )}
+          {ti.summary && <p className="text-xs text-muted-foreground border-l-2 border-teal-500/40 pl-3">{ti.summary}</p>}
+          {!ti.aiUsed && <p className="text-[10px] text-muted-foreground">Opening types were classified with built-in rules (the AI labeller was unavailable for this run).</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Competitor Analysis Sub-Section ──────────────────────────────────────────
 
 function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
@@ -2509,8 +2661,11 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creditError, setCreditError] = useState<string | null>(null);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
+  // Mirrors the server-side gate (Growth, Pro, Elite, or admin).
+  const planAllowed = canUseCompetitorAnalysis(user);
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -2519,11 +2674,12 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   });
 
   const analyze = useMutation({
+    // Scraping 2 profiles + AI + transcript mining can take ~1-2 min on a cold cache.
     mutationFn: () => apiRequestWithTimeout("POST", "/api/competitor/analyze", {
       clientUrl: normalizeInstagramUrl(clientUrl),
       competitorUrl: normalizeInstagramUrl(competitorUrl),
       clientId: activeClientId || user?.id,
-    }),
+    }, 180000),
     onSuccess: (data: any) => {
       setApiDone(true);
       queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
@@ -2536,6 +2692,8 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       setApiDone(true);
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
+      } else if (e instanceof ApiError && e.status === 403) {
+        setUpgradeError(e.message);
       } else {
         const message = String(e?.message || "Analysis failed");
         toast({
@@ -2579,6 +2737,16 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
         />
       )}
       {creditError && <CreditErrorBanner message={creditError} />}
+      {(!planAllowed || upgradeError) && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl border border-primary/30 bg-primary/5" data-testid="competitor-upgrade-banner">
+          <Shield className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-foreground">Deep Competitor Analysis is a Growth+ feature</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{upgradeError || "Your current plan doesn't include deep competitor reports. Upgrade to Growth or above to run them — your Watch List, Feed and Leaderboard keep working on every plan."}</p>
+          </div>
+          <a href="/settings/plan" className="text-xs font-bold text-primary hover:underline whitespace-nowrap self-center">Upgrade →</a>
+        </div>
+      )}
 
       {/* New Analysis Form */}
       <Card className="border border-card-border">
@@ -2599,10 +2767,10 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
               <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
             </div>
           </div>
-          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
+          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending || !planAllowed} className="gap-2" data-testid="button-run-analysis">
             {analyze.isPending
               ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
-              : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={10} level="heavy" className="ml-1.5" /></>}
+              : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={COMPETITOR_CREDIT_COSTS.deepAnalysis} level="heavy" className="ml-1.5" /></>}
           </Button>
         </CardContent>
       </Card>
@@ -3210,7 +3378,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
                 className="h-9 px-4 gap-2"
                 data-testid="button-analyze-methodology"
               >
-                {analyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse My Content</>}
+                {analyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse My Content<CreditCostBadge cost={COMPETITOR_CREDIT_COSTS.methodologyAnalyze} level="medium" className="ml-1" /></>}
               </Button>
             </div>
             {analyzing && (
@@ -3358,17 +3526,17 @@ function IntelligenceFeedSection() {
 
   const { data: feed = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/feed"],
-    queryFn: () => apiRequest("GET", "/api/competitor/feed").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/feed"),
   });
 
   const analyzeMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/analyze`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/analyze`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] }); toast({ title: "Analysis ready" }); },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const ideasMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/generate-ideas`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/generate-ideas`),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
@@ -3378,7 +3546,7 @@ function IntelligenceFeedSection() {
   });
 
   const writeMut = useMutation({
-    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/write-my-version`).then(r => r.json()),
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/write-my-version`),
     onSuccess: (data: any, postId: string) => {
       if (data?.script) {
         setExpandedScript(prev => ({ ...prev, [postId]: data.script }));
@@ -3466,7 +3634,7 @@ function IntelligenceFeedSection() {
                       disabled={isGenerating}
                       onClick={() => ideasMut.mutate(post.id)}>
                       {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lightbulb className="w-3 h-3" />}
-                      <span className="ml-1">Ideas</span>
+                      <span className="ml-1">Ideas · {COMPETITOR_CREDIT_COSTS.feedIdeas}cr</span>
                     </Button>
                     <Button size="sm" variant="outline" className="text-[10px] h-7 px-2 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
                       disabled={isWriting}
@@ -3625,12 +3793,12 @@ function ContentIdeasSection() {
 
   const { data: ideas = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/ideas"],
-    queryFn: () => apiRequest("GET", "/api/competitor/ideas").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/ideas"),
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiRequest("PATCH", `/api/competitor/ideas/${id}/status`, { status }).then(r => r.json()),
+      apiRequest("PATCH", `/api/competitor/ideas/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
@@ -3638,7 +3806,7 @@ function ContentIdeasSection() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/ideas/${id}`).then(r => r.json()),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/ideas/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
       qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
@@ -3761,7 +3929,7 @@ function DashboardSection() {
   const { setActiveSection } = useCompetitorCtx();
   const { data: dash, isLoading } = useQuery<any>({
     queryKey: ["/api/competitor/dashboard"],
-    queryFn: () => apiRequest("GET", "/api/competitor/dashboard").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/dashboard"),
     refetchInterval: 60_000,
   });
 
@@ -3970,7 +4138,7 @@ function LandingNav() {
         { key: "watchlist" as SectionId, icon: Bell, label: "Watch List", desc: "Track 7 accounts · auto-scan every 2h · bio, follower & engagement alerts", color: "cyan" },
         { key: "leaderboard" as SectionId, icon: Trophy, label: "Leaderboard", desc: "All accounts ranked by followers, avg views, engagement · format breakdown", color: "amber" },
         { key: "feed" as SectionId, icon: Activity, label: "Intelligence Feed", desc: "Every new post auto-detected · AI analysis · viral spike alerts", color: "emerald" },
-        { key: "growth" as SectionId, icon: TrendingUp, label: "Growth Charts", desc: "Follower trends over time · avg views & likes per competitor", color: "blue" },
+        { key: "growth" as SectionId, icon: TrendingUp, label: "Growth Charts", desc: "Follower growth · posting cadence · engagement trend per competitor", color: "blue" },
         { key: "daily-intel" as SectionId, icon: Flame, label: "Daily Intel", desc: "Today's competitor signals · AI-generated ideas · ready to steal", color: "amber" },
       ],
     },
@@ -3981,7 +4149,7 @@ function LandingNav() {
       items: [
         { key: "gap" as SectionId, icon: Crosshair, label: "Content Gap", desc: "AI finds topics competitors ignore that you can own — with hooks ready", color: "orange" },
         { key: "ideas" as SectionId, icon: Lightbulb, label: "Content Ideas", desc: "Ideas from competitor intel · copy hooks · track idea → drafted → published", color: "violet" },
-        { key: "digest" as SectionId, icon: Calendar, label: "Weekly Digest", desc: "Monday summary · top posts ranked by virality · 5 ready-to-steal ideas", color: "amber" },
+        { key: "digest" as SectionId, icon: Calendar, label: "Weekly Brief & Digest", desc: "3 posts to make this week & why · top posts ranked · ready-to-steal ideas", color: "amber" },
       ],
     },
   ];
@@ -4056,7 +4224,7 @@ function DailyIntelSection() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery<HubData>({
     queryKey: ["/api/content-intel/today"],
-    queryFn: () => apiRequest("GET", "/api/content-intel/today").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/content-intel/today"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -4236,12 +4404,15 @@ function DailyIntelSection() {
 function LeaderboardSection() {
   const [sortBy, setSortBy] = useState<"followers" | "avg_views" | "avg_likes" | "avg_engagement">("followers");
 
-  const { data: rows = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/competitor/leaderboard"],
-    queryFn: () => apiRequest("GET", "/api/competitor/leaderboard").then(r => r.json()),
+  const { data: lb, isLoading } = useQuery<any>({
+    queryKey: ["/api/competitor/leaderboard", "benchmarks"],
+    queryFn: () => apiRequest("GET", "/api/competitor/leaderboard?withBenchmarks=1"),
   });
+  const rows: any[] = lb?.rows ?? [];
+  const bench = lb?.benchmarks;
 
-  const sorted = [...rows].sort((a, b) => (b[sortBy] ?? 0) - (a[sortBy] ?? 0));
+  const sortKey = sortBy === "followers" ? "follower_count" : sortBy;
+  const sorted = [...rows].sort((a, b) => (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0));
 
   const fmt = (n: number | null) => {
     if (n == null) return "—";
@@ -4249,6 +4420,24 @@ function LeaderboardSection() {
     if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
     return String(n);
   };
+
+  const BAND_STYLE: Record<string, { label: string; cls: string }> = {
+    top10: { label: "Top 10%", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+    top25: { label: "Top 25%", cls: "bg-emerald-500/10 text-emerald-300/90 border-emerald-500/20" },
+    aboveMedian: { label: "Above median", cls: "bg-sky-500/10 text-sky-300 border-sky-500/20" },
+    belowMedian: { label: "Below median", cls: "bg-muted/30 text-muted-foreground border-border" },
+  };
+  const bandChip = (band: string | null | undefined) => {
+    if (!band || !BAND_STYLE[band]) return null;
+    const b = BAND_STYLE[band];
+    return <span className={`inline-block mt-0.5 text-[8px] px-1.5 py-0.5 rounded border font-bold ${b.cls}`}>{b.label}</span>;
+  };
+  const BENCH_METRICS = [
+    { key: "follower_count", label: "Followers", f: (v: number | null) => fmt(v) },
+    { key: "avg_views", label: "Avg Views", f: (v: number | null) => fmt(v == null ? null : Math.round(v)) },
+    { key: "avg_engagement", label: "Engagement", f: (v: number | null) => (v == null ? "—" : `${Number(v).toFixed(2)}%`) },
+    { key: "posts_per_week", label: "Posts / wk", f: (v: number | null) => (v == null ? "—" : Number(v).toFixed(1)) },
+  ];
 
   const SORT_OPTS = [
     { key: "followers" as const, label: "Followers" },
@@ -4295,6 +4484,34 @@ function LeaderboardSection() {
         </div>
       </div>
 
+      {/* Niche benchmarks — honest about scope and sample size */}
+      {bench && bench.n >= 2 && (
+        <div className="p-4 rounded-2xl border border-border bg-card" data-testid="niche-benchmarks">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">Niche benchmarks</p>
+            <span className="text-[10px] text-muted-foreground">{bench.label}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {BENCH_METRICS.map(m => {
+              const b = bench.metrics?.[m.key];
+              if (!b || b.n < 2) return null;
+              return (
+                <div key={m.key} className="p-2.5 rounded-xl bg-muted/10 border border-border">
+                  <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground mb-1">{m.label}</p>
+                  <div className="space-y-0.5 text-[11px]">
+                    {b.n >= 10 && <div className="flex justify-between"><span className="text-muted-foreground">Top 10%</span><span className="font-bold text-foreground">≥ {m.f(b.p90)}</span></div>}
+                    {b.n >= 4 && <div className="flex justify-between"><span className="text-muted-foreground">Top 25%</span><span className="font-bold text-foreground">≥ {m.f(b.p75)}</span></div>}
+                    <div className="flex justify-between"><span className="text-muted-foreground">Median</span><span className="font-bold text-foreground">{m.f(b.p50)}</span></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {bench.note && <p className="text-[10px] text-muted-foreground mt-2">{bench.note} These bands describe only the accounts you watch — not all of Instagram.</p>}
+          {!bench.note && <p className="text-[10px] text-muted-foreground mt-2">These bands describe only the accounts you watch — not all of Instagram.</p>}
+        </div>
+      )}
+
       {/* Ranked cards */}
       <div className="space-y-3">
         {sorted.map((row: any, i) => {
@@ -4311,7 +4528,7 @@ function LeaderboardSection() {
                 {/* Handle + display name */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-sm font-black text-foreground">@{row.handle}</span>
+                    <span className="text-sm font-black text-foreground">@{String(row.handle).replace(/^@/, "")}</span>
                     {row.display_name && <span className="text-xs text-muted-foreground">{row.display_name}</span>}
                     {row.followerGrowth != null && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${growthPositive ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
@@ -4321,12 +4538,13 @@ function LeaderboardSection() {
                   </div>
 
                   {/* Metric row */}
-                  <div className="grid grid-cols-4 gap-3 mb-3">
+                  <div className="grid grid-cols-5 gap-3 mb-3">
                     {[
-                      { label: "Followers", val: fmt(row.follower_count) },
-                      { label: "Avg Views", val: fmt(row.avg_views) },
-                      { label: "Avg Likes", val: fmt(row.avg_likes) },
-                      { label: "Engagement", val: row.avg_engagement != null ? `${Number(row.avg_engagement).toFixed(2)}%` : "—" },
+                      { label: "Followers", val: fmt(row.follower_count), band: row.bands?.follower_count },
+                      { label: "Avg Views", val: fmt(row.avg_views == null ? null : Math.round(row.avg_views)), band: row.bands?.avg_views },
+                      { label: "Avg Likes", val: fmt(row.avg_likes == null ? null : Math.round(row.avg_likes)), band: row.bands?.avg_likes },
+                      { label: "Engagement", val: row.avg_engagement != null ? `${Number(row.avg_engagement).toFixed(2)}%` : "—", band: row.bands?.avg_engagement },
+                      { label: "Posts / wk", val: row.posts_per_week != null ? Number(row.posts_per_week).toFixed(1) : "—", band: row.bands?.posts_per_week },
                     ].map(m => (
                       <div key={m.label}>
                         <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold mb-0.5">{m.label}</p>
@@ -4337,6 +4555,7 @@ function LeaderboardSection() {
                           (m.label === "Engagement" && sortBy === "avg_engagement")
                             ? "text-amber-300" : "text-foreground"
                         }`}>{m.val}</p>
+                        {bandChip(m.band)}
                       </div>
                     ))}
                   </div>
@@ -4375,7 +4594,7 @@ function ContentGapSection() {
   const [addedGaps, setAddedGaps] = useState<Set<number>>(new Set());
 
   const gapMut = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/competitor/gap-analysis").then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/competitor/gap-analysis"),
     onSuccess: (data) => {
       if (data?.message) { toast({ title: "Not enough data", description: data.message, variant: "destructive" }); return; }
       setResult(data);
@@ -4539,31 +4758,38 @@ function ContentGapSection() {
 function GrowthChartSection() {
   const { data: watchlist = [], isLoading: wlLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/watchlist"],
-    queryFn: () => apiRequest("GET", "/api/competitor/watchlist").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/watchlist"),
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [days, setDays] = useState(90);
 
   const watchlistId = selectedId ?? (watchlist[0]?.id ?? null);
 
-  const { data: snapshots = [], isLoading: snapLoading } = useQuery<any[]>({
-    queryKey: ["/api/competitor/watchlist", watchlistId, "snapshots"],
-    queryFn: () => watchlistId
-      ? apiRequest("GET", `/api/competitor/watchlist/${watchlistId}/snapshots?limit=30`).then(r => r.json())
-      : Promise.resolve([]),
+  const { data: trends, isLoading: snapLoading } = useQuery<any>({
+    queryKey: ["/api/competitor/watchlist", watchlistId, "trends", days],
+    queryFn: () => apiRequest("GET", `/api/competitor/watchlist/${watchlistId}/trends?days=${days}`),
     enabled: !!watchlistId,
   });
 
-  const chartData = [...(snapshots as any[])]
-    .reverse()
-    .map((s: any) => ({
-      date: format(new Date(s.scannedAt), "MMM d"),
-      followers: s.followerCount ?? 0,
-      avgViews: Math.round(s.avgViews ?? 0),
-      avgLikes: Math.round(s.avgLikes ?? 0),
-    }));
+  const points: any[] = trends?.points ?? [];
+  const chartData = points.map((pt: any) => ({
+    date: format(new Date(pt.date + "T00:00:00"), "MMM d"),
+    followers: pt.followers,
+    followerDelta: pt.followerDelta,
+    avgEngagement: pt.avgEngagement,
+    avgViews: pt.avgViews,
+    postsPerWeek: pt.postsPerWeek,
+  }));
+  const weekly = (trends?.weekly ?? []).map((w: any) => ({ week: format(new Date(w.weekStart + "T00:00:00"), "MMM d"), posts: w.postsPublished }));
+  const first = points.find((p: any) => p.followers != null);
+  const last = [...points].reverse().find((p: any) => p.followers != null);
+  const netGrowth = first && last ? last.followers - first.followers : null;
+  const pctGrowth = first && last && first.followers > 0 ? ((last.followers - first.followers) / first.followers) * 100 : null;
 
   const selected = watchlist.find((w: any) => w.id === watchlistId);
+  const kfmt = (v: number) => (v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v));
+  const tooltipStyle = { background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 11 };
 
   if (wlLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
@@ -4576,26 +4802,30 @@ function GrowthChartSection() {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-testid="growth-trends">
       <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-blue-500/5 border border-blue-500/20">
         <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
           <TrendingUp className="w-5 h-5 text-blue-400" />
         </div>
-        <div>
-          <p className="font-bold text-foreground">Follower Growth Charts</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Track competitor follower count over time — see when they spike and why.</p>
+        <div className="flex-1">
+          <p className="font-bold text-foreground">Competitor Trends</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Follower growth, posting cadence and engagement over time — built from your Watch List scans (one point per day).</p>
+        </div>
+        <div className="flex gap-1">
+          {[30, 90, 180].map(d => (
+            <button key={d} onClick={() => setDays(d)} className={`text-[10px] px-2.5 py-1 rounded-lg border font-semibold ${days === d ? "bg-blue-500/20 border-blue-500/40 text-blue-300" : "border-border text-muted-foreground"}`}>{d}d</button>
+          ))}
         </div>
       </div>
 
-      {/* Account selector */}
       <div className="flex gap-2 flex-wrap">
         {watchlist.map((w: any) => (
           <button
             key={w.id}
             onClick={() => setSelectedId(w.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${(selectedId ?? watchlist[0]?.id) === w.id ? "bg-blue-500/20 border-blue-500/40 text-blue-300" : "bg-muted/20 border-border text-muted-foreground hover:border-blue-500/30"}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${watchlistId === w.id ? "bg-blue-500/20 border-blue-500/40 text-blue-300" : "bg-muted/20 border-border text-muted-foreground hover:border-blue-500/30"}`}
           >
-            @{w.handle}
+            @{String(w.handle).replace(/^@/, "")}
           </button>
         ))}
       </div>
@@ -4605,46 +4835,74 @@ function GrowthChartSection() {
       ) : chartData.length < 2 ? (
         <div className="text-center py-12 text-muted-foreground">
           <BarChart2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Not enough data yet for @{selected?.handle}</p>
-          <p className="text-xs mt-1">Growth charts build up over time as the 2-hour scans accumulate snapshots.</p>
+          <p className="text-sm">Not enough data yet for @{String(selected?.handle ?? "").replace(/^@/, "")}</p>
+          <p className="text-xs mt-1">Trends need at least 2 days of scans — they fill in automatically as the Watch List scans run.</p>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">@{selected?.handle} — Follower Growth</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 rounded-xl bg-muted/10 border border-border">
+              <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Net followers ({trends?.snapshotDays}d of data)</p>
+              <p className={`text-lg font-black ${netGrowth != null && netGrowth < 0 ? "text-red-400" : "text-emerald-400"}`}>{netGrowth != null ? `${netGrowth >= 0 ? "+" : ""}${kfmt(netGrowth)}` : "—"}</p>
+              {pctGrowth != null && <p className="text-[10px] text-muted-foreground">{pctGrowth >= 0 ? "+" : ""}{pctGrowth.toFixed(1)}%</p>}
+            </div>
+            <div className="p-3 rounded-xl bg-muted/10 border border-border">
+              <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Current cadence</p>
+              <p className="text-lg font-black text-foreground">{last?.postsPerWeek != null ? `${Number(last.postsPerWeek).toFixed(1)}/wk` : "—"}</p>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/10 border border-border">
+              <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Engagement</p>
+              <p className="text-lg font-black text-foreground">{last?.avgEngagement != null ? `${last.avgEngagement}%` : "—"}</p>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-5" data-testid="chart-follower-growth">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">@{String(selected?.handle ?? "").replace(/^@/, "")} — Follower Growth</p>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-                <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 11 }} />
-                <Line type="monotone" dataKey="followers" stroke="#60a5fa" strokeWidth={2} dot={false} name="Followers" />
+                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} width={60} domain={["auto", "auto"]} tickFormatter={kfmt} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="followers" stroke="#60a5fa" strokeWidth={2} dot={false} name="Followers" connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-card border border-border rounded-2xl p-5">
-              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Avg Views / Post</p>
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 10 }} />
-                  <Line type="monotone" dataKey="avgViews" stroke="#e879a0" strokeWidth={2} dot={false} name="Avg Views" />
-                </LineChart>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-2xl p-5" data-testid="chart-posting-cadence">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-1">Posting Cadence</p>
+              <p className="text-[10px] text-muted-foreground mb-3">{weekly.length >= 2 ? "Posts published per week (from post-count changes)" : "Posts/week across their latest posts, per scan day"}</p>
+              <ResponsiveContainer width="100%" height={170}>
+                {weekly.length >= 2 ? (
+                  <BarChart data={weekly}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={30} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="posts" fill="#34d399" radius={[4, 4, 0, 0]} name="Posts" />
+                  </BarChart>
+                ) : (
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={30} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Line type="monotone" dataKey="postsPerWeek" stroke="#34d399" strokeWidth={2} dot={false} name="Posts / week" connectNulls />
+                  </LineChart>
+                )}
               </ResponsiveContainer>
             </div>
-            <div className="bg-card border border-border rounded-2xl p-5">
-              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Avg Likes / Post</p>
-              <ResponsiveContainer width="100%" height={160}>
+            <div className="bg-card border border-border rounded-2xl p-5" data-testid="chart-engagement">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-1">Engagement Rate</p>
+              <p className="text-[10px] text-muted-foreground mb-3">(avg likes + comments) ÷ followers</p>
+              <ResponsiveContainer width="100%" height={170}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
-                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 10 }} />
-                  <Line type="monotone" dataKey="avgLikes" stroke="#d4b461" strokeWidth={2} dot={false} name="Avg Likes" />
+                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={40} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="avgEngagement" stroke="#d4b461" strokeWidth={2} dot={false} name="Engagement %" connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -4653,6 +4911,96 @@ function GrowthChartSection() {
       )}
     </div>
   );
+}
+
+// ── Weekly Brief ("3 posts to make this week and why") ─────────────────────────
+
+function WeeklyBriefPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { addIdeaToPipeline, setActiveSection } = useCompetitorCtx();
+  const { data: briefs = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/briefs"],
+    queryFn: () => apiRequest("GET", "/api/competitor/briefs"),
+  });
+  const gen = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/competitor/briefs/generate", {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/competitor/briefs"] }),
+    onError: (e: any) => toast({ title: "Couldn't build the brief", description: String(e?.message || e), variant: "destructive" }),
+  });
+  const latest = briefs[0];
+  const posts: any[] = Array.isArray(latest?.posts) ? latest.posts : [];
+
+  return (
+    <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden" data-testid="weekly-brief">
+      <div className="px-5 py-4 border-b border-primary/20 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-black text-foreground flex items-center gap-2"><Target className="w-4 h-4 text-primary" />This Week's Brief — 3 posts to make and why</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {latest ? `Week of ${format(new Date(String(latest.week_start).slice(0, 10) + "T00:00:00"), "MMM d, yyyy")} · built from your watchlist's top outlier posts` : "Built every Monday from your watchlist's winning posts (in-app)."}
+          </p>
+        </div>
+        {!isLoading && (!latest || String(latest.week_start).slice(0, 10) !== weekStartLocalISO()) && (
+          <Button size="sm" onClick={() => gen.mutate()} disabled={gen.isPending} className="gap-1.5" data-testid="button-generate-brief">
+            {gen.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            Build this week's brief
+          </Button>
+        )}
+      </div>
+      {isLoading ? (
+        <div className="p-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : !latest ? (
+        <p className="p-5 text-xs text-muted-foreground">No brief yet. Your first one arrives Monday — or build it now once your Watch List has scanned some posts.</p>
+      ) : (
+        <div className="p-5 space-y-3">
+          {latest.summary && <p className="text-xs text-muted-foreground">{latest.summary}</p>}
+          {posts.map((p: any, i: number) => (
+            <div key={i} className="p-4 rounded-xl bg-card border border-border">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-5 h-5 rounded-md bg-primary/20 text-primary text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                    <p className="text-sm font-bold text-foreground">{p.title}</p>
+                    <Badge className="text-[9px] border bg-pink-500/15 text-pink-300 border-pink-500/30">{String(p.format).toUpperCase()}</Badge>
+                  </div>
+                  <p className="text-xs text-foreground">"{p.hook}"</p>
+                  {p.outline?.length > 0 && <ol className="mt-2 space-y-0.5">{p.outline.map((o: string, j: number) => <li key={j} className="text-[11px] text-muted-foreground">{j + 1}. {o}</li>)}</ol>}
+                  {p.cta && <p className="text-[11px] text-muted-foreground mt-1">CTA: {p.cta}</p>}
+                  <p className="text-[11px] text-primary mt-2">Why: {p.why}</p>
+                  {p.basedOn?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {p.basedOn.map((b: any, k: number) => (
+                        <a key={k} href={b.postUrl} target="_blank" rel="noreferrer" className="text-[10px] px-2 py-0.5 rounded-lg border border-border text-muted-foreground hover:text-foreground">
+                          @{String(b.handle).replace(/^@/, "")} · {b.views ? `${Number(b.views).toLocaleString()} views` : `${Number(b.likes || 0).toLocaleString()} likes`}{b.multiple ? ` · ${b.multiple}× their avg` : ""}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => addIdeaToPipeline({ topic: p.title, hook: p.hook, format: p.format, structure: (p.outline || []).join(" → "), cta: p.cta ?? undefined, rationale: p.why, competitorHandle: "weekly-brief" })
+                    .then(() => { qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] }); toast({ title: "Added to pipeline" }); })}
+                  className="p-1.5 rounded-lg hover:bg-violet-500/10 text-violet-400 flex-shrink-0" title="Add to pipeline"
+                >
+                  <Lightbulb className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {posts.length > 0 && (
+            <button onClick={() => setActiveSection("ideas")} className="text-[10px] font-bold text-violet-400 hover:underline">Open content pipeline →</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function weekStartLocalISO(): string {
+  const d = new Date();
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
+  return x.toISOString().slice(0, 10);
 }
 
 // ── Weekly Digest Section ──────────────────────────────────────────────────────
@@ -4665,7 +5013,7 @@ function WeeklyDigestSection() {
 
   const { data: alerts = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/alerts"],
-    queryFn: () => apiRequest("GET", "/api/competitor/alerts").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/competitor/alerts"),
     select: (data: any[]) => data.filter((a: any) => a.alertType === "weekly_digest"),
   });
 
@@ -4682,6 +5030,8 @@ function WeeklyDigestSection() {
           <p className="text-xs text-muted-foreground mt-0.5">Every Monday — top competitor posts ranked by virality, with 5 content ideas ready to steal.</p>
         </div>
       </div>
+
+      <WeeklyBriefPanel />
 
       {alerts.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -4849,7 +5199,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                   : activeSection === "feed" ? "Intelligence Feed"
                   : activeSection === "ideas" ? "Content Ideas"
                   : activeSection === "growth" ? "Growth Charts"
-                  : activeSection === "digest" ? "Weekly Digest"
+                  : activeSection === "digest" ? "Weekly Brief & Digest"
                   : activeSection === "leaderboard" ? "Leaderboard"
                   : activeSection === "gap" ? "Content Gap Detector"
                   : activeSection === "daily-intel" ? "Daily Intel"
@@ -4864,7 +5214,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 : activeSection === "feed" ? "Auto-detected competitor posts · AI analysis · Generate ideas"
                 : activeSection === "ideas" ? "AI-generated content ideas from competitor intel · Track from idea to published"
                 : activeSection === "growth" ? "Follower & engagement trends over time per competitor"
-                : activeSection === "digest" ? "Monday summary · Top posts ranked · 5 ready-to-steal ideas"
+                : activeSection === "digest" ? "3 posts to make this week · Top posts ranked · Ready-to-steal ideas"
                 : activeSection === "leaderboard" ? "All watchlist accounts ranked · Format breakdown · Follower growth"
                 : activeSection === "gap" ? "AI finds topics competitors aren't covering that you can own"
                 : activeSection === "daily-intel" ? "Today's competitor signals · AI-generated ideas · ready to steal"

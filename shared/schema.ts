@@ -2815,6 +2815,8 @@ export const competitorSnapshots = pgTable("competitor_snapshots", {
   avgEngagement: real("avg_engagement"),
   bio: text("bio"),
   recentPosts: jsonb("recent_posts"),
+  // Posting cadence at scan time (added via additive ALTER in ensureCompetitorIntelTables).
+  postsPerWeek: real("posts_per_week"),
 });
 export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
 
