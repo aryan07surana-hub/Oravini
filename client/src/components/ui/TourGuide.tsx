@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "Welcome to Oravini",
-    description: "I'll walk you through Oravini's core tools — Content Ideas, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, Tracking, Competitor Study, Credits, and Settings.",
+    description: "I'll walk you through Oravini's core tools — Content Ideas, Video Editor, Design Studio, Forms & Quiz Builder, Tracking, Competitor Study, Credits, and Settings.",
     position: "center",
   },
   {
@@ -139,17 +139,6 @@ const TOUR_STEPS: TourStep[] = [
     title: "Forms & Quiz Builder — Your Forms",
     description: "All your forms live here. Click any form to edit its questions, add custom fields, or view responses. You can duplicate a form to start from an existing template, toggle it between Draft and Published, or share the public link directly. Responses update in real time.",
     position: "bottom",
-  },
-
-  // ── Board Builder ──────────────────────────────────────────────────────────
-  {
-    id: "board-builder-header",
-    route: "/tools/board-builder",
-    target: '[data-tour="board-builder-main"]',
-    title: "Board Builder — AI Flowcharts",
-    description: "Paste any script, strategy, SOP, or content plan and the AI instantly turns it into a visual flowchart. Nodes are colour-coded by type — headers, steps, decisions, insights, results. Drag to rearrange, click any node to edit it, and export as a PNG when you're done.",
-    position: "bottom",
-    tip: "Paste your full onboarding DM script and the AI maps every step, branch, and response path as a visual flow — saves hours building it manually.",
   },
 
   // ── IG Growth Tracker ─────────────────────────────────────────────────────
@@ -349,16 +338,6 @@ const PAGE_TOURS: Record<string, TourStep[]> = {
       title: "Your Forms Library",
       description: "All your forms appear here. Click to edit questions or view responses. Toggle between Draft and Published — only published forms accept submissions. Use the copy-link button to grab the public URL and drop it anywhere: bio, Story, DM, or email.",
       position: "bottom",
-    },
-  ],
-
-  "board-builder": [
-    {
-      id: "pt-board-1", route: "/tools/board-builder", target: '[data-tour="board-builder-main"]',
-      title: "Board Builder — AI Flowcharts",
-      description: "Paste any script, SOP, content plan, or strategy into the input below and the AI instantly converts it into a colour-coded visual flowchart. Headers, steps, decisions, results, and insights are each styled differently so the structure is immediately clear.",
-      position: "bottom",
-      tip: "Paste your full DM sales script and the AI maps every branch and follow-up path as a flow. Saves hours versus building it manually.",
     },
   ],
 

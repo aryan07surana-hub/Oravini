@@ -78,7 +78,7 @@ async function ensureLocal(bufferOrPath: Buffer | string, filename: string): Pro
   return name;
 }
 
-async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer, filename: string): Promise<string> {
+async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer | Blob, filename: string): Promise<string> {
   const timestamp = Math.floor(Date.now() / 1000);
   const folder = process.env.CLOUDINARY_FOLDER || "oravini";
   const publicId = path.parse(safeFilename(filename)).name;
@@ -88,7 +88,7 @@ async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer, filename:
   const signature = crypto.createHash("sha1").update(toSign).digest("hex");
 
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(data)]), safeFilename(filename));
+  form.append("file", data instanceof Blob ? data : new Blob([new Uint8Array(data)]), safeFilename(filename));
   form.append("api_key", cfg.apiKey);
   form.append("timestamp", String(timestamp));
   form.append("folder", folder);
@@ -104,6 +104,12 @@ async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer, filename:
     throw new Error(json?.error?.message || `Cloudinary upload failed with HTTP ${res.status}`);
   }
   return json.secure_url as string;
+}
+
+async function fileBlob(p: string): Promise<Blob> {
+  const anyFs = fs as any;
+  if (typeof anyFs.openAsBlob === "function") return anyFs.openAsBlob(p);
+  return new Blob([new Uint8Array(await fs.promises.readFile(p))]);
 }
 
 export interface SaveMediaOptions {
@@ -124,8 +130,10 @@ export async function saveMedia(
 
   if (cfg) {
     try {
+      // Paths are streamed from disk (file-backed Blob) so large videos are
+      // never copied into memory on the 512MB free-tier instance.
       const data = typeof bufferOrPath === "string"
-        ? await fs.promises.readFile(bufferOrPath)
+        ? await fileBlob(bufferOrPath)
         : bufferOrPath;
       const url = await uploadToCloudinary(cfg, data, filename);
       if (typeof bufferOrPath === "string" && opts.removeLocalAfterUpload !== false) {

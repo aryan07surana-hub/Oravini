@@ -13,54 +13,21 @@ import {
 import {
   Field, GOLD, fromISTInput, inputCls, inputErrStyle, inputStyle, toISTInput, uploadDeck, type WebinarFunnelFull,
 } from "@/components/webinar-funnel/hostUtils";
-import { WIZARD_STEP_COUNT, clampWizardStep, restoreWizardState } from "@/components/webinar-funnel/wizardState";
+import {
+  WIZARD_STEP_COUNT, blankWizardState as blank, parseSavedWizardState, shouldPersistWizardState, type WizardState,
+} from "@/components/webinar-funnel/wizardState";
 import {
   SecretField, YOUTUBE_STATUS_KEY, consumeYoutubeConnectResult, startYoutubeConnect, useYoutubeConnection,
   type YoutubeBroadcastInfo, type YoutubeConnection, type YoutubeLiveStatus,
 } from "@/components/webinar-funnel/youtube";
 
-// ── Wizard state (persisted in localStorage so it's resumable) ─────────────
-type WizardState = {
-  step: number;                // 0..4, 5 = finished
-  channelReady: boolean;
-  checks1: boolean[];
-  streamScheduled: boolean;
-  checks2: boolean[];
-  youtube: string;
-  deckMode: "upload" | "link";
-  deckUrl: string;
-  ctaText: string;
-  ctaUrl: string;
-  offerText: string;
-  offerPrice: string;
-  offerExpiresLocal: string;
-  title: string;
-  description: string;
-  hostName: string;
-  scheduledLocal: string;
-  durationMinutes: number;
-  remindersEnabled: boolean;
-  publish: boolean;
-  createdId: string | null;
-  ytBroadcastId: string | null; // set when the stream was created on the connected channel
-};
-
-const blank = (): WizardState => ({
-  step: 0, channelReady: false, checks1: [false, false, false], streamScheduled: false, checks2: [false, false, false, false],
-  youtube: "", deckMode: "upload", deckUrl: "", ctaText: "", ctaUrl: "", offerText: "", offerPrice: "", offerExpiresLocal: "",
-  title: "", description: "", hostName: "", scheduledLocal: "", durationMinutes: 60, remindersEnabled: true, publish: true, createdId: null,
-  ytBroadcastId: null,
-});
-
+// ── Wizard state (persisted in localStorage so it's resumable; see wizardState.ts) ──
 const storageKey = (id?: string) => `oravini:webinar-wizard:${id || "new"}`;
 function loadState(id?: string): WizardState | null {
-  try {
-    return restoreWizardState(localStorage.getItem(storageKey(id)), blank);
-  } catch { return null; }
+  try { return parseSavedWizardState(localStorage.getItem(storageKey(id))); } catch { return null; }
 }
 function persistState(id: string | undefined, s: WizardState) {
-  // A finished wizard is never persisted, so reopening /tools/webinars/new starts fresh.
-  if (s.step >= WIZARD_STEP_COUNT) return;
+  if (!shouldPersistWizardState(s)) return;
   try { localStorage.setItem(storageKey(id), JSON.stringify(s)); } catch {}
 }
 function clearState(id?: string) {
@@ -295,7 +262,8 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
         apiRequest("POST", `/api/webinar-funnels/${row.id}/youtube/broadcast`, {}).catch(() => {});
       }
       clearState(editingId);
-      setS(prev => ({ ...prev, createdId: row.id, step: 5 }));
+      // Past the last step = finished; persistState() skips it so a revisit starts fresh.
+      setS(prev => ({ ...prev, createdId: row.id, step: WIZARD_STEP_COUNT }));
       setFinished(row);
     } catch (e: any) {
       toast({ title: "Couldn't save your webinar", description: e.message, variant: "destructive" });
@@ -313,8 +281,6 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   const back = () => set("step", Math.max(0, s.step - 1));
 
   const advancedHref = editingId ? `/tools/webinars/${editingId}` : "/tools/webinars/new?mode=advanced";
-
-  const stepIdx = clampWizardStep(s.step);
 
   if (editingId && isLoading) {
     return <ClientLayout><div className="max-w-5xl mx-auto px-6 py-10"><div className="h-96 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} /></div></ClientLayout>;
@@ -352,7 +318,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
             <nav aria-label="Setup steps" className="lg:sticky lg:top-6 self-start">
               <div className="lg:hidden mb-1">
                 <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-2">
-                  <span>Step {stepIdx + 1} of 5 · <b className="text-zinc-300">{STEPS[stepIdx].short}</b></span>
+                  <span>Step {s.step + 1} of 5 · <b className="text-zinc-300">{STEPS[s.step].short}</b></span>
                   <span className="tabular-nums">{Math.round((s.step / 5) * 100)}%</span>
                 </div>
                 <div className="h-1 rounded-full bg-white/5 overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${((s.step + 1) / 5) * 100}%`, background: GOLD }} /></div>
@@ -386,7 +352,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
             <section className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))", border: "1px solid rgba(255,255,255,0.07)" }} data-testid={`wizard-step-${s.step + 1}`}>
               <div className="px-5 sm:px-7 pt-6 pb-5 border-b border-white/[0.05]">
                 <p className="text-[11px] font-bold tabular-nums mb-1" style={{ color: GOLD }}>STEP {String(s.step + 1).padStart(2, "0")}</p>
-                <h2 className="text-lg sm:text-xl font-black text-white">{STEPS[stepIdx].title}</h2>
+                <h2 className="text-lg sm:text-xl font-black text-white">{STEPS[s.step].title}</h2>
               </div>
 
               <div className="px-5 sm:px-7 py-6 space-y-4">

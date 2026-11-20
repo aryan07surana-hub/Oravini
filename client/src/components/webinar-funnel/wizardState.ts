@@ -1,26 +1,63 @@
-// Pure helpers for restoring the setup wizard from localStorage (no React, so they're unit-testable).
+// Webinar setup wizard — persisted progress (pure helpers, no React/DOM so they're unit-testable).
 
-/** Number of steps in the wizard (STEPS in WebinarSetupWizard). Index `WIZARD_STEP_COUNT` means "finished". */
+/** Number of wizard steps; valid step indexes are 0..WIZARD_STEP_COUNT-1. */
 export const WIZARD_STEP_COUNT = 5;
 
-/** Clamps any value to a valid step index 0..count-1 (NaN/negative → 0). */
-export function clampWizardStep(step: unknown, count = WIZARD_STEP_COUNT): number {
-  const n = Math.trunc(Number(step));
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(n, count - 1);
-}
+export type WizardState = {
+  step: number;                // 0..4 while in progress
+  channelReady: boolean;
+  checks1: boolean[];
+  streamScheduled: boolean;
+  checks2: boolean[];
+  youtube: string;
+  deckMode: "upload" | "link";
+  deckUrl: string;
+  ctaText: string;
+  ctaUrl: string;
+  offerText: string;
+  offerPrice: string;
+  offerExpiresLocal: string;
+  title: string;
+  description: string;
+  hostName: string;
+  scheduledLocal: string;
+  durationMinutes: number;
+  remindersEnabled: boolean;
+  publish: boolean;
+  createdId: string | null;
+  ytBroadcastId: string | null; // set when the stream was created on the host's connected YouTube channel
+};
+
+export const blankWizardState = (): WizardState => ({
+  step: 0, channelReady: false, checks1: [false, false, false], streamScheduled: false, checks2: [false, false, false, false],
+  youtube: "", deckMode: "upload", deckUrl: "", ctaText: "", ctaUrl: "", offerText: "", offerPrice: "", offerExpiresLocal: "",
+  title: "", description: "", hostName: "", scheduledLocal: "", durationMinutes: 60, remindersEnabled: true, publish: true, createdId: null,
+  ytBroadcastId: null,
+});
 
 /**
- * Parses persisted wizard state. Returns null (→ start fresh) when nothing usable
- * is stored, or when the stored wizard was already finished: after publishing,
- * the state used to be re-persisted with step = 5, and reopening the wizard read
- * STEPS[5] (undefined) and crashed. Any other step is clamped into range.
+ * Turns raw saved progress into a safe state, or null to start fresh.
+ *  - step at/after the last index (e.g. 5 = "finished", written by older builds) → null:
+ *    the wizard was completed, so a new visit starts over instead of indexing past STEPS.
+ *  - missing / non-numeric / negative / fractional step → clamped into 0..WIZARD_STEP_COUNT-1.
+ *  - anything that isn't a plain object → null.
  */
-export function restoreWizardState<T extends { step: number }>(raw: string | null, blank: () => T, count = WIZARD_STEP_COUNT): T | null {
-  if (!raw) return null;
-  let parsed: any;
-  try { parsed = JSON.parse(raw); } catch { return null; }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-  if (Number(parsed.step) >= count) return null;
-  return { ...blank(), ...parsed, step: clampWizardStep(parsed.step, count) };
+export function normalizeWizardState(raw: unknown): WizardState | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const merged: WizardState = { ...blankWizardState(), ...(raw as Partial<WizardState>) };
+  const n = Number((raw as any).step);
+  if (Number.isFinite(n) && n >= WIZARD_STEP_COUNT) return null;
+  merged.step = Number.isFinite(n) ? Math.min(WIZARD_STEP_COUNT - 1, Math.max(0, Math.floor(n))) : 0;
+  return merged;
+}
+
+/** Parses the localStorage string; corrupt JSON → null. */
+export function parseSavedWizardState(json: string | null): WizardState | null {
+  if (!json) return null;
+  try { return normalizeWizardState(JSON.parse(json)); } catch { return null; }
+}
+
+/** Only in-progress state is worth saving; a finished wizard must not be resumed. */
+export function shouldPersistWizardState(s: WizardState): boolean {
+  return s.step >= 0 && s.step < WIZARD_STEP_COUNT;
 }

@@ -30,7 +30,18 @@ type Result = {
   duration: number;
   clips: Clip[];
   isUpload?: boolean;
+  /** Set for uploads: the file is kept as an AI Video Studio project. */
+  editorProjectId?: number | null;
 };
+
+/** Deep link into the AI Video Studio with this clip's range pre-trimmed. */
+function editorHref(result: Result, clip: Clip): string {
+  const q = new URLSearchParams({ start: String(clip.startSeconds), end: String(clip.endSeconds) });
+  if (result.editorProjectId) q.set("project", String(result.editorProjectId));
+  else if (result.videoId) { q.set("yt", result.videoId); q.set("title", clip.title); }
+  else return "/video-studio";
+  return `/video-studio?${q.toString()}`;
+}
 
 const UPLOAD_MSGS = [
   "Uploading your video…",
@@ -160,13 +171,6 @@ export default function ClipFinder() {
     const MB = 1024 * 1024;
     if (file.size > 200 * MB) {
       toast({ title: "File too large", description: "Maximum 200MB.", variant: "destructive" }); return;
-    }
-    if (file.size > 25 * MB) {
-      toast({
-        title: "File over 25MB",
-        description: "Whisper AI has a 25MB limit. For best results, export audio-only (MP3/M4A) or trim the clip first.",
-        duration: 7000,
-      });
     }
 
     setIsPending(true);
@@ -315,7 +319,7 @@ export default function ClipFinder() {
                         <div>
                           <p className="text-base font-black text-foreground">Drop your video here</p>
                           <p className="text-sm text-muted-foreground mt-1">MP4, MOV, WebM, AVI, MKV, MP3, M4A, WAV</p>
-                          <p className="text-xs text-muted-foreground/60 mt-1">Up to 25MB for AI transcription</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">Up to 200MB — audio is extracted automatically for AI transcription</p>
                         </div>
                         <Button size="sm" className="bg-primary text-black hover:bg-primary/90 gap-2 font-bold" data-testid="btn-browse">
                           <Upload className="w-3.5 h-3.5" /> Browse Files
@@ -588,7 +592,7 @@ export default function ClipFinder() {
                           <CopyButton text={`${clip.startLabel} – ${clip.endLabel}`} label="Copy timestamp" />
                           <CopyButton text={clip.hook} label="Copy hook" />
                           <div className="ml-auto">
-                            <a href="/video-editor"
+                            <a href={editorHref(result, clip)}
                               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors">
                               <Film className="w-3 h-3" /> Open in Editor
                               <ChevronRight className="w-3 h-3" />

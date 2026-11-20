@@ -1,35 +1,51 @@
-// Run with: npm test
-import { test, describe } from "node:test";
+// Run: npm test   (node:test via tsx — no extra dependencies)
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { WIZARD_STEP_COUNT, clampWizardStep, restoreWizardState } from "../client/src/components/webinar-funnel/wizardState";
+import {
+  WIZARD_STEP_COUNT, blankWizardState, normalizeWizardState, parseSavedWizardState, shouldPersistWizardState,
+} from "../client/src/components/webinar-funnel/wizardState";
 
-const blank = () => ({ step: 0, title: "", createdId: null as string | null });
+test("regression: completed wizard (saved step 5) starts fresh instead of crashing", () => {
+  const saved = JSON.stringify({ ...blankWizardState(), step: 5, title: "Old webinar", createdId: "abc" });
+  assert.equal(parseSavedWizardState(saved), null);
+});
 
-describe("wizard step restore (fix for: Cannot read properties of undefined (reading 'short'))", () => {
-  test("a finished wizard (step 5) restores as fresh instead of an out-of-range step", () => {
-    const raw = JSON.stringify({ step: 5, title: "Old webinar", createdId: "wf_old" });
-    assert.equal(restoreWizardState(raw, blank), null);
-  });
+test("steps past the end are never restored", () => {
+  for (const step of [WIZARD_STEP_COUNT, WIZARD_STEP_COUNT + 1, 99]) {
+    assert.equal(normalizeWizardState({ step }), null, `step ${step}`);
+  }
+});
 
-  test("valid steps are restored as-is", () => {
-    const s = restoreWizardState(JSON.stringify({ step: 3, title: "T" }), blank)!;
-    assert.equal(s.step, 3);
-    assert.equal(s.title, "T");
-  });
+test("in-range steps are kept, including the last one", () => {
+  for (let step = 0; step < WIZARD_STEP_COUNT; step++) {
+    assert.equal(normalizeWizardState({ step })?.step, step);
+  }
+});
 
-  test("garbage steps are clamped into 0..4", () => {
-    for (const bad of [-2, "abc", null, 2.7]) {
-      const s = restoreWizardState(JSON.stringify({ step: bad }), blank)!;
-      assert.ok(s.step >= 0 && s.step < WIZARD_STEP_COUNT, `step ${bad} → ${s.step}`);
-    }
-    assert.equal(clampWizardStep(99), WIZARD_STEP_COUNT - 1);
-    assert.equal(clampWizardStep(Number.NaN), 0);
-    assert.equal(clampWizardStep(2.7), 2);
-  });
+test("bad step values are clamped into the valid range", () => {
+  assert.equal(normalizeWizardState({ step: -3 })?.step, 0);
+  assert.equal(normalizeWizardState({ step: 2.7 })?.step, 2);
+  assert.equal(normalizeWizardState({ step: "3" })?.step, 3);
+  assert.equal(normalizeWizardState({ step: "nope" })?.step, 0);
+  assert.equal(normalizeWizardState({})?.step, 0);
+});
 
-  test("missing or corrupt storage starts fresh", () => {
-    assert.equal(restoreWizardState(null, blank), null);
-    assert.equal(restoreWizardState("{not json", blank), null);
-    assert.equal(restoreWizardState("[1,2]", blank), null);
-  });
+test("saved fields are kept and missing fields get defaults", () => {
+  const s = normalizeWizardState({ step: 2, youtube: "https://youtu.be/x", title: "T" })!;
+  assert.equal(s.youtube, "https://youtu.be/x");
+  assert.equal(s.title, "T");
+  assert.equal(s.durationMinutes, 60);
+  assert.deepEqual(s.checks2, [false, false, false, false]);
+});
+
+test("garbage input starts fresh", () => {
+  assert.equal(parseSavedWizardState(null), null);
+  assert.equal(parseSavedWizardState("{not json"), null);
+  assert.equal(parseSavedWizardState("[1,2]"), null);
+  assert.equal(parseSavedWizardState("null"), null);
+});
+
+test("finished state is not persisted; in-progress state is", () => {
+  assert.equal(shouldPersistWizardState({ ...blankWizardState(), step: WIZARD_STEP_COUNT }), false);
+  assert.equal(shouldPersistWizardState({ ...blankWizardState(), step: WIZARD_STEP_COUNT - 1 }), true);
 });

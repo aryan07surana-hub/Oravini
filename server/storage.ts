@@ -1241,10 +1241,13 @@ class DatabaseStorage implements IStorage {
   }
 
   async getUnseenFeedCount(userId: string) {
-    const rows = await db.select({ id: competitorDetectedPosts.id })
-      .from(competitorDetectedPosts)
-      .where(and(eq(competitorDetectedPosts.userId, userId), eq(competitorDetectedPosts.isSeen, false)));
-    return rows.length;
+    if (!userId) return 0;
+    // COUNT in SQL instead of loading every unseen row on each 60s badge poll.
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM competitor_detected_posts WHERE user_id = $1 AND is_seen = false`,
+      [userId],
+    );
+    return Number(rows[0]?.count ?? 0);
   }
 
   async markFeedSeen(userId: string) {
