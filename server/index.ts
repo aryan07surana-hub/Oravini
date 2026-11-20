@@ -1179,6 +1179,15 @@ async function runMigrations() {
     console.warn("[migration] meta_ads_ad_snapshots skipped:", e.message);
   }
 
+  // ── AI Video Editor: jobs table + additive video_edits columns ────────────
+  try {
+    const { VIDEO_EDITOR_SCHEMA_SQL } = await import("./videoEditor/jobs");
+    await pool.query(VIDEO_EDITOR_SCHEMA_SQL);
+    console.log("[migration] video_editor_jobs + video_edits columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] video editor schema skipped:", e.message);
+  }
+
   // ── Meta Ads Bulk Jobs ────────────────────────────────────────────────────
   try {
     await pool.query(`

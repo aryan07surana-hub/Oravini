@@ -946,7 +946,7 @@ const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string 
   "Knowing what content to create":    { action: "Generate a 30-day content plan with hooks, formats, and a posting cadence built for your niche.",       href: "/content-calendar",       tool: "Content Calendar" },
   "Getting views / reach":             { action: "Review your top-performing posts and double down on the formats and hooks that work.",                 href: "/tracking/content",       tool: "Content Tracker" },
   "Building confidence on camera":     { action: "Generate camera-friendly scripts with natural delivery cues — practice with the words, not just ideas.", href: "/ai-ideas",               tool: "AI Content Ideas" },
-  "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-editor",           tool: "AI Video Editor" },
+  "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-studio",           tool: "AI Video Editor" },
 };
 
 const PLATFORM_EMOJI: Record<string, string> = {

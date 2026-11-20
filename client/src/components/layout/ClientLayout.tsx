@@ -189,6 +189,7 @@ const topNavItems = [
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
+  { href: "/video-studio", label: "AI Video Studio", icon: Sparkles },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/oravini-recorder", label: "Oravini Recorder", icon: MonitorPlay },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
