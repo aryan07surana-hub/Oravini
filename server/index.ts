@@ -26,6 +26,7 @@ import { storage } from "./storage";
 import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
 import { startWebinarEmailScheduler } from "./jobs/webinar-email-scheduler";
+import { startWebinarFunnelReminderJob } from "./webinarFunnelEmail";
 import { startSchedulingCronJobs } from "./schedulingCron";
 import { startRtmpServer } from "./rtmp";
 import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
@@ -1313,6 +1314,61 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] webinar_funnels skipped:", e.message);
   }
+
+  // ── Webinar live experience: chat/Q&A, attendance heartbeat, CTA clicks, offer/deck/replay fields ──
+  // Additive only: new nullable/defaulted columns + new tables. Nothing is dropped or rewritten.
+  try {
+    await pool.query(`
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS deck_url TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS replay_url TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_text TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_price TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_expires_at TIMESTAMP;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE webinar_funnel_registrations ADD COLUMN IF NOT EXISTS reminder_1h_sent_at TIMESTAMP;
+      CREATE TABLE IF NOT EXISTS webinar_chat_messages (
+        id SERIAL PRIMARY KEY,
+        webinar_id VARCHAR NOT NULL,
+        name TEXT NOT NULL,
+        body TEXT NOT NULL,
+        is_question BOOLEAN NOT NULL DEFAULT FALSE,
+        is_host BOOLEAN NOT NULL DEFAULT FALSE,
+        answered_at TIMESTAMP,
+        hidden_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_chat_messages_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_chat_webinar ON webinar_chat_messages(webinar_id, id);
+      CREATE TABLE IF NOT EXISTS webinar_attendance (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        webinar_id VARCHAR NOT NULL,
+        viewer_key TEXT NOT NULL,
+        email TEXT,
+        registration_id VARCHAR,
+        source TEXT NOT NULL DEFAULT 'live',
+        join_at TIMESTAMP DEFAULT NOW(),
+        last_seen TIMESTAMP DEFAULT NOW(),
+        watch_seconds INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT webinar_attendance_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_webinar_attendance_viewer ON webinar_attendance(webinar_id, viewer_key);
+      CREATE INDEX IF NOT EXISTS idx_webinar_attendance_webinar ON webinar_attendance(webinar_id, last_seen);
+      CREATE TABLE IF NOT EXISTS webinar_cta_clicks (
+        id SERIAL PRIMARY KEY,
+        webinar_id VARCHAR NOT NULL,
+        viewer_key TEXT,
+        email TEXT,
+        registration_id VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_cta_clicks_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_cta_clicks_webinar ON webinar_cta_clicks(webinar_id);
+    `);
+    console.log("[migration] webinar live-experience tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] webinar live-experience skipped:", e.message);
+  }
 }
 
 (async () => {
@@ -1384,6 +1440,7 @@ async function runMigrations() {
     log(`Brandverse portal serving on port ${port}`);
     startCronJobs();
     startWebinarEmailScheduler();
+    startWebinarFunnelReminderJob();
     startSchedulingCronJobs();
   });
 })();

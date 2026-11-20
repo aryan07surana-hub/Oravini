@@ -5,9 +5,11 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST } from "@shared/webinarFunnel";
-import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye } from "lucide-react";
+import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST, deckEmbed } from "@shared/webinarFunnel";
+import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye, Wand2, BarChart3, MessagesSquare, Settings2, Upload, X, Bell } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";
+import { uploadDeck, type WebinarFunnelFull } from "@/components/webinar-funnel/hostUtils";
+import { HostLiveRoom, WebinarAnalyticsPanel } from "@/components/webinar-funnel/HostPanels";
 
 const GOLD = "#d4b461";
 const IST_OFFSET_MIN = 330;
@@ -33,9 +35,7 @@ function visitorState(status: WebinarStatus, scheduledAt: string, hasVideo: bool
     return { tone: "#71717a", label: "Hidden", text: "Draft — /w/ links show \"not found\". Publish to open registration." };
   }
   if (status === "ended") {
-    return started
-      ? { tone: "#a78bfa", label: "Replay", text: `Registration closed · /live plays the ${hasVideo ? "replay" : "video (none set yet)"} with your CTA.` }
-      : { tone: "#a78bfa", label: "Closed", text: "Registration closed · /live shows a countdown until the scheduled time, then the replay." };
+    return { tone: "#a78bfa", label: "Replay", text: `Registration closed · /live plays the ${hasVideo ? "replay" : "video (none set yet)"} with your offer; chat is read-only.` };
   }
   return started
     ? { tone: "#f87171", label: "Live", text: hasVideo ? "Live now · registration page links to /live, which shows the stream + CTA." : "Live now · but no YouTube video is set, so /live shows \"stream isn't connected yet\"." }
@@ -57,7 +57,11 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const { data: existing, isLoading } = useQuery<WebinarFunnelRow | null>({
+  const [tab, setTab] = useState<"details" | "live" | "analytics">(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "live" || t === "analytics" ? t : "details";
+  });
+  const { data: existing, isLoading } = useQuery<WebinarFunnelFull | null>({
     queryKey: [`/api/webinar-funnels/${id}`],
     enabled: !isNew,
   });
@@ -71,6 +75,14 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [ctaUrl, setCtaUrl] = useState("");
   const [slug, setSlug] = useState("");
   const [status, setStatus] = useState<WebinarStatus>("draft");
+  const [deckUrl, setDeckUrl] = useState("");
+  const [deckUploading, setDeckUploading] = useState(false);
+  const [replay, setReplay] = useState("");
+  const [offerText, setOfferText] = useState("");
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerExpiresLocal, setOfferExpiresLocal] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const hydratedId = useRef<string | null>(null);
 
@@ -94,6 +106,13 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
     setCtaUrl(existing.ctaUrl || "");
     setSlug(existing.slug);
     setStatus(existing.status);
+    setDeckUrl(existing.deckUrl || "");
+    setReplay(existing.replayUrl || "");
+    setOfferText(existing.offerText || "");
+    setOfferPrice(existing.offerPrice || "");
+    setOfferExpiresLocal(existing.offerExpiresAt ? toISTInput(existing.offerExpiresAt) : "");
+    setDurationMinutes(existing.durationMinutes || 60);
+    setRemindersEnabled(existing.remindersEnabled ?? true);
   }, [existing]);
 
   const videoId = parseYouTubeVideoId(youtube);
@@ -101,6 +120,10 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const slugInvalid = slug.trim() !== "" && !WEBINAR_SLUG_RE.test(slug.trim());
   const ctaUrlInvalid = ctaUrl.trim() !== "" && !/^https?:\/\/\S+$/i.test(ctaUrl.trim());
   const scheduledIso = scheduledLocal ? fromISTInput(scheduledLocal) : null;
+  const replayId = parseYouTubeVideoId(replay);
+  const replayInvalid = replay.trim() !== "" && !replayId;
+  const deckInvalid = deckUrl.trim() !== "" && !/^(https?:\/\/\S+|\/uploads\/[\w.\-]+)$/i.test(deckUrl.trim());
+  const offerExpiresIso = offerExpiresLocal ? fromISTInput(offerExpiresLocal) : null;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -113,6 +136,13 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
         ctaText: ctaText.trim() || null,
         ctaUrl: ctaUrl.trim() || null,
         status,
+        deckUrl: deckUrl.trim() || null,
+        replay: replay.trim() || null,
+        offerText: offerText.trim() || null,
+        offerPrice: offerPrice.trim() || null,
+        offerExpiresAt: offerExpiresIso,
+        durationMinutes,
+        remindersEnabled,
       };
       if (slug.trim()) body.slug = slug.trim();
       return isNew
@@ -164,6 +194,8 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
     if (youtubeInvalid) return toast({ title: "That doesn't look like a YouTube link", variant: "destructive" });
     if (ctaUrlInvalid) return toast({ title: "CTA URL must start with https://", variant: "destructive" });
     if (slugInvalid) return toast({ title: "Link can only use a-z, 0-9 and dashes", variant: "destructive" });
+    if (replayInvalid) return toast({ title: "That replay link isn't a YouTube video", variant: "destructive" });
+    if (deckInvalid) return toast({ title: "Slides link must start with https://", variant: "destructive" });
     save.mutate();
   };
 
@@ -191,7 +223,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
 
   return (
     <ClientLayout>
-      <div className="max-w-3xl mx-auto px-6 py-10">
+      <div className={`${!isNew && tab !== "details" ? "max-w-5xl" : "max-w-3xl"} mx-auto px-4 sm:px-6 py-10 transition-[max-width]`}>
         {/* Header */}
         <button onClick={() => navigate("/tools/webinars")} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 mb-5">
           <ArrowLeft className="w-3.5 h-3.5" /> All webinars
@@ -204,10 +236,20 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
             <div>
               <h1 className="text-xl font-black text-white">{isNew ? "New Webinar" : "Edit Webinar"}</h1>
               <p className="text-xs text-zinc-500">Registration page at /w/your-link · live page at /w/your-link/live</p>
+              {isNew && (
+                <button onClick={() => navigate("/tools/webinars/new")} className="mt-1 flex items-center gap-1 text-[11px] font-semibold" style={{ color: GOLD }}>
+                  <Wand2 className="w-3 h-3" /> Prefer step-by-step? Use the guided setup
+                </button>
+              )}
             </div>
           </div>
           {!isNew && existing && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={() => navigate(`/tools/webinars/${existing.id}/setup`)} data-testid="btn-guided-setup"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
+                style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}35`, color: GOLD }}>
+                <Wand2 className="w-3.5 h-3.5" /> Guided setup
+              </button>
               <button onClick={() => navigate(`/tools/webinars/${existing.id}/registrations`)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
                 style={{ background: "rgba(244,114,182,0.1)", border: "1px solid rgba(244,114,182,0.25)", color: "#f472b6" }}>
@@ -224,6 +266,26 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           )}
         </div>
 
+        {!isNew && existing && (
+          <div role="tablist" className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {([
+              { id: "details", label: "Details", icon: Settings2 },
+              { id: "live", label: "Live room", icon: MessagesSquare },
+              { id: "analytics", label: "Analytics", icon: BarChart3 },
+            ] as const).map(t => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} data-testid={`editor-tab-${t.id}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all ${tab === t.id ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+                style={tab === t.id ? { background: "rgba(255,255,255,0.06)", boxShadow: `inset 0 -2px 0 ${GOLD}` } : undefined}>
+                <t.icon className="w-3.5 h-3.5" style={tab === t.id ? { color: GOLD } : undefined} /> {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!isNew && existing && tab === "live" && <HostLiveRoom webinar={existing} />}
+        {!isNew && existing && tab === "analytics" && <WebinarAnalyticsPanel webinar={existing} />}
+
+        <div hidden={!isNew && tab !== "details"}>
         {/* Publish toggle */}
         <div className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${status === "published" ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.07)"}` }}>
           <div className="min-w-0">
@@ -324,6 +386,70 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           </Field>
         </div>
 
+        <div className="rounded-2xl p-6 space-y-5 mt-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <p className="text-sm font-bold text-white -mb-1">Live room</p>
+          <Field label="Slides (PDF, Google Slides or Canva link)"
+            hint={deckInvalid ? <span className="text-red-400">Must start with https://</span>
+              : deckEmbed(deckUrl) ? <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {deckEmbed(deckUrl)!.label} — shown in the Slides tab</span>
+              : "Optional. Viewers see it in the Slides tab next to the stream."}>
+            <div className="flex gap-2">
+              <input data-testid="input-deck-url" value={deckUrl} onChange={e => setDeckUrl(e.target.value)} placeholder="https://docs.google.com/presentation/d/…"
+                className={inputCls} style={deckInvalid ? { ...inputStyle, border: "1px solid rgba(248,113,113,0.5)" } : inputStyle} />
+              {deckUrl && (
+                <button type="button" onClick={() => setDeckUrl("")} className="px-3 rounded-xl text-zinc-500 hover:text-red-300" style={inputStyle} aria-label="Clear slides"><X className="w-4 h-4" /></button>
+              )}
+              <label className="flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold cursor-pointer flex-shrink-0" style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}35`, color: GOLD }}>
+                {deckUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} PDF
+                <input type="file" accept="application/pdf,.pdf" className="hidden" disabled={deckUploading} onChange={async e => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  setDeckUploading(true);
+                  try { setDeckUrl(await uploadDeck(f)); toast({ title: "Deck uploaded — remember to save" }); }
+                  catch (err: any) { toast({ title: "Upload failed", description: err.message, variant: "destructive" }); }
+                  finally { setDeckUploading(false); }
+                }} />
+              </label>
+            </div>
+          </Field>
+          <Field label="Offer text" hint="Shown under the video with your CTA button.">
+            <textarea data-testid="input-offer-text" value={offerText} onChange={e => setOfferText(e.target.value)} rows={2} maxLength={1000}
+              placeholder="What they get when they buy today" className={`${inputCls} resize-y`} style={inputStyle} />
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field label="Price line">
+              <input data-testid="input-offer-price" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} maxLength={120}
+                placeholder="₹14,999 (webinar-only price)" className={inputCls} style={inputStyle} />
+            </Field>
+            <Field label="Offer expires (IST)" hint={offerExpiresIso ? `Countdown until ${formatIST(offerExpiresIso)}; button hides after.` : "Optional countdown."}>
+              <input data-testid="input-offer-expires" type="datetime-local" value={offerExpiresLocal} onChange={e => setOfferExpiresLocal(e.target.value)} className={inputCls} style={inputStyle} />
+            </Field>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field label="Replay link (optional)"
+              hint={replayInvalid ? <span className="text-red-400">Couldn't find a YouTube video ID</span>
+                : replayId ? <span className="text-emerald-400">Replay video: {replayId}</span>
+                : "After you mark the webinar ended. Leave blank to reuse the live link — YouTube turns lives into videos."}>
+              <input data-testid="input-replay" value={replay} onChange={e => setReplay(e.target.value)} placeholder="https://youtu.be/…"
+                className={inputCls} style={replayInvalid ? { ...inputStyle, border: "1px solid rgba(248,113,113,0.5)" } : inputStyle} />
+            </Field>
+            <Field label="Length (minutes)" hint="Used for watch-through %.">
+              <input data-testid="input-duration" type="number" min={5} max={600} value={durationMinutes}
+                onChange={e => setDurationMinutes(Math.min(600, Math.max(5, Number(e.target.value) || 60)))} className={inputCls} style={inputStyle} />
+            </Field>
+          </div>
+          <div className="flex items-center justify-between gap-4 pt-1">
+            <div className="flex items-start gap-2.5">
+              <Bell className="w-4 h-4 mt-0.5" style={{ color: GOLD }} />
+              <div>
+                <p className="text-sm font-bold text-white">Email reminders</p>
+                <p className="text-xs text-zinc-500">Confirmation with calendar invite on registration, plus a reminder 1 hour before.</p>
+              </div>
+            </div>
+            <Switch data-testid="switch-reminders" checked={remindersEnabled} onCheckedChange={setRemindersEnabled} aria-label="Email reminders" />
+          </div>
+        </div>
+
         <div className="flex justify-end mt-6">
           <button
             data-testid="btn-save-webinar"
@@ -334,6 +460,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           >
             <Save className="w-4 h-4" /> {save.isPending ? "Saving..." : isNew ? "Create webinar" : "Save changes"}
           </button>
+        </div>
         </div>
       </div>
     </ClientLayout>

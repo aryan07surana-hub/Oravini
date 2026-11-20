@@ -77,7 +77,12 @@ function applyHelmet(app: Express) {
           imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           connectSrc: ["'self'", "https://api.anthropic.com", "https://graph.facebook.com", "https://api.linkedin.com", "https://api.twitter.com", "wss:", "ws:"],
-          frameSrc: ["'self'", "https://accounts.google.com", "https://www.facebook.com"],
+          frameSrc: [
+            "'self'", "https://accounts.google.com", "https://www.facebook.com",
+            // Webinar live room embeds (YouTube Live player + slide decks)
+            "https://www.youtube.com", "https://www.youtube-nocookie.com", "https://docs.google.com",
+            "https://www.canva.com", "https://res.cloudinary.com",
+          ],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
           formAction: ["'self'", "https://accounts.google.com", "https://www.facebook.com", "https://www.linkedin.com", "https://twitter.com"],

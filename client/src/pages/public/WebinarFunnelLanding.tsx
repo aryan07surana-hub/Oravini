@@ -3,12 +3,11 @@ import { useParams, Link } from "wouter";
 import { CalendarClock, CheckCircle2, Mic, PlayCircle, Radio } from "lucide-react";
 import { formatIST } from "@shared/webinarFunnel";
 import {
-  GOLD, Countdown, PublicLoading, PublicShell, WebinarNotFound, useCountdown, usePublicWebinar,
+  GOLD, Countdown, PublicLoading, PublicShell, WebinarNotFound, useCountdown, usePublicWebinar, readRegistration, saveRegistration,
 } from "@/components/webinar-funnel/shared";
 import { getUtmParams } from "@/lib/utm";
 
 const inputStyle = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", outline: "none" };
-const regKey = (slug: string) => `oravini:webinar-registered:${slug}`;
 
 export default function WebinarFunnelLanding() {
   const { slug } = useParams<{ slug: string }>();
@@ -24,7 +23,7 @@ export default function WebinarFunnelLanding() {
 
   useEffect(() => {
     if (!slug) return;
-    try { if (localStorage.getItem(regKey(slug))) setRegistered(true); } catch {}
+    if (readRegistration(slug)) setRegistered(true);
   }, [slug]);
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export default function WebinarFunnelLanding() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Registration failed. Please try again.");
-      try { localStorage.setItem(regKey(webinar.slug), "1"); } catch {}
+      saveRegistration(webinar.slug, { registrationId: data.registrationId, name: name.trim(), email: email.trim().toLowerCase() });
       setRegistered(true);
     } catch (err: any) {
       setError(err.message);
