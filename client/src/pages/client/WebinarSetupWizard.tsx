@@ -13,46 +13,17 @@ import {
 import {
   Field, GOLD, fromISTInput, inputCls, inputErrStyle, inputStyle, toISTInput, uploadDeck, type WebinarFunnelFull,
 } from "@/components/webinar-funnel/hostUtils";
+import {
+  WIZARD_STEP_COUNT, blankWizardState as blank, parseSavedWizardState, shouldPersistWizardState, type WizardState,
+} from "@/components/webinar-funnel/wizardState";
 
-// ── Wizard state (persisted in localStorage so it's resumable) ─────────────
-type WizardState = {
-  step: number;                // 0..4, 5 = finished
-  channelReady: boolean;
-  checks1: boolean[];
-  streamScheduled: boolean;
-  checks2: boolean[];
-  youtube: string;
-  deckMode: "upload" | "link";
-  deckUrl: string;
-  ctaText: string;
-  ctaUrl: string;
-  offerText: string;
-  offerPrice: string;
-  offerExpiresLocal: string;
-  title: string;
-  description: string;
-  hostName: string;
-  scheduledLocal: string;
-  durationMinutes: number;
-  remindersEnabled: boolean;
-  publish: boolean;
-  createdId: string | null;
-};
-
-const blank = (): WizardState => ({
-  step: 0, channelReady: false, checks1: [false, false, false], streamScheduled: false, checks2: [false, false, false, false],
-  youtube: "", deckMode: "upload", deckUrl: "", ctaText: "", ctaUrl: "", offerText: "", offerPrice: "", offerExpiresLocal: "",
-  title: "", description: "", hostName: "", scheduledLocal: "", durationMinutes: 60, remindersEnabled: true, publish: true, createdId: null,
-});
-
+// ── Wizard state (persisted in localStorage so it's resumable; see wizardState.ts) ──
 const storageKey = (id?: string) => `oravini:webinar-wizard:${id || "new"}`;
 function loadState(id?: string): WizardState | null {
-  try {
-    const raw = localStorage.getItem(storageKey(id));
-    return raw ? { ...blank(), ...JSON.parse(raw) } : null;
-  } catch { return null; }
+  try { return parseSavedWizardState(localStorage.getItem(storageKey(id))); } catch { return null; }
 }
 function persistState(id: string | undefined, s: WizardState) {
+  if (!shouldPersistWizardState(s)) return;
   try { localStorage.setItem(storageKey(id), JSON.stringify(s)); } catch {}
 }
 function clearState(id?: string) {
@@ -227,7 +198,8 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/webinar-funnels"] });
       queryClient.setQueryData([`/api/webinar-funnels/${row.id}`], row);
       clearState(editingId);
-      setS(prev => ({ ...prev, createdId: row.id, step: 5 }));
+      // Past the last step = finished; persistState() skips it so a revisit starts fresh.
+      setS(prev => ({ ...prev, createdId: row.id, step: WIZARD_STEP_COUNT }));
       setFinished(row);
     } catch (e: any) {
       toast({ title: "Couldn't save your webinar", description: e.message, variant: "destructive" });
