@@ -49,6 +49,11 @@ export type WebinarFunnelFull = WebinarFunnelRow & {
   offerExpiresAt: string | null;
   durationMinutes: number | null;
   remindersEnabled: boolean;
+  // Set when the stream was created on the host's connected YouTube channel
+  youtubeBroadcastId?: string | null;
+  youtubeStreamId?: string | null;
+  youtubeIngestionAddress?: string | null;
+  youtubeStreamKeySet?: boolean;
 };
 
 export function fmtDuration(sec: number) {

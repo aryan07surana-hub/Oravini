@@ -10,6 +10,8 @@ import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users,
 import type { WebinarFunnelRow } from "./WebinarFunnels";
 import { uploadDeck, type WebinarFunnelFull } from "@/components/webinar-funnel/hostUtils";
 import { HostLiveRoom, WebinarAnalyticsPanel } from "@/components/webinar-funnel/HostPanels";
+import { YoutubeLivePanel } from "@/components/webinar-funnel/YoutubeLivePanel";
+import { YOUTUBE_STATUS_KEY, consumeYoutubeConnectResult } from "@/components/webinar-funnel/youtube";
 
 const GOLD = "#d4b461";
 const IST_OFFSET_MIN = 330;
@@ -85,6 +87,15 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const hydratedId = useRef<string | null>(null);
+
+  // Back from "Connect YouTube" (?yt_connected / ?yt_error)
+  useEffect(() => {
+    const result = consumeYoutubeConnectResult();
+    if (!result) return;
+    queryClient.invalidateQueries({ queryKey: YOUTUBE_STATUS_KEY });
+    if (result.ok) toast({ title: "YouTube connected" });
+    else toast({ title: "Couldn't connect YouTube", description: result.error, variant: "destructive" });
+  }, []);
 
   // Re-evaluate the visitor-state line as the scheduled time passes.
   useEffect(() => {
@@ -364,6 +375,10 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
               placeholder="https://youtube.com/live/..." className={inputCls}
               style={youtubeInvalid ? { ...inputStyle, border: "1px solid rgba(248,113,113,0.5)" } : inputStyle} />
           </Field>
+
+          {!isNew && existing && (
+            <YoutubeLivePanel webinar={existing} onLinked={setYoutube} onReplay={setReplay} />
+          )}
 
           <div className="grid sm:grid-cols-2 gap-5">
             <Field label="CTA button text" hint="Shown under the video once the webinar starts.">

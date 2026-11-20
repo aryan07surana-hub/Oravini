@@ -401,6 +401,7 @@ function AppRoutes() {
       <Route path="/youtube-scheduler">{() => <Guard component={YouTubeScheduler} />}</Route>
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
+      <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>

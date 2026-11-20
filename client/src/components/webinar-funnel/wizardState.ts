@@ -25,12 +25,14 @@ export type WizardState = {
   remindersEnabled: boolean;
   publish: boolean;
   createdId: string | null;
+  ytBroadcastId: string | null; // set when the stream was created on the host's connected YouTube channel
 };
 
 export const blankWizardState = (): WizardState => ({
   step: 0, channelReady: false, checks1: [false, false, false], streamScheduled: false, checks2: [false, false, false, false],
   youtube: "", deckMode: "upload", deckUrl: "", ctaText: "", ctaUrl: "", offerText: "", offerPrice: "", offerExpiresLocal: "",
   title: "", description: "", hostName: "", scheduledLocal: "", durationMinutes: 60, remindersEnabled: true, publish: true, createdId: null,
+  ytBroadcastId: null,
 });
 
 /**

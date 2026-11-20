@@ -3297,6 +3297,11 @@ export const webinarFunnels = pgTable("webinar_funnels", {
   offerExpiresAt: timestamp("offer_expires_at"),
   durationMinutes: integer("duration_minutes").default(60),
   remindersEnabled: boolean("reminders_enabled").notNull().default(true),
+  // YouTube Live created via the host's connected channel (added idempotently in runMigrations)
+  youtubeBroadcastId: text("youtube_broadcast_id"),
+  youtubeStreamId: text("youtube_stream_id"),
+  youtubeStreamKey: text("youtube_stream_key"),          // AES-256-GCM encrypted (security/tokenEncryption)
+  youtubeIngestionAddress: text("youtube_ingestion_address"),
 }, (t) => [index("idx_webinar_funnels_user").on(t.userId)]);
 export type WebinarFunnel = typeof webinarFunnels.$inferSelect;
 

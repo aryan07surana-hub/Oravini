@@ -10,6 +10,7 @@ import {
   Globe, Languages, MessageCircle, Star
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
+import YoutubeConnectionCard from "@/components/YoutubeConnectionCard";
 import PaymentConnections from "@/components/payments/PaymentConnections";
 import { CreditCard } from "lucide-react";
 import { Link } from "wouter";
@@ -673,6 +674,9 @@ export default function PlanSettings() {
             </div>
           </div>
         </div>
+
+        {/* ── CONNECTIONS ── */}
+        <YoutubeConnectionCard />
 
         {/* ── TIMEZONE & LANGUAGE ── */}
         <div className="mt-4">

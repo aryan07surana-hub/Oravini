@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { deckEmbed, formatIST, parseYouTubeVideoId } from "@shared/webinarFunnel";
 import {
   AlertCircle, ArrowLeft, ArrowRight, ArrowUpRight, Bell, CalendarClock, Check, CheckCircle2, ChevronRight, Copy,
-  FileUp, Link2, Loader2, PartyPopper, Radio, Sparkles, Upload, Wand2, X,
+  FileUp, Link2, Loader2, PartyPopper, Radio, Sparkles, Upload, Wand2, X, Youtube, Zap,
 } from "lucide-react";
 import {
   Field, GOLD, fromISTInput, inputCls, inputErrStyle, inputStyle, toISTInput, uploadDeck, type WebinarFunnelFull,
@@ -16,6 +16,10 @@ import {
 import {
   WIZARD_STEP_COUNT, blankWizardState as blank, parseSavedWizardState, shouldPersistWizardState, type WizardState,
 } from "@/components/webinar-funnel/wizardState";
+import {
+  SecretField, YOUTUBE_STATUS_KEY, consumeYoutubeConnectResult, startYoutubeConnect, useYoutubeConnection,
+  type YoutubeBroadcastInfo, type YoutubeConnection, type YoutubeLiveStatus,
+} from "@/components/webinar-funnel/youtube";
 
 // ── Wizard state (persisted in localStorage so it's resumable; see wizardState.ts) ──
 const storageKey = (id?: string) => `oravini:webinar-wizard:${id || "new"}`;
@@ -142,10 +146,36 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
       remindersEnabled: existing.remindersEnabled ?? prev.remindersEnabled,
       publish: existing.status !== "draft" || prev.publish,
       createdId: existing.id,
+      ytBroadcastId: prev.ytBroadcastId || existing.youtubeBroadcastId || null,
     }));
   }, [existing]);
 
   useEffect(() => { persistState(editingId, s); }, [s, editingId]);
+
+  // ── YouTube: coming back from "Connect YouTube" lands here with ?yt_connected / ?yt_error
+  const yt = useYoutubeConnection();
+  useEffect(() => {
+    const result = consumeYoutubeConnectResult();
+    if (!result) return;
+    queryClient.invalidateQueries({ queryKey: YOUTUBE_STATUS_KEY });
+    if (result.ok) toast({ title: "YouTube connected", description: "Now create your stream in one click." });
+    else toast({ title: "Couldn't connect YouTube", description: result.error, variant: "destructive" });
+  }, []);
+
+  // Stream key/ingestion live only in memory (never in localStorage); re-fetched from the server on resume.
+  const [ytInfo, setYtInfo] = useState<YoutubeBroadcastInfo | null>(null);
+  const [creatingStream, setCreatingStream] = useState(false);
+  useEffect(() => {
+    const target = editingId || s.createdId;
+    if (!s.ytBroadcastId || !target || ytInfo || !yt.data?.connected) return;
+    apiRequest("GET", `/api/webinar-funnels/${target}/youtube/status`)
+      .then((st: YoutubeLiveStatus) => {
+        if (st.broadcastId && st.streamKey && st.ingestionAddress && st.watchUrl && st.studioUrl) {
+          setYtInfo({ broadcastId: st.broadcastId, streamKey: st.streamKey, ingestionAddress: st.ingestionAddress, watchUrl: st.watchUrl, studioUrl: st.studioUrl, channelTitle: st.channelTitle });
+        }
+      })
+      .catch(() => {});
+  }, [s.ytBroadcastId, s.createdId, editingId, yt.data?.connected]);
 
   // Derived validation
   const videoId = parseYouTubeVideoId(s.youtube);
@@ -159,7 +189,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
 
   const canContinue = [
     s.channelReady,
-    s.streamScheduled,
+    s.streamScheduled || !!s.ytBroadcastId,
     !youtubeInvalid,
     !ctaUrlInvalid && !ctaIncomplete && !deckLinkInvalid,
     !!s.title.trim() && !!scheduledIso,
@@ -185,6 +215,36 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
     status: s.publish ? "published" : "draft",
   });
 
+  // Creates (or reuses) the webinar as a draft so YouTube has a title + time, then
+  // creates the broadcast + stream on the host's channel and fills in step 3's link.
+  const createYoutubeStream = async () => {
+    if (!s.title.trim() || !scheduledIso) {
+      toast({ title: "Add a title and go-live time first", variant: "destructive" });
+      return;
+    }
+    setCreatingStream(true);
+    try {
+      let targetId = editingId || s.createdId;
+      const base = { title: s.title.trim(), scheduledAt: scheduledIso, hostName: s.hostName.trim() || null, description: s.description.trim() || null };
+      if (targetId) {
+        await apiRequest("PATCH", `/api/webinar-funnels/${targetId}`, base);
+      } else {
+        const row: WebinarFunnelFull = await apiRequest("POST", "/api/webinar-funnels", { ...base, status: "draft", remindersEnabled: s.remindersEnabled, durationMinutes: s.durationMinutes });
+        targetId = row.id;
+        queryClient.invalidateQueries({ queryKey: ["/api/webinar-funnels"] });
+      }
+      const info: YoutubeBroadcastInfo = await apiRequest("POST", `/api/webinar-funnels/${targetId}/youtube/broadcast`, {});
+      setYtInfo(info);
+      setS(prev => ({ ...prev, createdId: targetId, ytBroadcastId: info.broadcastId, youtube: info.watchUrl, streamScheduled: true }));
+      toast({ title: "Your stream is ready on YouTube", description: "We've filled in your link for the next step." });
+    } catch (e: any) {
+      if (e?.data?.code === "youtube_not_connected") queryClient.invalidateQueries({ queryKey: YOUTUBE_STATUS_KEY });
+      toast({ title: "Couldn't create the YouTube stream", description: e.message, variant: "destructive" });
+    } finally {
+      setCreatingStream(false);
+    }
+  };
+
   const finish = async () => {
     setSaving(true);
     try {
@@ -197,6 +257,10 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
         : await apiRequest("POST", "/api/webinar-funnels", body);
       queryClient.invalidateQueries({ queryKey: ["/api/webinar-funnels"] });
       queryClient.setQueryData([`/api/webinar-funnels/${row.id}`], row);
+      // Keep the YouTube broadcast's title/time in step with what was just saved (best effort).
+      if (row.youtubeBroadcastId && yt.data?.connected) {
+        apiRequest("POST", `/api/webinar-funnels/${row.id}/youtube/broadcast`, {}).catch(() => {});
+      }
       clearState(editingId);
       // Past the last step = finished; persistState() skips it so a revisit starts fresh.
       setS(prev => ({ ...prev, createdId: row.id, step: WIZARD_STEP_COUNT }));
@@ -293,7 +357,10 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
 
               <div className="px-5 sm:px-7 py-6 space-y-4">
                 {s.step === 0 && <Step1 s={s} set={set} />}
-                {s.step === 1 && <Step2 s={s} set={set} />}
+                {s.step === 1 && (
+                  <Step2 s={s} set={set} yt={yt.data} ytLoading={yt.isLoading} ytInfo={ytInfo} creating={creatingStream}
+                    onCreate={createYoutubeStream} scheduledIso={scheduledIso} />
+                )}
                 {s.step === 2 && <Step3 s={s} set={set} videoId={videoId} invalid={youtubeInvalid} check={videoCheck} />}
                 {s.step === 3 && <Step4 s={s} set={set} ctaUrlInvalid={ctaUrlInvalid} ctaIncomplete={ctaIncomplete} deckLinkInvalid={deckLinkInvalid} />}
                 {s.step === 4 && <Step5 s={s} set={set} scheduledIso={scheduledIso} existingStatus={existing?.status} />}
@@ -355,11 +422,90 @@ function Step1({ s, set }: StepProps) {
   );
 }
 
-function Step2({ s, set }: StepProps) {
+function Step2({ s, set, yt, ytLoading, ytInfo, creating, onCreate, scheduledIso }: StepProps & {
+  yt: YoutubeConnection | undefined; ytLoading: boolean; ytInfo: YoutubeBroadcastInfo | null; creating: boolean;
+  onCreate: () => void; scheduledIso: string | null;
+}) {
   const toggle = (i: number, v: boolean) => set("checks2", s.checks2.map((c, j) => (j === i ? v : c)));
+  const configured = yt?.configured !== false;
+  const connected = !!yt?.connected;
+  const created = !!s.ytBroadcastId;
+  // Manual steps stay available as a fallback; collapsed once the one-click path is usable.
+  const [showManual, setShowManual] = useState(!configured);
+  const manualOpen = showManual || !configured;
+
   return (
     <>
       <p className="text-sm text-zinc-400 leading-relaxed">Scheduling the stream on YouTube first gives you a permanent link we can embed on your Oravini page — viewers never leave your site.</p>
+
+      {configured && !ytLoading && (
+        <div className="rounded-xl p-4 sm:p-5 space-y-3.5" style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}30` }} data-testid="yt-oneclick-card">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-[13px] font-black text-white flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" style={{ color: GOLD }} /> Fastest: let Oravini create it for you</p>
+              <p className="text-[12px] text-zinc-400 mt-0.5">
+                {connected
+                  ? <>Connected to <b className="text-zinc-200">{yt?.channelTitle || "your channel"}</b>. We'll schedule an unlisted stream and fill in your link.</>
+                  : "Connect your YouTube channel and we'll schedule the stream and grab the link — no copy-pasting."}
+              </p>
+            </div>
+            {connected && created && <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Stream created</span>}
+          </div>
+
+          {!connected ? (
+            <button type="button" onClick={() => startYoutubeConnect()} data-testid="btn-connect-youtube"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black text-white transition-all hover:brightness-110" style={{ background: "#dc2626" }}>
+              <Youtube className="w-4 h-4" /> Connect YouTube
+            </button>
+          ) : !created ? (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="Webinar title">
+                  <input data-testid="input-yt-title" value={s.title} onChange={e => set("title", e.target.value)} maxLength={200}
+                    placeholder="How to get your first 10 clients" className={inputCls} style={inputStyle} />
+                </Field>
+                <Field label="Go-live (IST)" hint={scheduledIso ? formatIST(scheduledIso) : undefined}>
+                  <input data-testid="input-yt-scheduled" type="datetime-local" value={s.scheduledLocal} onChange={e => set("scheduledLocal", e.target.value)} className={inputCls} style={inputStyle} />
+                </Field>
+              </div>
+              <button type="button" onClick={onCreate} disabled={creating || !s.title.trim() || !scheduledIso} data-testid="btn-create-yt-stream"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
+                style={{ background: GOLD, color: "#0a0910" }}>
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}
+                {creating ? "Creating your stream…" : "Create my stream on YouTube"}
+              </button>
+              <p className="text-[11px] text-zinc-500">Saves this webinar as a draft so you can finish the rest. You'll publish in the last step.</p>
+            </>
+          ) : (
+            <div className="space-y-3" data-testid="yt-stream-created">
+              {ytInfo ? (
+                <>
+                  <p className="text-[12.5px] text-zinc-300 leading-relaxed">
+                    <b className="text-white">Going live from your webcam?</b> At go-live time, open <ExtLink href={ytInfo.studioUrl}>YouTube Studio</ExtLink> and click <b className="text-zinc-200">Go live</b>.
+                    {" "}<b className="text-white">Using OBS / Streamyard (custom RTMP)?</b> Paste these into <Path items={["Settings", "Stream", "Custom"]} />:
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <SecretField label="Server (ingestion URL)" value={ytInfo.ingestionAddress} masked={false} testid="yt-ingestion" />
+                    <SecretField label="Stream key — keep private" value={ytInfo.streamKey} testid="yt-stream-key" />
+                  </div>
+                </>
+              ) : (
+                <p className="text-[12px] text-zinc-500 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading stream details…</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {configured && (
+        <button type="button" onClick={() => setShowManual(v => !v)} data-testid="btn-toggle-manual"
+          className="flex items-center gap-1 text-[12px] font-semibold text-zinc-500 hover:text-zinc-300">
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform ${manualOpen ? "rotate-90" : ""}`} />
+          {created ? "Prefer to set it up yourself? Manual steps" : "Or schedule it manually in YouTube Studio"}
+        </button>
+      )}
+
+      {manualOpen && (
       <div className="space-y-2">
         <CheckItem checked={s.checks2[0]} onChange={v => toggle(0, v)} testid="check2-studio">
           Open <ExtLink href="https://studio.youtube.com">YouTube Studio</ExtLink> and go to <Path items={["Create", "Go live"]} />
@@ -374,11 +520,14 @@ function Step2({ s, set }: StepProps) {
           Click <Path items={["Share", "Copy link"]} /> — it looks like <code className="text-[12px] text-zinc-200">youtube.com/live/AbC123…</code>
         </CheckItem>
       </div>
-      <div className="pt-2">
-        <CheckItem checked={s.streamScheduled} onChange={v => set("streamScheduled", v)} testid="check-step2-done">
-          <b className="text-white">Done</b> — my stream is scheduled and I've copied the link.
-        </CheckItem>
-      </div>
+      )}
+      {!created && (
+        <div className="pt-2">
+          <CheckItem checked={s.streamScheduled} onChange={v => set("streamScheduled", v)} testid="check-step2-done">
+            <b className="text-white">Done</b> — my stream is scheduled and I've copied the link.
+          </CheckItem>
+        </div>
+      )}
     </>
   );
 }
