@@ -12,7 +12,7 @@ import type { Express, Request, Response, RequestHandler } from "express";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { storage } from "../storage";
+import { storage, pool } from "../storage";
 import { saveMedia, isCloudinaryConfigured, UPLOADS_DIR } from "../mediaStorage";
 import { FFMPEG_PATH, ffmpegAvailable } from "../ffmpegPath";
 import {
@@ -130,6 +130,60 @@ export async function createProjectFromTranscript(input: {
   return edit;
 }
 
+/**
+ * Boot-time reconciliation (updates status fields only, never deletes rows):
+ *  - Projects left in a busy state with no queued/running job (e.g. renders
+ *    started by the old Shotstack flow, or a job that exhausted its retries)
+ *    are returned to a usable state with an explanatory error, otherwise the
+ *    render route would answer 409 "busy" forever.
+ *  - Outputs produced by the old Shotstack *stage* flow are flagged as
+ *    watermarked so the UI labels them honestly.
+ */
+export async function reconcileProjects(): Promise<void> {
+  try {
+    const stuck = await pool.query(`
+      UPDATE video_edits e SET
+        status = CASE
+          WHEN e.status = 'rendering' AND e.output_url IS NOT NULL THEN 'done'
+          WHEN e.status = 'rendering' AND e.transcript IS NOT NULL THEN 'transcribed'
+          ELSE 'failed' END,
+        error = CASE
+          WHEN e.status = 'rendering' THEN 'The previous render was interrupted. Please render again.'
+          ELSE 'Processing was interrupted. Retry transcription or re-upload the video.' END
+      WHERE e.status IN ('rendering','transcribing','importing')
+        AND NOT EXISTS (SELECT 1 FROM video_editor_jobs j WHERE j.edit_id = e.id AND j.status IN ('queued','running'))
+      RETURNING e.id`);
+    const legacy = await pool.query(`
+      UPDATE video_edits SET output_engine = 'shotstack-stage', output_watermarked = TRUE
+      WHERE shotstack_render_id IS NOT NULL AND output_url IS NOT NULL AND output_engine IS NULL
+      RETURNING id`);
+    if (stuck.rowCount || legacy.rowCount) {
+      console.log(`[video-studio] reconciled ${stuck.rowCount} stuck project(s), flagged ${legacy.rowCount} legacy Shotstack output(s) as watermarked`);
+    }
+  } catch (e: any) {
+    console.warn("[video-studio] reconcile skipped:", e.message);
+  }
+}
+
+/** Temp files ffmpeg leaves behind if the process is killed mid-job. Never touches uploads or finished outputs. */
+const TEMP_ARTIFACT = /^(studio-\d+-\d+\.part\.mp4|clip-tmp-\d+-\d+\.mp4|concat-\d+\.txt|concat-tmp-\d+\.mp4|xfade-\d+\.mp4|wm-\d+\.mp4|export-\d+\.part\.mp4)$/;
+
+export async function sweepTempArtifacts(minAgeMs = 2 * 60 * 1000): Promise<number> {
+  let removed = 0;
+  try {
+    const now = Date.now();
+    for (const name of await fs.promises.readdir(UPLOADS_DIR)) {
+      if (!TEMP_ARTIFACT.test(name)) continue;
+      const p = path.join(UPLOADS_DIR, name);
+      const st = await fs.promises.stat(p).catch(() => null);
+      // An mtime older than minAgeMs means no ffmpeg is still writing it.
+      if (st && now - st.mtimeMs > minAgeMs) { await fs.promises.unlink(p).catch(() => {}); removed++; }
+    }
+    if (removed) console.log(`[video-studio] removed ${removed} stale temp file(s) from interrupted jobs`);
+  } catch { /* uploads dir may not exist yet */ }
+  return removed;
+}
+
 export function registerVideoStudioRoutes(app: Express, deps: { requireAuth: RequestHandler; videoUpload: any; aiJson: AiJson }) {
   const { requireAuth, videoUpload, aiJson } = deps;
 
@@ -183,8 +237,18 @@ export function registerVideoStudioRoutes(app: Express, deps: { requireAuth: Req
         await ctx.progress(0.02, "Rendering with ffmpeg");
         const outName = `studio-${edit.id}-${Date.now()}.mp4`;
         const outPath = path.join(UPLOADS_DIR, outName);
+        // Render to a .part file and rename on success, so a crash never leaves a
+        // half-written file under the final name (stale parts are swept at boot).
+        const partPath = path.join(UPLOADS_DIR, `${outName.replace(/\.mp4$/, "")}.part.mp4`);
         if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-        const r = await renderWithFfmpeg({ input: src, edl, words, outputPath: outPath, quality, onProgress: p => ctx.progress(0.02 + p * 0.9, "Rendering with ffmpeg") });
+        let r;
+        try {
+          r = await renderWithFfmpeg({ input: src, edl, words, outputPath: partPath, quality, onProgress: p => ctx.progress(0.02 + p * 0.9, "Rendering with ffmpeg") });
+          await fs.promises.rename(partPath, outPath);
+        } catch (e) {
+          fs.promises.unlink(partPath).catch(() => {});
+          throw e;
+        }
         await ctx.progress(0.94, isCloudinaryConfigured() ? "Uploading to Cloudinary" : "Saving output");
         const outputUrl = await saveMedia(outPath, outName);
         const meta = { duration: r.duration, width: r.width, height: r.height, sizeBytes: r.sizeBytes, hasAudio: r.hasAudio, captionLines: r.captionLines, quality, storage: /^https?:/.test(outputUrl) ? "cloudinary" : "local", renderedAt: new Date().toISOString() };
@@ -464,7 +528,10 @@ USER REQUEST: ${message}`;
     res.download(p, name);
   });
 
-  startVideoJobRunner().catch(e => console.warn("[video-jobs] runner start failed:", e?.message));
+  startVideoJobRunner()
+    .then(() => reconcileProjects())
+    .then(() => sweepTempArtifacts())
+    .catch(e => console.warn("[video-jobs] runner start failed:", e?.message));
 }
 
 export type { JobRow };

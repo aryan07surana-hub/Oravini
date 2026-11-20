@@ -16291,7 +16291,9 @@ CRITICAL RULES:
 
       const tmpClips = tmpFiles.filter(f => f.endsWith(".mp4"));
       const outputName = `export-${ts}.mp4`;
-      const outputPath = path.join(CLIP_UPLOADS, outputName);
+      // Written as .part and renamed when complete (stale parts are swept at boot).
+      const outputPath = path.join(CLIP_UPLOADS, `export-${ts}.part.mp4`);
+      tmpFiles.push(outputPath);
 
       if (tmpClips.length === 1 && !audioTracks.length && !brollClips.length) {
         fs.copyFileSync(tmpClips[0], outputPath);
@@ -16385,10 +16387,12 @@ CRITICAL RULES:
         }
       }
 
+      const finalPath = path.join(CLIP_UPLOADS, outputName);
+      fs.renameSync(outputPath, finalPath);
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
       await ctx.progress(0.95, "Saving export");
       // Cloudinary when configured (survives restarts), local /uploads otherwise.
-      const downloadUrl = await saveMedia(outputPath, outputName);
+      const downloadUrl = await saveMedia(finalPath, outputName);
       return { downloadUrl, filename: outputName };
     } catch (e: any) {
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
