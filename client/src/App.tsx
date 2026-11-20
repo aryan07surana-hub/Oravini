@@ -81,6 +81,7 @@ import YouTubeScheduler from "@/pages/client/YouTubeScheduler";
 import Sessions from "@/pages/client/Sessions";
 import Credits from "@/pages/client/Credits";
 import PlanSettings from "@/pages/client/PlanSettings";
+import Payments from "@/pages/client/Payments";
 import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
@@ -409,6 +410,7 @@ function AppRoutes() {
       <Route path="/youtube-scheduler">{() => <Guard component={YouTubeScheduler} />}</Route>
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
+      <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>

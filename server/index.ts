@@ -217,7 +217,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      // Payment connection / revenue responses are private to each user: never log their bodies.
+      if (capturedJsonResponse && !path.startsWith("/api/payments")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
       log(logLine);
@@ -1345,6 +1346,10 @@ async function runMigrations() {
   registerMetaAdsCampaignManagerRoutes(app);
   registerMetaAdsMyRoutes(app);
   await registerMetaAdsAIAdvisorRoutes(app);
+  {
+    const { registerPaymentRoutes } = await import("./paymentsRoutes");
+    await registerPaymentRoutes(app);
+  }
 
   // ── Meta Ads AI Agent — scheduled runs ───────────────────────────────────
   // 24h update: every day at 8:00 AM
