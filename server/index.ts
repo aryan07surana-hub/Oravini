@@ -837,7 +837,7 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cdp_user ON competitor_detected_posts(user_id, detected_at DESC)`);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cdp_url ON competitor_detected_posts(watchlist_id, post_url)`);
-    await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`).catch((e: any) => console.warn("[migration] competitor_detected_posts.is_seen skipped:", e.message));
     await pool.query(`
       CREATE TABLE IF NOT EXISTS competitor_content_ideas (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),

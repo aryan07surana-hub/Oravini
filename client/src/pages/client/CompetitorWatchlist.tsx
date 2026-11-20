@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { normalizeInstagramProfileUrl } from "@shared/instagramHandle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -34,12 +35,11 @@ const ALERT_COLORS: Record<string, string> = {
   post_count_jump: "text-purple-400 bg-purple-500/10 border-purple-500/20",
 };
 
+// Shared normalizer: "instagram.com/foo", "@foo", full URLs → https://www.instagram.com/foo/
 function normalizeUrl(input: string): string {
   const raw = input.trim();
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, "") + "/";
-  const handle = raw.replace(/^@/, "").trim();
-  return handle ? `https://www.instagram.com/${handle}/` : "";
+  return normalizeInstagramProfileUrl(raw) || raw;
 }
 
 function StatChip({ icon: Icon, val, label, color = "text-foreground" }: { icon: any; val: any; label: string; color?: string }) {

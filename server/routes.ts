@@ -28,6 +28,8 @@ import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { COMPETITOR_CREDIT_COSTS, canUseCompetitorAnalysis } from "@shared/competitorCredits";
+import { normalizeInstagramHandle, normalizeInstagramProfileUrl } from "@shared/instagramHandle";
+import { startCompetitorAnalysisWorker, enqueueAnalysisJob, getAnalysisJob, listActiveAnalysisJobs, serializeJob, AnalysisJobError, type JobProcessor } from "./competitorAnalysisJobs";
 import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
@@ -4535,38 +4537,16 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   });
 
   // ── Competitor Analysis ────────────────────────────────────────────────────
+  // Delegates to the shared normalizer (shared/instagramHandle.ts) so the client
+  // and server agree: "instagram.com/foo", "@foo", "https://www.instagram.com/foo/",
+  // "instagram.com/foo/reel/abc" all resolve to https://www.instagram.com/foo/.
   function normalizeInstagramUrl(url: string): string {
-    if (!url || typeof url !== "string") return "";
-    let u = url.trim();
-    // Plain handle like "@username" or "username"
-    if (!u.includes("http") && !u.includes("instagram.com")) {
-      return `https://www.instagram.com/${u.replace(/^@/, "")}/`;
-    }
-    // Add https:// if missing
-    if (!u.startsWith("http")) u = "https://" + u;
-    try {
-      const parsed = new URL(u);
-      // Reject non-instagram domains
-      if (!parsed.hostname.includes("instagram.com")) return "";
-      // Extract handle from path (first segment only)
-      const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const handle = pathParts[0];
-      if (!handle) return "";
-      // Reject reel/post/explore URLs and reserved paths
-      const reservedPaths = ["reel", "reels", "p", "tv", "explore", "stories", "direct", "accounts", "emails", "help", "about", "blog", "developer", "api"];
-      if (reservedPaths.includes(handle.toLowerCase())) return "";
-      // Reconstruct clean profile URL — always in the format Apify expects
-      return `https://www.instagram.com/${handle}/`;
-    } catch {
-      return "";
-    }
+    return normalizeInstagramProfileUrl(url);
   }
 
   function extractHandle(url: string): string | null {
-    const normalized = normalizeInstagramUrl(url);
-    if (!normalized) return null;
-    const m = normalized.match(/instagram\.com\/([^/?#]+)/);
-    return m ? `@${m[1].replace(/^@/, "")}` : null;
+    const h = normalizeInstagramHandle(url);
+    return h ? `@${h}` : null;
   }
 
   function processProfileMetrics(items: any[], handle: string) {
@@ -4630,46 +4610,23 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     }));
   }
 
-  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
-    const _u4 = req.user as any;
+  // ── Deep analysis job processor (runs in the background worker) ──────────
+  // Runs inside server/competitorAnalysisJobs.ts so the HTTP request returns
+  // immediately (the host kills requests at ~100s; a cold analysis takes ~2 min).
+  const runDeepAnalysisJob: JobProcessor = async ({ job, user: _u4, progress, setCreditsCharged }) => {
     const ANALYSIS_COST = COMPETITOR_CREDIT_COSTS.deepAnalysis;
     const meter = newApifyMeter("deep-analysis");
     let charged = false;
+    const clientId = job.client_id;
+    const clientUrl = job.client_url;
+    const competitorUrl = job.competitor_url;
+    const clientHandle = job.client_handle;
+    const competitorHandle = job.competitor_handle;
     try {
-      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl } = req.body;
-      // Admins may run an analysis on behalf of a client (clientId); everyone else
-      // can only save analyses to their own account.
-      const clientId: string = _u4.role === "admin" ? String(req.body.clientId || _u4.id) : _u4.id;
-      if (!rawClientUrl || !rawCompetitorUrl) return res.status(400).json({ message: "clientUrl and competitorUrl are required" });
-
-      // Server-side plan gate — Competitor Analysis is a Growth+ feature.
-      if (!canUseCompetitorAnalysis(_u4)) {
-        return res.status(403).json({
-          message: "Deep Competitor Analysis is included in the Growth plan and above. Upgrade your plan to unlock it.",
-          upgradeRequired: true,
-          requiredPlan: "growth",
-          currentPlan: _u4.plan || "free",
-        });
-      }
-
-      const clientUrl = normalizeInstagramUrl(rawClientUrl);
-      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
-
-      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
-      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
-
-      // Balance pre-check only — credits are charged once the required scrapes succeed.
-      if (_u4.role !== "admin" && _u4.plan !== "elite") {
-        const bal = await storage.upsertCreditBalance(_u4.id, _u4.plan || "free");
-        const total = bal.monthlyCredits + bal.bonusCredits;
-        if (total < ANALYSIS_COST) return res.status(402).json({ message: `Not enough credits. You need ${ANALYSIS_COST} but have ${total}.`, insufficientCredits: true, balance: bal });
-      }
-
-      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
-      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
 
       // ONE Apify call per profile (posts grid incl. reels), cached per handle for 24h.
       // Before this change: 4 uncached calls (reels + posts for each profile).
+      await progress(10, "Scraping Instagram profiles");
       const [clientScrape, competitorScrape] = await Promise.allSettled([
         scrapeProfilePosts(clientUrl, clientHandle, { meter, limit: 30 }),
         scrapeProfilePosts(competitorUrl, competitorHandle, { meter, limit: 30 }),
@@ -4679,18 +4636,20 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
         if (clientScrape.status === "rejected") failed.push({ handle: clientHandle, role: "you", reason: String(clientScrape.reason?.message || clientScrape.reason) });
         if (competitorScrape.status === "rejected") failed.push({ handle: competitorHandle, role: "competitor", reason: String(competitorScrape.reason?.message || competitorScrape.reason) });
         console.warn(meterSummary(meter), "→ aborted, required scrape failed:", failed.map(f => f.handle).join(", "));
-        return res.status(502).json({
-          message: `We couldn't fetch Instagram data for ${failed.map(f => f.handle).join(" and ")}, so no report was generated and no credits were charged. ${failed[0].reason}`,
-          failedProfiles: failed,
-          creditsCharged: 0,
-        });
+        throw new AnalysisJobError(
+          `We couldn't fetch Instagram data for ${failed.map(f => f.handle).join(" and ")}, so no report was generated and no credits were charged. ${failed[0].reason}`,
+          502,
+          { failedProfiles: failed, creditsCharged: 0 },
+        );
       }
 
       // Required data is in hand — charge now.
+      await progress(40, "Collecting posts & engagement data");
       if (_u4.role !== "admin") {
         const creditResult = await storage.deductCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        if (!creditResult.success) throw new AnalysisJobError(creditResult.message || "Not enough credits.", 402, { insufficientCredits: true, balance: creditResult.balance });
         charged = true;
+        await setCreditsCharged(ANALYSIS_COST);
       }
 
       const dedup = (arr: any[]) => {
@@ -4805,6 +4764,7 @@ Return this EXACT JSON structure (all fields required):
 
 REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 highest-view competitor items. hookLibrary = 10-15 hooks from competitor captions. contentPatterns = 4-6 patterns. gapAnalysis.gaps = 5-7 gaps.`;
 
+      await progress(55, "Running AI deep analysis");
       let report: any = {};
       try {
         const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
@@ -4812,16 +4772,21 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
         report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
         if (!report || typeof report !== "object" || !report.overview) throw new Error("AI report missing overview");
       } catch (aiErr: any) {
+        const wasCharged = charged;
         if (charged) await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (AI failed)", _u4.plan || "free");
         charged = false;
+        await setCreditsCharged(0);
         console.warn(meterSummary(meter), "→ AI step failed:", aiErr.message);
-        return res.status(502).json({
-          message: "The AI couldn't produce a complete report this time. Your credits were refunded — please retry in a minute (your Instagram data is cached, so the retry is fast).",
-          creditsRefunded: _u4.role !== "admin" ? ANALYSIS_COST : 0,
-        });
+        throw new AnalysisJobError(
+          "The AI couldn't produce a complete report this time. Your credits were refunded — please retry in a minute (your Instagram data is cached, so the retry is fast).",
+          502,
+          { creditsRefunded: wasCharged ? ANALYSIS_COST : 0 },
+        );
       }
 
+      await progress(80, "Mining reel transcripts & comparing strategies");
       const transcriptInsights = await transcriptPromise;
+      await progress(92, "Generating full report");
 
       // Tell the user exactly which parts rest on thinner data.
       const warnings: Array<{ area: string; message: string }> = [];
@@ -4868,14 +4833,86 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
         report,
       });
 
-      console.log(meterSummary(meter), `→ analysis ${saved.id} saved (${warnings.length} data-quality notes)`);
-      return res.json(saved);
+      console.log(meterSummary(meter), `→ analysis ${saved.id} saved via job ${job.id} (${warnings.length} data-quality notes)`);
+      return saved.id;
     } catch (err: any) {
       if (charged) {
         await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (failed)", _u4.plan || "free").catch(() => {});
+        await setCreditsCharged(0).catch(() => {});
       }
       console.warn(meterSummary(meter), "→ error:", err.message);
-      return res.status(500).json({ message: err.message, creditsRefunded: charged ? ANALYSIS_COST : 0 });
+      if (err instanceof AnalysisJobError) throw err;
+      throw new AnalysisJobError(err?.message || "Analysis failed", 500, { creditsRefunded: charged ? ANALYSIS_COST : 0 });
+    }
+  };
+  startCompetitorAnalysisWorker(runDeepAnalysisJob).catch((e) => console.warn("[competitor-jobs] worker failed to start:", e.message));
+
+  // POST /api/competitor/analyze — validates, then queues a background job and
+  // returns 202 { jobId }. Poll GET /api/competitor/analyze/jobs/:id for progress.
+  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
+    const _u4 = req.user as any;
+    const ANALYSIS_COST = COMPETITOR_CREDIT_COSTS.deepAnalysis;
+    try {
+      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl } = req.body;
+      // Admins may run an analysis on behalf of a client (clientId); everyone else
+      // can only save analyses to their own account.
+      const clientId: string = _u4.role === "admin" ? String(req.body.clientId || _u4.id) : _u4.id;
+      if (!rawClientUrl || !rawCompetitorUrl) return res.status(400).json({ message: "clientUrl and competitorUrl are required" });
+
+      // Server-side plan gate — Competitor Analysis is a Growth+ feature.
+      if (!canUseCompetitorAnalysis(_u4)) {
+        return res.status(403).json({
+          message: "Deep Competitor Analysis is included in the Growth plan and above. Upgrade your plan to unlock it.",
+          upgradeRequired: true,
+          requiredPlan: "growth",
+          currentPlan: _u4.plan || "free",
+        });
+      }
+
+      const clientUrl = normalizeInstagramUrl(rawClientUrl);
+      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
+
+      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
+      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
+
+      // Balance pre-check only — credits are charged by the worker once the required scrapes succeed.
+      if (_u4.role !== "admin" && _u4.plan !== "elite") {
+        const bal = await storage.upsertCreditBalance(_u4.id, _u4.plan || "free");
+        const total = bal.monthlyCredits + bal.bonusCredits;
+        if (total < ANALYSIS_COST) return res.status(402).json({ message: `Not enough credits. You need ${ANALYSIS_COST} but have ${total}.`, insufficientCredits: true, balance: bal });
+      }
+
+      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
+      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
+
+      const { job, created } = await enqueueAnalysisJob({ userId: _u4.id, clientId, clientUrl, competitorUrl, clientHandle, competitorHandle });
+      return res.status(202).json({ jobId: job.id, alreadyRunning: !created, job: serializeJob(job) });
+    } catch (err: any) {
+      console.warn("[competitor/analyze] enqueue failed:", err.message);
+      return res.status(500).json({ message: err.message || "Couldn't start the analysis" });
+    }
+  });
+
+  // GET job status (owner or admin only).
+  app.get("/api/competitor/analyze/jobs/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const job = await getAnalysisJob(p(req.params.id));
+      if (!job || (job.user_id !== user.id && user.role !== "admin")) return res.status(404).json({ message: "Analysis job not found" });
+      return res.json(serializeJob(job));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET the caller's queued/running jobs (lets the page resume polling after a reload).
+  app.get("/api/competitor/analyze/jobs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const jobs = await listActiveAnalysisJobs(user.id);
+      return res.json(jobs.map(serializeJob));
+    } catch {
+      return res.json([]);
     }
   });
 
@@ -5371,13 +5408,31 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
   });
 
   // GET unseen notification count (badge)
+  // Polled by CompetitorActivityBell on every page — must never 500. On a DB that
+  // predates the is_seen column (its ALTER lived in the same startup try-block as
+  // the CREATE TABLE, so one failure skipped it) we add the column once and retry.
+  let unseenSchemaHealed = false;
   app.get("/api/competitor/feed/unseen-count", requireAuth, async (req: Request, res: Response) => {
+    const user = req.user as any;
+    if (!user?.id) return res.json({ count: 0 });
     try {
-      const user = req.user as any;
       const count = await storage.getUnseenFeedCount(user.id);
       return res.json({ count });
     } catch (err: any) {
-      return res.status(500).json({ count: 0 });
+      const msg = String(err?.message || "");
+      if (!unseenSchemaHealed && /is_seen|competitor_detected_posts/i.test(msg)) {
+        unseenSchemaHealed = true;
+        try {
+          await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`);
+          const count = await storage.getUnseenFeedCount(user.id);
+          return res.json({ count });
+        } catch (healErr: any) {
+          console.warn("[competitor/unseen-count] self-heal failed:", healErr.message);
+        }
+      } else {
+        console.warn("[competitor/unseen-count] failed:", msg);
+      }
+      return res.json({ count: 0 });
     }
   });
 
