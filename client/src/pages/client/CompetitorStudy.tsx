@@ -13,7 +13,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
 import { useSurvey } from "@/hooks/use-survey";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
-import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +35,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeInstagramProfileUrl } from "@shared/instagramHandle";
 
 // ─── Cross-section context ────────────────────────────────────────────────────
 
@@ -322,17 +322,20 @@ const RETENTION_COLORS: Record<string, string> = {
   Low: "text-red-400",
 };
 
+// Profile fields → canonical profile URL via the shared normalizer, so
+// "instagram.com/foo" no longer becomes "instagram.com/instagram.com/foo".
+// Unrecognisable input is passed through so the server returns its precise 400.
 function normalizeInstagramUrl(input: string): string {
   const raw = input.trim();
   if (!raw) return "";
-  // Already a full URL
-  if (/^https?:\/\//i.test(raw)) {
-    return raw.replace(/\/$/, "") + "/";
-  }
-  // @handle or handle
-  const handle = raw.replace(/^@/, "").trim();
-  if (!handle) return "";
-  return `https://www.instagram.com/${handle}/`;
+  return normalizeInstagramProfileUrl(raw) || raw;
+}
+
+// Reel/post fields: keep the post path, only ensure a protocol.
+function normalizeReelUrl(input: string): string {
+  const raw = input.trim();
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
 }
 
 async function apiRequestWithTimeout(
@@ -626,8 +629,8 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 5000);
     try {
       const data = await apiRequestWithTimeout("POST", "/api/competitor/compare-reels", {
-        myReelUrl: normalizeInstagramUrl(myReelUrl),
-        competitorReelUrl: normalizeInstagramUrl(competitorReelUrl),
+        myReelUrl: normalizeReelUrl(myReelUrl),
+        competitorReelUrl: normalizeReelUrl(competitorReelUrl),
       });
       setResult(data);
     } catch (err: any) {
@@ -2653,6 +2656,25 @@ function TranscriptInsightsSection({ report, analysis }: { report: any; analysis
   );
 }
 
+// Turn any analysis failure into a message the user can act on. Gateway errors
+// (502/504 from the host, HTML error pages, client timeouts) mean the request was
+// cut off — the job itself keeps running server-side.
+type AnalysisJobView = {
+  id: string; status: "queued" | "running" | "done" | "failed"; progress: number; stage: string | null;
+  error: string | null; errorStatus: number | null; errorData: any; analysisId: string | null;
+  clientHandle: string; competitorHandle: string;
+};
+const BACKGROUND_NOTE = "The analysis is taking a while — it keeps running in the background. Stay on this page or come back in a few minutes; it will appear in Past Analyses when it's ready.";
+function describeAnalysisError(e: any): { title: string; message: string; background: boolean } {
+  const status = e instanceof ApiError ? e.status : undefined;
+  const raw = String(e?.message || "").trim();
+  const looksLikeHtml = /^<!doctype|^<html/i.test(raw);
+  if (status === 502 || status === 503 || status === 504 || looksLikeHtml || /timed out|failed to fetch|network/i.test(raw)) {
+    return { title: "Still working on it", message: BACKGROUND_NOTE, background: true };
+  }
+  return { title: "Analysis failed", message: raw || "Something went wrong while running the analysis. Please try again.", background: false };
+}
+
 // ─── Competitor Analysis Sub-Section ──────────────────────────────────────────
 
 function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
@@ -2662,8 +2684,9 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creditError, setCreditError] = useState<string | null>(null);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
-  const [screenVisible, setScreenVisible] = useState(false);
-  const [apiDone, setApiDone] = useState(false);
+  // Deep analysis runs as a background job (the host cuts HTTP requests at ~100s).
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobError, setJobError] = useState<{ title: string; message: string; background: boolean } | null>(null);
   // Mirrors the server-side gate (Growth, Pro, Elite, or admin).
   const planAllowed = canUseCompetitorAnalysis(user);
 
@@ -2673,39 +2696,100 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
     enabled: !useAdmin || !!activeClientId,
   });
 
+  // Resume polling after a reload / navigating away while a job is running.
+  const { data: activeJobs } = useQuery<AnalysisJobView[]>({
+    queryKey: ["/api/competitor/analyze/jobs"],
+    queryFn: () => apiRequest("GET", "/api/competitor/analyze/jobs"),
+    enabled: planAllowed,
+    staleTime: 0,
+  });
+  useEffect(() => {
+    if (!activeJobId && activeJobs && activeJobs.length > 0) setActiveJobId(activeJobs[0].id);
+  }, [activeJobs, activeJobId]);
+
   const analyze = useMutation({
-    // Scraping 2 profiles + AI + transcript mining can take ~1-2 min on a cold cache.
+    // Returns 202 { jobId } immediately; the worker scrapes + analyses in the background.
     mutationFn: () => apiRequestWithTimeout("POST", "/api/competitor/analyze", {
       clientUrl: normalizeInstagramUrl(clientUrl),
       competitorUrl: normalizeInstagramUrl(competitorUrl),
       clientId: activeClientId || user?.id,
-    }, 180000),
+    }, 45000),
+    onMutate: () => { setJobError(null); setCreditError(null); setUpgradeError(null); },
     onSuccess: (data: any) => {
-      setApiDone(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
-      setSelectedId(data.id);
-      setClientUrl("");
-      setCompetitorUrl("");
-      toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
+      if (data?.jobId) {
+        setActiveJobId(data.jobId);
+        toast({
+          title: data.alreadyRunning ? "Analysis already running" : "Analysis started",
+          description: data.alreadyRunning
+            ? "This comparison is already in progress — showing its progress below."
+            : "Scraping both profiles and building your report. This usually takes 1–3 minutes.",
+        });
+      } else if (data?.id) {
+        // Backward compatibility with a synchronous response.
+        queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
+        setSelectedId(data.id);
+      }
     },
     onError: (e: any) => {
-      setApiDone(true);
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
       } else if (e instanceof ApiError && e.status === 403) {
         setUpgradeError(e.message);
       } else {
-        const message = String(e?.message || "Analysis failed");
-        toast({
-          title: "Error",
-          description: message.includes("timed out")
-            ? "Competitor analysis timed out while scraping Instagram. Please retry in a minute."
-            : message,
-          variant: "destructive",
-        });
+        const info = describeAnalysisError(e);
+        setJobError(info);
+        toast({ title: info.title, description: info.message, variant: info.background ? undefined : "destructive" });
+        // The job may have been queued before the gateway cut the request off.
+        if (info.background) queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyze/jobs"] });
       }
     },
   });
+
+  const { data: job, error: jobPollError } = useQuery<AnalysisJobView>({
+    queryKey: ["/api/competitor/analyze/jobs", activeJobId],
+    queryFn: () => apiRequest("GET", `/api/competitor/analyze/jobs/${activeJobId}`),
+    enabled: !!activeJobId,
+    // Transient poll failures (deploys, gateway hiccups) just retry on the next tick.
+    retry: (count, err: any) => !(err instanceof ApiError && err.status === 404) && count < 3,
+    refetchInterval: (q) => {
+      const st = (q.state.data as AnalysisJobView | undefined)?.status;
+      return st === "done" || st === "failed" ? false : 4000;
+    },
+  });
+
+  useEffect(() => {
+    if (jobPollError instanceof ApiError && jobPollError.status === 404) {
+      setActiveJobId(null);
+      setJobError({ title: "Analysis not found", message: "We lost track of this analysis. Check Past Analyses, or run it again.", background: false });
+    }
+  }, [jobPollError]);
+
+  useEffect(() => {
+    if (!job || job.id !== activeJobId) return;
+    if (job.status === "done") {
+      setActiveJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyze/jobs"] });
+      if (job.analysisId) setSelectedId(job.analysisId);
+      setClientUrl("");
+      setCompetitorUrl("");
+      toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
+    } else if (job.status === "failed") {
+      setActiveJobId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyze/jobs"] });
+      const message = job.error || "The analysis failed. Please try again.";
+      if (job.errorStatus === 402) {
+        setCreditError(message);
+      } else if (job.errorStatus === 403) {
+        setUpgradeError(message);
+      } else {
+        setJobError({ title: "Analysis failed", message, background: false });
+        toast({ title: "Analysis failed", description: message, variant: "destructive" });
+      }
+    }
+  }, [job, activeJobId, activeClientId, toast]);
+
+  const jobRunning = !!activeJobId;
 
   const deleteAnalysis = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/analyses/${id}`),
@@ -2721,20 +2805,40 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
       <div className="space-y-6">
-      {screenVisible && (
-        <GeneratingScreen
-          label="your competitor analysis"
-          minMs={35000}
-          isComplete={apiDone}
-          onReady={() => { setScreenVisible(false); setApiDone(false); }}
-          steps={[
-            "Scraping Instagram profiles",
-            "Collecting posts & engagement data",
-            "Running AI deep analysis",
-            "Comparing strategies & gaps",
-            "Generating full report",
-          ]}
-        />
+      {jobRunning && (
+        <div className="p-4 rounded-2xl border border-primary/30 bg-primary/5 space-y-2" data-testid="competitor-analysis-progress" aria-live="polite">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+            <p className="text-sm font-bold text-foreground">
+              Analysing {job?.clientHandle ?? "your profile"} vs {job?.competitorHandle ?? "competitor"}
+            </p>
+            <span className="ml-auto text-xs font-semibold text-primary">{Math.max(job?.progress ?? 2, 2)}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
+            <div className="h-full bg-primary transition-all duration-700" style={{ width: `${Math.max(job?.progress ?? 2, 2)}%` }} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {job?.stage || "Queued"} — this runs in the background and usually takes 1–3 minutes. You can leave this page; the report will appear in Past Analyses.
+          </p>
+        </div>
+      )}
+      {jobError && !jobRunning && (
+        <div
+          className={`flex items-start gap-3 p-4 rounded-2xl border ${jobError.background ? "border-yellow-500/30 bg-yellow-500/5" : "border-red-500/30 bg-red-500/5"}`}
+          role="alert"
+          data-testid="competitor-analysis-error"
+        >
+          {jobError.background
+            ? <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-foreground">{jobError.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 break-words">{jobError.message}</p>
+          </div>
+          <button onClick={() => setJobError(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss error">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
       )}
       {creditError && <CreditErrorBanner message={creditError} />}
       {(!planAllowed || upgradeError) && (
@@ -2767,9 +2871,11 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
               <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
             </div>
           </div>
-          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending || !planAllowed} className="gap-2" data-testid="button-run-analysis">
+          <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending || jobRunning || !planAllowed} className="gap-2" data-testid="button-run-analysis">
             {analyze.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Starting…</>
+              : jobRunning
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Analysis running…</>
               : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={COMPETITOR_CREDIT_COSTS.deepAnalysis} level="heavy" className="ml-1.5" /></>}
           </Button>
         </CardContent>
