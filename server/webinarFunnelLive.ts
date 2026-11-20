@@ -409,7 +409,8 @@ export function registerWebinarFunnelLiveRoutes(app: Express, requireAuth: Requi
         liveAttendees: a.live_attendees,
         replayViewers: a.replay_viewers,
         registeredAttendees: a.registered_attendees,
-        showRate: registrants ? a.live_attendees / registrants : null,
+        // Registrants who showed up ÷ registrants (anonymous viewers can't inflate it past 100%)
+        showRate: registrants ? Math.min(1, a.registered_attendees / registrants) : null,
         totalWatchSeconds: Number(a.total_seconds),
         avgWatchSeconds: Math.round(a.avg_seconds),
         dropoff: [

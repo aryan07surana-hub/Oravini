@@ -137,8 +137,8 @@ export function WebinarAnalyticsPanel({ webinar }: { webinar: WebinarFunnelFull 
     <div className="space-y-5" data-testid="webinar-analytics">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat icon={Users} label="Registrants" value={data.registrants} tone="#f472b6" testid="stat-registrants" />
-        <Stat icon={UserCheck} label="Attended live" value={data.liveAttendees} sub={`${data.registeredAttendees} matched to a registration`} tone="#34d399" testid="stat-attendees" />
-        <Stat icon={Radio} label="Show rate" value={showRate} sub="Live attendees ÷ registrants" testid="stat-show-rate" />
+        <Stat icon={UserCheck} label="Attended live" value={data.liveAttendees} sub={`${data.registeredAttendees} registrants · ${Math.max(0, data.attendees - data.registeredAttendees)} anonymous`} tone="#34d399" testid="stat-attendees" />
+        <Stat icon={Radio} label="Show rate" value={showRate} sub={`${data.registeredAttendees} of ${data.registrants} registrants watched`} testid="stat-show-rate" />
         <Stat icon={Clock} label="Avg watch time" value={fmtDuration(data.avgWatchSeconds)} sub={`${fmtDuration(data.totalWatchSeconds)} watched in total`} tone="#818cf8" testid="stat-avg-watch" />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
