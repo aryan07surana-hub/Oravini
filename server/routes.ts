@@ -11058,6 +11058,7 @@ Rules:
       slug: z.string().trim().toLowerCase().regex(WEBINAR_SLUG_RE, "Slug may only contain a-z, 0-9 and dashes").optional(),
     });
 
+    const YT_INVALID_MSG = "Couldn't find a YouTube video ID in that link. Use a youtube.com/watch?v=..., youtube.com/live/..., or youtu.be/... link, or the 11-character video ID.";
     const resolveVideoId = (input: string | null | undefined): { ok: true; id: string | null | undefined } | { ok: false } => {
       if (input === undefined) return { ok: true, id: undefined };
       if (input === null || input === "") return { ok: true, id: null };
@@ -11114,7 +11115,7 @@ Rules:
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
-        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
         let slug = body.slug;
         if (slug) {
           if (await slugTaken(slug)) return res.status(409).json({ message: "That link is already taken" });
@@ -11157,7 +11158,7 @@ Rules:
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
-        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
         if (body.slug && body.slug !== existing.slug && (await slugTaken(body.slug, existing.id))) {
           return res.status(409).json({ message: "That link is already taken" });
         }
