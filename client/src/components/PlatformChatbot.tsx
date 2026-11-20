@@ -176,15 +176,6 @@ function getPageMeta(pathname: string): PageMeta {
       { category: "Analytics", qs: ["How do I see webinar analytics?", "Why is my video getting 0 views?", "How do I create an automated replay webinar?"] },
     ],
   };
-  if (pathname.startsWith("/email-marketing")) return {
-    label: "Email Marketing",
-    greeting: "Email Marketing — sending a campaign, building an automation, or trying to figure out why something isn't working?",
-    questions: [
-      { category: "Campaigns", qs: ["How do I send my first email campaign?", "How do I schedule an email?", "Why are my emails going to spam?"] },
-      { category: "Automations", qs: ["How do I build an email automation?", "How do I set triggers for a sequence?"] },
-      { category: "Setup", qs: ["How do I connect Gmail?", "How do I import email contacts?", "My open rate is low — what do I fix?"] },
-    ],
-  };
   if (pathname.startsWith("/dm-automation") || pathname.startsWith("/dm-hub") || pathname.startsWith("/dm-tracker")) return {
     label: "DM Automation",
     greeting: "DM Automation — great for growing on Instagram. Setting up keyword triggers, managing conversations, or building a sequence?",
@@ -217,7 +208,7 @@ function getPageMeta(pathname: string): PageMeta {
       { category: "Brand & lead gen", qs: ["How do I set up my Brand Kit?", "How do I create a PDF lead magnet?"] },
     ],
   };
-  if (pathname.startsWith("/scheduling") || pathname.includes("scheduler")) return {
+  if (pathname.includes("scheduler")) return {
     label: "Scheduling",
     greeting: "Scheduling — getting your content calendar set up. Which platform are you scheduling for, or is it a setup issue?",
     questions: [
@@ -235,10 +226,10 @@ function getPageMeta(pathname: string): PageMeta {
   };
   if (pathname.startsWith("/tools")) return {
     label: "Tools",
-    greeting: "Tools Hub — building a form, using the Board Builder, or generating a bio?",
+    greeting: "Tools Hub — building a form or setting up a webinar funnel?",
     questions: [
       { category: "Forms", qs: ["How do I create a lead capture form?", "How do I share my form?", "How do I view form responses?"] },
-      { category: "Other tools", qs: ["How do I use the Board Builder?", "How do I generate a social bio?"] },
+      { category: "Webinar funnels", qs: ["How do I set up a webinar funnel?", "How do I see webinar registrations?"] },
     ],
   };
   if (pathname.startsWith("/credits")) return {
@@ -256,20 +247,12 @@ function getPageMeta(pathname: string): PageMeta {
       { category: "Connections", qs: ["How do I connect my Instagram?", "How do I connect YouTube?", "How do I connect Gmail?"] },
     ],
   };
-  if (pathname.startsWith("/analytics")) return {
-    label: "Analytics",
-    greeting: "Analytics — want to understand your numbers across the whole platform, or dig into a specific channel?",
-    questions: [
-      { category: "Overview", qs: ["What do my analytics mean?", "Which channel is performing best?", "How do I improve my reach?"] },
-      { category: "Channels", qs: ["Why is my email open rate low?", "Why is my SMS delivery rate low?", "How do I get more video views?"] },
-    ],
-  };
   if (pathname.startsWith("/dashboard")) return {
     label: "Dashboard",
     greeting: "Hey! I'm Oravi — I know every feature on this platform. What do you want to work on today?",
     questions: [
       { category: "Getting started", qs: ["What should I set up first?", "How do I connect my social accounts?", "Which plan should I be on?"] },
-      { category: "Features", qs: ["How do I host a webinar?", "How do I set up SMS marketing?", "How do I schedule posts?"] },
+      { category: "Features", qs: ["How do I host a webinar?", "How do I automate Instagram DMs?", "How do I schedule posts?"] },
       { category: "Troubleshooting", qs: ["A feature isn't showing in my sidebar", "My credits ran out", "How do I upgrade my plan?"] },
     ],
   };
@@ -278,7 +261,7 @@ function getPageMeta(pathname: string): PageMeta {
     greeting: "Hey! I'm Oravi — I know every feature on this platform. Ask me anything and I'll give you a straight answer.",
     questions: [
       { category: "Getting started", qs: ["What should I do first?", "What's included in my plan?", "How do credits work?"] },
-      { category: "Features", qs: ["How do I host a webinar?", "How do I set up SMS marketing?", "How do I schedule posts?"] },
+      { category: "Features", qs: ["How do I host a webinar?", "How do I automate Instagram DMs?", "How do I schedule posts?"] },
       { category: "Troubleshooting", qs: ["Why aren't my emails sending?", "Why is my delivery rate low?", "A feature isn't in my sidebar"] },
     ],
   };
@@ -427,7 +410,6 @@ export default function PlatformChatbot() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  if (location.startsWith("/sms-marketing")) return null;
   if (location.startsWith("/portal") || location === "/login" || location === "/register") return null;
 
   const meta = getPageMeta(location);

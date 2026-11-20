@@ -8,9 +8,9 @@
     "build": "npm install --legacy-peer-deps && node script/build.mjs",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "tsx --test tests/instagramHandle.test.ts tests/competitorAnalysisJobs.integration.test.ts tests/webinarWizardState.test.ts",
     "db:push": "drizzle-kit push",
-    "test:email": "tsx server/testEmail.ts",
-    "test": "tsx --test client/src/components/webinar-funnel/wizardState.test.ts"
+    "test:email": "tsx server/testEmail.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

@@ -935,7 +935,7 @@ const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string 
   "Low engagement on posts":           { action: "Design scroll-stopping carousels and test different formats to boost interaction.",                      href: "/carousel-studio",        tool: "Carousel Studio" },
   "Coming up with content ideas":      { action: "Generate a full week of niche-specific ideas with hooks and formats in 60 seconds.",                     href: "/ai-ideas",               tool: "AI Content Ideas" },
   "Monetising my audience":            { action: "Build your Ideal Customer Profile — identify exactly who you're selling to and what they need most.",    href: "/icp-builder",            tool: "ICP Builder" },
-   "Staying consistent":                { action: "Set up your content board and schedule the next 30 days in one batch session.",                          href: "/tools/board-builder",    tool: "Board Builder" },
+   "Staying consistent":                { action: "Plan your next 30 days of content ideas in one batch session.",                                             href: "/ai-ideas",               tool: "Content Ideas" },
   "Understanding analytics":           { action: "Log your last 5 posts and generate a performance report to see what's actually working.",                href: "/tracking/content",       tool: "Content Tracker" },
   "Building brand partnerships":       { action: "Build your brand kit — colours, tone, and a media kit ready to send to potential sponsors.",             href: "/brand-kit-builder",      tool: "Brand Kit Builder" },
   "Managing time efficiently":         { action: "Block one creation day per week and plan the full month with your content calendar.",                    href: "/content-calendar",       tool: "Content Calendar" },
@@ -946,7 +946,7 @@ const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string 
   "Knowing what content to create":    { action: "Generate a 30-day content plan with hooks, formats, and a posting cadence built for your niche.",       href: "/content-calendar",       tool: "Content Calendar" },
   "Getting views / reach":             { action: "Review your top-performing posts and double down on the formats and hooks that work.",                 href: "/tracking/content",       tool: "Content Tracker" },
   "Building confidence on camera":     { action: "Generate camera-friendly scripts with natural delivery cues — practice with the words, not just ideas.", href: "/ai-ideas",               tool: "AI Content Ideas" },
-  "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-editor",           tool: "AI Video Editor" },
+  "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-studio",           tool: "AI Video Editor" },
 };
 
 const PLATFORM_EMOJI: Record<string, string> = {

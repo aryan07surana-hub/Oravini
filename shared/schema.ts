@@ -630,7 +630,34 @@ export const videoEdits = pgTable("video_edits", {
   outputUrl: text("output_url"),
   settings: jsonb("settings"),
   createdAt: timestamp("created_at").defaultNow(),
+  // AI video editor (additive columns, see server/videoEditor/jobs.ts)
+  edl: jsonb("edl"),
+  chatHistory: jsonb("chat_history"),
+  source: text("source").default("upload"),
+  sourceRemoteUrl: text("source_remote_url"),
+  outputEngine: text("output_engine"),
+  outputWatermarked: boolean("output_watermarked").default(false),
+  outputMeta: jsonb("output_meta"),
+  error: text("error"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
+export const videoEditorJobs = pgTable("video_editor_jobs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  editId: integer("edit_id"),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("queued"),
+  progress: real("progress").notNull().default(0),
+  stage: text("stage"),
+  payload: jsonb("payload"),
+  result: jsonb("result"),
+  error: text("error"),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+export type VideoEditorJob = typeof videoEditorJobs.$inferSelect;
 export const insertVideoEditSchema = createInsertSchema(videoEdits).omit({ id: true, createdAt: true });
 export type VideoEdit = typeof videoEdits.$inferSelect;
 export type InsertVideoEdit = z.infer<typeof insertVideoEditSchema>;

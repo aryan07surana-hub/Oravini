@@ -2,8 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerSchedulingRoutes } from "./schedulingRoutes";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
+import { registerSchedulingRoutes, isRetiredClientBookingPage } from "./schedulingRoutes";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -30,11 +30,16 @@ import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { COMPETITOR_CREDIT_COSTS, canUseCompetitorAnalysis } from "@shared/competitorCredits";
+import { normalizeInstagramHandle, normalizeInstagramProfileUrl } from "@shared/instagramHandle";
+import { startCompetitorAnalysisWorker, enqueueAnalysisJob, getAnalysisJob, listActiveAnalysisJobs, serializeJob, AnalysisJobError, type JobProcessor } from "./competitorAnalysisJobs";
 import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { FFMPEG_PATH, FFPROBE_PATH, ffmpegAvailable } from "./ffmpegPath";
+import { registerVideoStudioRoutes, createProjectFromTranscript } from "./videoEditor/routes";
+import { enqueueJob, registerJobHandler, getJob, publicJob } from "./videoEditor/jobs";
+import { transcribeMedia } from "./videoEditor/transcribe";
 import { computeWebinarTimeline, computeStayRates, matchAttendedRegistrations, sessionEndMs, dropOffMinute, median, normEmail, pct } from "./webinar-analytics";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
 import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson, aiChatCompletion as _aiChatCompletion, aiFeature } from "./aiService";
@@ -4537,38 +4542,16 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   });
 
   // ── Competitor Analysis ────────────────────────────────────────────────────
+  // Delegates to the shared normalizer (shared/instagramHandle.ts) so the client
+  // and server agree: "instagram.com/foo", "@foo", "https://www.instagram.com/foo/",
+  // "instagram.com/foo/reel/abc" all resolve to https://www.instagram.com/foo/.
   function normalizeInstagramUrl(url: string): string {
-    if (!url || typeof url !== "string") return "";
-    let u = url.trim();
-    // Plain handle like "@username" or "username"
-    if (!u.includes("http") && !u.includes("instagram.com")) {
-      return `https://www.instagram.com/${u.replace(/^@/, "")}/`;
-    }
-    // Add https:// if missing
-    if (!u.startsWith("http")) u = "https://" + u;
-    try {
-      const parsed = new URL(u);
-      // Reject non-instagram domains
-      if (!parsed.hostname.includes("instagram.com")) return "";
-      // Extract handle from path (first segment only)
-      const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const handle = pathParts[0];
-      if (!handle) return "";
-      // Reject reel/post/explore URLs and reserved paths
-      const reservedPaths = ["reel", "reels", "p", "tv", "explore", "stories", "direct", "accounts", "emails", "help", "about", "blog", "developer", "api"];
-      if (reservedPaths.includes(handle.toLowerCase())) return "";
-      // Reconstruct clean profile URL — always in the format Apify expects
-      return `https://www.instagram.com/${handle}/`;
-    } catch {
-      return "";
-    }
+    return normalizeInstagramProfileUrl(url);
   }
 
   function extractHandle(url: string): string | null {
-    const normalized = normalizeInstagramUrl(url);
-    if (!normalized) return null;
-    const m = normalized.match(/instagram\.com\/([^/?#]+)/);
-    return m ? `@${m[1].replace(/^@/, "")}` : null;
+    const h = normalizeInstagramHandle(url);
+    return h ? `@${h}` : null;
   }
 
   function processProfileMetrics(items: any[], handle: string) {
@@ -4632,46 +4615,23 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     }));
   }
 
-  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
-    const _u4 = req.user as any;
+  // ── Deep analysis job processor (runs in the background worker) ──────────
+  // Runs inside server/competitorAnalysisJobs.ts so the HTTP request returns
+  // immediately (the host kills requests at ~100s; a cold analysis takes ~2 min).
+  const runDeepAnalysisJob: JobProcessor = async ({ job, user: _u4, progress, setCreditsCharged }) => {
     const ANALYSIS_COST = COMPETITOR_CREDIT_COSTS.deepAnalysis;
     const meter = newApifyMeter("deep-analysis");
     let charged = false;
+    const clientId = job.client_id;
+    const clientUrl = job.client_url;
+    const competitorUrl = job.competitor_url;
+    const clientHandle = job.client_handle;
+    const competitorHandle = job.competitor_handle;
     try {
-      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl } = req.body;
-      // Admins may run an analysis on behalf of a client (clientId); everyone else
-      // can only save analyses to their own account.
-      const clientId: string = _u4.role === "admin" ? String(req.body.clientId || _u4.id) : _u4.id;
-      if (!rawClientUrl || !rawCompetitorUrl) return res.status(400).json({ message: "clientUrl and competitorUrl are required" });
-
-      // Server-side plan gate — Competitor Analysis is a Growth+ feature.
-      if (!canUseCompetitorAnalysis(_u4)) {
-        return res.status(403).json({
-          message: "Deep Competitor Analysis is included in the Growth plan and above. Upgrade your plan to unlock it.",
-          upgradeRequired: true,
-          requiredPlan: "growth",
-          currentPlan: _u4.plan || "free",
-        });
-      }
-
-      const clientUrl = normalizeInstagramUrl(rawClientUrl);
-      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
-
-      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
-      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
-
-      // Balance pre-check only — credits are charged once the required scrapes succeed.
-      if (_u4.role !== "admin" && _u4.plan !== "elite") {
-        const bal = await storage.upsertCreditBalance(_u4.id, _u4.plan || "free");
-        const total = bal.monthlyCredits + bal.bonusCredits;
-        if (total < ANALYSIS_COST) return res.status(402).json({ message: `Not enough credits. You need ${ANALYSIS_COST} but have ${total}.`, insufficientCredits: true, balance: bal });
-      }
-
-      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
-      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
 
       // ONE Apify call per profile (posts grid incl. reels), cached per handle for 24h.
       // Before this change: 4 uncached calls (reels + posts for each profile).
+      await progress(10, "Scraping Instagram profiles");
       const [clientScrape, competitorScrape] = await Promise.allSettled([
         scrapeProfilePosts(clientUrl, clientHandle, { meter, limit: 30 }),
         scrapeProfilePosts(competitorUrl, competitorHandle, { meter, limit: 30 }),
@@ -4681,18 +4641,20 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
         if (clientScrape.status === "rejected") failed.push({ handle: clientHandle, role: "you", reason: String(clientScrape.reason?.message || clientScrape.reason) });
         if (competitorScrape.status === "rejected") failed.push({ handle: competitorHandle, role: "competitor", reason: String(competitorScrape.reason?.message || competitorScrape.reason) });
         console.warn(meterSummary(meter), "→ aborted, required scrape failed:", failed.map(f => f.handle).join(", "));
-        return res.status(502).json({
-          message: `We couldn't fetch Instagram data for ${failed.map(f => f.handle).join(" and ")}, so no report was generated and no credits were charged. ${failed[0].reason}`,
-          failedProfiles: failed,
-          creditsCharged: 0,
-        });
+        throw new AnalysisJobError(
+          `We couldn't fetch Instagram data for ${failed.map(f => f.handle).join(" and ")}, so no report was generated and no credits were charged. ${failed[0].reason}`,
+          502,
+          { failedProfiles: failed, creditsCharged: 0 },
+        );
       }
 
       // Required data is in hand — charge now.
+      await progress(40, "Collecting posts & engagement data");
       if (_u4.role !== "admin") {
         const creditResult = await storage.deductCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        if (!creditResult.success) throw new AnalysisJobError(creditResult.message || "Not enough credits.", 402, { insufficientCredits: true, balance: creditResult.balance });
         charged = true;
+        await setCreditsCharged(ANALYSIS_COST);
       }
 
       const dedup = (arr: any[]) => {
@@ -4807,6 +4769,7 @@ Return this EXACT JSON structure (all fields required):
 
 REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 highest-view competitor items. hookLibrary = 10-15 hooks from competitor captions. contentPatterns = 4-6 patterns. gapAnalysis.gaps = 5-7 gaps.`;
 
+      await progress(55, "Running AI deep analysis");
       let report: any = {};
       try {
         const raw = await callOpenRouter(systemPrompt, userPrompt, 7000);
@@ -4814,16 +4777,21 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
         report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
         if (!report || typeof report !== "object" || !report.overview) throw new Error("AI report missing overview");
       } catch (aiErr: any) {
+        const wasCharged = charged;
         if (charged) await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (AI failed)", _u4.plan || "free");
         charged = false;
+        await setCreditsCharged(0);
         console.warn(meterSummary(meter), "→ AI step failed:", aiErr.message);
-        return res.status(502).json({
-          message: "The AI couldn't produce a complete report this time. Your credits were refunded — please retry in a minute (your Instagram data is cached, so the retry is fast).",
-          creditsRefunded: _u4.role !== "admin" ? ANALYSIS_COST : 0,
-        });
+        throw new AnalysisJobError(
+          "The AI couldn't produce a complete report this time. Your credits were refunded — please retry in a minute (your Instagram data is cached, so the retry is fast).",
+          502,
+          { creditsRefunded: wasCharged ? ANALYSIS_COST : 0 },
+        );
       }
 
+      await progress(80, "Mining reel transcripts & comparing strategies");
       const transcriptInsights = await transcriptPromise;
+      await progress(92, "Generating full report");
 
       // Tell the user exactly which parts rest on thinner data.
       const warnings: Array<{ area: string; message: string }> = [];
@@ -4870,14 +4838,86 @@ REQUIRED COUNTS: reelComparison = 5-6 pairs using real data. viralDNA = top 5 hi
         report,
       });
 
-      console.log(meterSummary(meter), `→ analysis ${saved.id} saved (${warnings.length} data-quality notes)`);
-      return res.json(saved);
+      console.log(meterSummary(meter), `→ analysis ${saved.id} saved via job ${job.id} (${warnings.length} data-quality notes)`);
+      return saved.id;
     } catch (err: any) {
       if (charged) {
         await storage.refundCredits(_u4.id, ANALYSIS_COST, "competitor", "Competitor Intelligence analysis (failed)", _u4.plan || "free").catch(() => {});
+        await setCreditsCharged(0).catch(() => {});
       }
       console.warn(meterSummary(meter), "→ error:", err.message);
-      return res.status(500).json({ message: err.message, creditsRefunded: charged ? ANALYSIS_COST : 0 });
+      if (err instanceof AnalysisJobError) throw err;
+      throw new AnalysisJobError(err?.message || "Analysis failed", 500, { creditsRefunded: charged ? ANALYSIS_COST : 0 });
+    }
+  };
+  startCompetitorAnalysisWorker(runDeepAnalysisJob).catch((e) => console.warn("[competitor-jobs] worker failed to start:", e.message));
+
+  // POST /api/competitor/analyze — validates, then queues a background job and
+  // returns 202 { jobId }. Poll GET /api/competitor/analyze/jobs/:id for progress.
+  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
+    const _u4 = req.user as any;
+    const ANALYSIS_COST = COMPETITOR_CREDIT_COSTS.deepAnalysis;
+    try {
+      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl } = req.body;
+      // Admins may run an analysis on behalf of a client (clientId); everyone else
+      // can only save analyses to their own account.
+      const clientId: string = _u4.role === "admin" ? String(req.body.clientId || _u4.id) : _u4.id;
+      if (!rawClientUrl || !rawCompetitorUrl) return res.status(400).json({ message: "clientUrl and competitorUrl are required" });
+
+      // Server-side plan gate — Competitor Analysis is a Growth+ feature.
+      if (!canUseCompetitorAnalysis(_u4)) {
+        return res.status(403).json({
+          message: "Deep Competitor Analysis is included in the Growth plan and above. Upgrade your plan to unlock it.",
+          upgradeRequired: true,
+          requiredPlan: "growth",
+          currentPlan: _u4.plan || "free",
+        });
+      }
+
+      const clientUrl = normalizeInstagramUrl(rawClientUrl);
+      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
+
+      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
+      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
+
+      // Balance pre-check only — credits are charged by the worker once the required scrapes succeed.
+      if (_u4.role !== "admin" && _u4.plan !== "elite") {
+        const bal = await storage.upsertCreditBalance(_u4.id, _u4.plan || "free");
+        const total = bal.monthlyCredits + bal.bonusCredits;
+        if (total < ANALYSIS_COST) return res.status(402).json({ message: `Not enough credits. You need ${ANALYSIS_COST} but have ${total}.`, insufficientCredits: true, balance: bal });
+      }
+
+      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
+      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
+
+      const { job, created } = await enqueueAnalysisJob({ userId: _u4.id, clientId, clientUrl, competitorUrl, clientHandle, competitorHandle });
+      return res.status(202).json({ jobId: job.id, alreadyRunning: !created, job: serializeJob(job) });
+    } catch (err: any) {
+      console.warn("[competitor/analyze] enqueue failed:", err.message);
+      return res.status(500).json({ message: err.message || "Couldn't start the analysis" });
+    }
+  });
+
+  // GET job status (owner or admin only).
+  app.get("/api/competitor/analyze/jobs/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const job = await getAnalysisJob(p(req.params.id));
+      if (!job || (job.user_id !== user.id && user.role !== "admin")) return res.status(404).json({ message: "Analysis job not found" });
+      return res.json(serializeJob(job));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET the caller's queued/running jobs (lets the page resume polling after a reload).
+  app.get("/api/competitor/analyze/jobs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const jobs = await listActiveAnalysisJobs(user.id);
+      return res.json(jobs.map(serializeJob));
+    } catch {
+      return res.json([]);
     }
   });
 
@@ -5373,13 +5413,31 @@ RULES: Make contentPlan have all 30 days with specific topics and exact hooks to
   });
 
   // GET unseen notification count (badge)
+  // Polled by CompetitorActivityBell on every page — must never 500. On a DB that
+  // predates the is_seen column (its ALTER lived in the same startup try-block as
+  // the CREATE TABLE, so one failure skipped it) we add the column once and retry.
+  let unseenSchemaHealed = false;
   app.get("/api/competitor/feed/unseen-count", requireAuth, async (req: Request, res: Response) => {
+    const user = req.user as any;
+    if (!user?.id) return res.json({ count: 0 });
     try {
-      const user = req.user as any;
       const count = await storage.getUnseenFeedCount(user.id);
       return res.json({ count });
     } catch (err: any) {
-      return res.status(500).json({ count: 0 });
+      const msg = String(err?.message || "");
+      if (!unseenSchemaHealed && /is_seen|competitor_detected_posts/i.test(msg)) {
+        unseenSchemaHealed = true;
+        try {
+          await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`);
+          const count = await storage.getUnseenFeedCount(user.id);
+          return res.json({ count });
+        } catch (healErr: any) {
+          console.warn("[competitor/unseen-count] self-heal failed:", healErr.message);
+        }
+      } else {
+        console.warn("[competitor/unseen-count] failed:", msg);
+      }
+      return res.json({ count: 0 });
     }
   });
 
@@ -7635,6 +7693,7 @@ Return JSON:
   // ── Clip Finder — file upload (Whisper transcribe + AI clip analysis) ──────
   app.post("/api/clip-finder/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    let keepUpload = false;
     try {
       const _uCfu = req.user as any;
       if (_uCfu.role !== "admin") {
@@ -7644,37 +7703,10 @@ Return JSON:
           return res.status(402).json({ message: cfuCredit.message, insufficientCredits: true });
         }
       }
-      const fileStat = fs.statSync(req.file.path);
-      const MAX_WHISPER = 25 * 1024 * 1024;
-      if (fileStat.size > MAX_WHISPER) {
-        try { fs.unlinkSync(req.file.path); } catch { }
-        return res.status(413).json({ message: "File too large — Whisper supports up to 25MB. Compress your video or export audio-only first." });
-      }
-
-      // 1. Transcribe with Groq Whisper (word-level timestamps)
-      const FormDataLib = (await import("form-data")).default;
-      const formData = new FormDataLib();
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const ext = path.extname(req.file.originalname).toLowerCase();
-      const mimeMap: Record<string, string> = {
-        ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
-        ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v",
-        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
-      };
-      formData.append("file", fileBuffer, { filename: req.file.originalname || "video.mp4", contentType: mimeMap[ext] || "video/mp4" });
-      formData.append("model", "whisper-large-v3");
-      formData.append("response_format", "verbose_json");
-      formData.append("timestamp_granularities[]", "word");
-      const formBuffer = formData.getBuffer();
-
-      const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
-        body: formBuffer,
-      });
-      if (!whisperRes.ok) throw new Error(`Transcription failed: ${await whisperRes.text()}`);
-      const transcriptData = await whisperRes.json() as any;
-
+      // 1. Transcribe with Groq Whisper (word-level timestamps). Audio is
+      //    extracted/compressed with ffmpeg first, so files over Whisper's
+      //    25MB limit work (long audio is chunked automatically).
+      const transcriptData = await transcribeMedia(req.file.path, { filename: req.file.originalname });
       const words: any[] = transcriptData.words || [];
       const duration = words.length > 0 ? words[words.length - 1].end : (transcriptData.duration || 0);
       const videoTitle = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
@@ -7721,12 +7753,25 @@ Return JSON:
         };
       });
 
-      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true });
+      // Keep the upload as a Video Studio project so "Open in Editor" can
+      // reuse this transcript instead of re-uploading / re-transcribing.
+      let editorProjectId: number | null = null;
+      try {
+        const proj = await createProjectFromTranscript({
+          userId: _uCfu.id, filePath: req.file.path, originalName: req.file.originalname, title: videoTitle,
+          transcript: { text: transcriptData.text || "", words, duration },
+        });
+        editorProjectId = proj.id;
+      } catch (e: any) {
+        console.log("[clip-finder/upload] could not create editor project:", e.message);
+      }
+      keepUpload = editorProjectId !== null;
+      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true, editorProjectId });
     } catch (err: any) {
       console.log("[clip-finder/upload] error:", err.message);
-      return res.status(500).json({ message: err.message || "Processing failed" });
+      return res.status(500).json({ message: err.userMessage || err.message || "Processing failed" });
     } finally {
-      try { if (req.file) fs.unlinkSync(req.file.path); } catch { }
+      try { if (req.file && !keepUpload) fs.unlinkSync(req.file.path); } catch { }
     }
   });
 
@@ -11073,6 +11118,7 @@ Rules:
       remindersEnabled: z.boolean().optional(),
     });
 
+    const YT_INVALID_MSG = "Couldn't find a YouTube video ID in that link. Use a youtube.com/watch?v=..., youtube.com/live/..., or youtu.be/... link, or the 11-character video ID.";
     const resolveVideoId = (input: string | null | undefined): { ok: true; id: string | null | undefined } | { ok: false } => {
       if (input === undefined) return { ok: true, id: undefined };
       if (input === null || input === "") return { ok: true, id: null };
@@ -11129,7 +11175,7 @@ Rules:
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
-        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
         const replay = resolveVideoId(body.replay);
         if (!replay.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in the replay link" });
         let slug = body.slug;
@@ -11181,7 +11227,7 @@ Rules:
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
-        if (!video.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in that link" });
+        if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
         const replay = resolveVideoId(body.replay);
         if (!replay.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in the replay link" });
         if (body.slug && body.slug !== existing.slug && (await slugTaken(body.slug, existing.id))) {
@@ -11360,196 +11406,11 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     }
   });
 
-  // ── Video Studio ────────────────────────────────────────────────────────────
-  const SHOTSTACK_KEY = process.env.SHOTSTACK_API_KEY || "";
-  const SHOTSTACK_BASE = "https://api.shotstack.io/stage";
-
-  function detectSilences(words: any[], threshold = 0.5) {
-    const silences: { start: number; end: number; duration: number }[] = [];
-    for (let i = 1; i < words.length; i++) {
-      const gap = words[i].start - words[i - 1].end;
-      if (gap >= threshold) silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
-    }
-    return silences;
-  }
-
-  function buildShotstackTimeline(videoUrl: string, transcript: any, settings: any) {
-    const words: any[] = transcript?.words || [];
-    const rawDuration = words.length > 0 ? words[words.length - 1].end + 0.5 : 60;
-    const speed = parseFloat(settings.speed || "1");
-    const filterMap: Record<string, string> = { cinematic: "contrast", warm: "boost", cool: "muted", bright: "lighten" };
-    const shotstackFilter = settings.colorGrade && settings.colorGrade !== "none" ? filterMap[settings.colorGrade] : undefined;
-    const captionStyleMap: Record<string, string> = { bold: "blockbuster", netflix: "chunk", minimal: "minimal", karaoke: "minimal" };
-    const captionStyle = captionStyleMap[settings.captionStyle] || "minimal";
-    const captionColor = settings.captionStyle === "karaoke" ? "#ffff00" : "#ffffff";
-
-    type Segment = { start: number; end: number };
-    let segments: Segment[] = [];
-    let condensedSegStarts: number[] = [];
-    let totalCondensed = 0;
-
-    if (settings.removeSilences && words.length > 0) {
-      const threshold = parseFloat(settings.silenceThreshold || "0.5");
-      let segStart = words[0].start;
-      let prevEnd = words[0].end;
-      for (let i = 1; i < words.length; i++) {
-        if (words[i].start - prevEnd >= threshold) {
-          segments.push({ start: segStart, end: prevEnd });
-          segStart = words[i].start;
-        }
-        prevEnd = words[i].end;
-      }
-      segments.push({ start: segStart, end: prevEnd + 0.3 });
-    } else {
-      segments = [{ start: 0, end: rawDuration }];
-    }
-
-    const videoClips: any[] = [];
-    for (const seg of segments) {
-      condensedSegStarts.push(totalCondensed);
-      const segLen = (seg.end - seg.start) / speed;
-      const clip: any = { asset: { type: "video", src: videoUrl, trim: seg.start }, start: totalCondensed, length: seg.end - seg.start };
-      if (shotstackFilter) clip.filter = shotstackFilter;
-      if (speed !== 1) clip.speed = speed;
-      videoClips.push(clip);
-      totalCondensed += segLen;
-    }
-
-    const captionClips: any[] = [];
-    if (settings.addCaptions && words.length > 0) {
-      const SIZE = 5;
-      for (let i = 0; i < words.length; i += SIZE) {
-        const chunk = words.slice(i, Math.min(i + SIZE, words.length));
-        const text = chunk.map((w: any) => w.word).join(" ").trim();
-        const wOrigStart = chunk[0].start;
-        const wOrigEnd = chunk[chunk.length - 1].end;
-        let condensedStart = wOrigStart / speed;
-        for (let j = segments.length - 1; j >= 0; j--) {
-          if (wOrigStart >= segments[j].start && wOrigStart <= segments[j].end) {
-            condensedStart = condensedSegStarts[j] + (wOrigStart - segments[j].start) / speed;
-            break;
-          }
-        }
-        const wLen = Math.max((wOrigEnd - wOrigStart) / speed, 0.5);
-        captionClips.push({ asset: { type: "title", text, style: captionStyle, color: captionColor, size: "medium" }, start: Math.max(condensedStart, 0), length: wLen, position: "bottom", offset: { x: 0, y: -0.1 } });
-      }
-    }
-
-    const tracks: any[] = [{ clips: videoClips }];
-    if (captionClips.length > 0) tracks.push({ clips: captionClips });
-    return { timeline: { background: "#000000", tracks }, output: { format: "mp4", resolution: "hd", fps: 25 } };
-  }
-
-  app.get("/api/video-studio", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edits = await storage.getVideoEdits(userId);
-    res.json(edits);
-  });
-
-  app.get("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    res.json(edit);
-  });
-
-  app.delete("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch { }
-    await storage.deleteVideoEdit(Number(p(req.params.id)), userId);
-    res.json({ ok: true });
-  });
-
-  app.post("/api/video-studio/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const userId = (req.user as any).id;
-    const fileUrl = `/uploads/${req.file.filename}`;
-    const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
-    const edit = await storage.createVideoEdit({ userId, title, originalFilename: req.file.originalname, filePath: req.file.path, fileUrl, status: "transcribing" });
-    res.json(edit);
-
-    (async () => {
-      try {
-        const fileStat = fs.statSync(req.file!.path);
-        const MAX_WHISPER_BYTES = 25 * 1024 * 1024; // 25MB Groq limit
-        if (fileStat.size > MAX_WHISPER_BYTES) {
-          await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-          console.log("[video-studio] file too large for Whisper:", fileStat.size, "bytes");
-          return;
-        }
-        const FormDataLib = (await import("form-data")).default;
-        const formData = new FormDataLib();
-        const fileBuffer = fs.readFileSync(req.file!.path);
-        const ext = path.extname(req.file!.originalname).toLowerCase();
-        const mimeMap: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav" };
-        const contentType = mimeMap[ext] || "video/mp4";
-        formData.append("file", fileBuffer, { filename: req.file!.originalname || "video.mp4", contentType });
-        formData.append("model", "whisper-large-v3");
-        formData.append("response_format", "verbose_json");
-        formData.append("timestamp_granularities[]", "word");
-        const formBuffer = formData.getBuffer();
-        const formHeaders = formData.getHeaders();
-        const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
-          body: formBuffer,
-        });
-        if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
-        const transcriptData = await whisperRes.json() as any;
-        const words = transcriptData.words || [];
-        const duration = words.length > 0 ? words[words.length - 1].end : transcriptData.duration || 0;
-        const silences = detectSilences(words);
-        const publicVideoUrl = `${getRequestAwareBase(req)}${fileUrl}`;
-        await storage.updateVideoEdit(edit.id, userId, { transcript: { text: transcriptData.text, words, duration: transcriptData.duration }, silences, duration, fileUrl: publicVideoUrl, status: "transcribed" });
-      } catch (e: any) {
-        console.log("[video-studio] transcription error:", e.message);
-        await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-      }
-    })();
-  });
-
-  app.post("/api/video-studio/:id/render", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    if (!edit.fileUrl) return res.status(400).json({ message: "Video not yet transcribed" });
-    const settings = req.body.settings || {};
-    const timeline = buildShotstackTimeline(edit.fileUrl, edit.transcript, settings);
-    const renderRes = await fetch(`${SHOTSTACK_BASE}/render`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": SHOTSTACK_KEY },
-      body: JSON.stringify(timeline),
-    });
-    const renderData = await renderRes.json() as any;
-    if (!renderRes.ok || !renderData.response?.id) {
-      console.log("[video-studio] shotstack error:", JSON.stringify(renderData));
-      return res.status(502).json({ message: renderData.message || "Shotstack error", detail: renderData });
-    }
-    const renderId = renderData.response.id;
-    await storage.updateVideoEdit(edit.id, userId, { status: "rendering", shotstackRenderId: renderId, settings });
-    res.json({ ok: true, renderId });
-  });
-
-  app.get("/api/video-studio/:id/status", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    if (!edit.shotstackRenderId) return res.json(edit);
-    if (edit.status === "done" || edit.status === "failed") return res.json(edit);
-    const statusRes = await fetch(`${SHOTSTACK_BASE}/render/${edit.shotstackRenderId}`, { headers: { "x-api-key": SHOTSTACK_KEY } });
-    const statusData = await statusRes.json() as any;
-    const ssStatus = statusData.response?.status;
-    if (ssStatus === "done") {
-      const outputUrl = statusData.response?.url;
-      await storage.updateVideoEdit(edit.id, userId, { status: "done", outputUrl });
-      return res.json({ ...edit, status: "done", outputUrl });
-    } else if (ssStatus === "failed") {
-      await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-      return res.json({ ...edit, status: "failed" });
-    }
-    res.json({ ...edit, status: "rendering" });
-  });
+  // ── Video Studio (AI video editor) ─────────────────────────────────────────
+  // Upload → background Whisper → AI chat EDL edits → background ffmpeg render.
+  // See server/videoEditor/. Shotstack (stage sandbox, watermarked) is only a
+  // fallback for hosts without ffmpeg.
+  registerVideoStudioRoutes(app, { requireAuth: requireAuth as any, videoUpload, aiJson: callGroqJson });
 
   // ── B-Roll Library ──────────────────────────────────────────────────────────
   app.get("/api/broll", requireAuth, async (req: Request, res: Response) => {
@@ -12149,114 +12010,6 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       </div>`;
   }
 
-  // ══ Client Scheduling API ══════════════════════════════════════════════════
-  // Per-user booking page management (client-facing, not admin)
-
-  function userSlug(name: string, id: string) {
-    return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + id.slice(0, 8);
-  }
-
-  // GET /api/scheduling/me — fetch this user's meeting type
-  app.get("/api/scheduling/me", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      res.json(mt ?? null);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // POST /api/scheduling/setup — create or update this user's meeting type
-  app.post("/api/scheduling/setup", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { title, duration, description, location, timezone, isActive } = req.body;
-      if (!title) return res.status(400).json({ message: "title required" });
-
-      const existing = await storage.getMeetingTypeByUserId(userId);
-      let mt;
-      if (existing) {
-        mt = await storage.updateMeetingType(existing.id, { title, duration, description, location, timezone, isActive });
-      } else {
-        const slug = userSlug(title, userId);
-        mt = await storage.createMeetingType({ userId, slug, title, duration: duration ?? 30, description, location, timezone: timezone ?? "UTC", isActive: isActive ?? true });
-        // Seed default availability (Mon–Fri 9–5)
-        const defaultRules = [0,1,2,3,4,5,6].map(dow => ({ dayOfWeek: dow, startTime: "09:00", endTime: "17:00", isEnabled: dow >= 1 && dow <= 5 }));
-        await storage.upsertAvailabilityRules(mt!.id, defaultRules);
-      }
-      res.json(mt);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/scheduling/availability
-  app.get("/api/scheduling/availability", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.json([]);
-      const rules = await storage.getAvailabilityRules(mt.id);
-      res.json(rules);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PUT /api/scheduling/availability — body: AvailRule[]
-  app.put("/api/scheduling/availability", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.status(404).json({ message: "No meeting type found. Run setup first." });
-      const rules = Array.isArray(req.body) ? req.body : [];
-      const updated = await storage.upsertAvailabilityRules(mt.id, rules);
-      res.json(updated);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/scheduling/bookings
-  app.get("/api/scheduling/bookings", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.json([]);
-      const bookings = await storage.getScheduledBookingsByMeetingType(mt.id);
-      res.json(bookings);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PATCH /api/scheduling/bookings/:id — update status
-  app.patch("/api/scheduling/bookings/:id", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.status(404).json({ message: "Not found" });
-      const booking = await storage.getScheduledBooking(req.params.id);
-      if (!booking || booking.meetingTypeId !== mt.id) return res.status(404).json({ message: "Booking not found" });
-      const updated = await storage.updateScheduledBooking(req.params.id, { status: req.body.status });
-      res.json(updated);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/scheduling/config
-  app.get("/api/scheduling/config", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.json({});
-      let config = {};
-      try { config = mt.schedulingConfig ? JSON.parse(mt.schedulingConfig) : {}; } catch {}
-      res.json(config);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PUT /api/scheduling/config
-  app.put("/api/scheduling/config", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const mt = await storage.getMeetingTypeByUserId(userId);
-      if (!mt) return res.status(404).json({ message: "No meeting type found. Run setup first." });
-      await storage.updateMeetingType(mt.id, { schedulingConfig: JSON.stringify(req.body) });
-      res.json(req.body);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
   // Admin CRUD — Meeting Types
   app.get("/api/admin/meeting-types", requireAdmin, async (_req, res) => {
     const types = await storage.getMeetingTypes();
@@ -12451,7 +12204,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   app.get("/api/book/:slug/slots", async (req, res) => {
     try {
       const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
-      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+      if (!mt || !mt.isActive || await isRetiredClientBookingPage(mt)) return res.status(404).json({ message: "Meeting type not found" });
 
       const { date } = req.query; // date as YYYY-MM-DD (interpreted in mt.timezone)
       if (!date || typeof date !== "string") return res.status(400).json({ message: "date required (YYYY-MM-DD)" });
@@ -12547,7 +12300,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   app.get("/api/book/:slug/available-dates", async (req, res) => {
     try {
       const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
-      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+      if (!mt || !mt.isActive || await isRetiredClientBookingPage(mt)) return res.status(404).json({ message: "Not found" });
 
       const { year, month } = req.query;
       if (!year || !month) return res.status(400).json({ message: "year and month required" });
@@ -12634,24 +12387,6 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       const userId = (req.user as any).id;
       const token = await storage.getGoogleCalendarToken(userId);
       res.json({ connected: !!token, email: token?.connectedEmail ?? null });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // Per-user Google Calendar status (for scheduling dashboard)
-  app.get("/api/scheduling/google-calendar/status", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const token = await storage.getGoogleCalendarToken(userId);
-      res.json({ connected: !!token, email: token?.connectedEmail ?? null });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // Per-user Google Calendar disconnect
-  app.delete("/api/scheduling/google-calendar/disconnect", requireAuth, async (req, res) => {
-    try {
-      const userId = (req.user as any).id;
-      await storage.deleteGoogleCalendarToken(userId);
-      res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -12830,7 +12565,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   app.get("/api/book/:slug", async (req, res) => {
     try {
       const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
-      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+      if (!mt || !mt.isActive || await isRetiredClientBookingPage(mt)) return res.status(404).json({ message: "Not found" });
       res.json(mt);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -12839,7 +12574,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   app.post("/api/book/:slug", async (req, res) => {
     try {
       const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
-      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+      if (!mt || !mt.isActive || await isRetiredClientBookingPage(mt)) return res.status(404).json({ message: "Meeting type not found" });
 
       const { clientName, clientEmail, startTime, notes, customAnswers, clientTimezone } = req.body;
       if (!clientName || !clientEmail || !startTime) {
@@ -15404,192 +15139,6 @@ Return JSON only:
     }
   });
 
-  // ── Bio Generator ─────────────────────────────────────────────────────────
-  app.post("/api/tools/bio-generator/generate", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { niche, platform, whatYouDo, whoYouHelp, socialProof, cta, linkUrl } = req.body;
-
-      if (!niche || !whatYouDo) {
-        return res.status(400).json({ error: "Niche and what you do are required" });
-      }
-
-      const platformLimits: Record<string, number> = {
-        instagram: 150,
-        twitter: 160,
-        linkedin: 220,
-      };
-
-      const charLimit = platformLimits[platform] || 150;
-
-      const prompt = `You are an expert bio writer who understands the psychology of social media bios. A prospect decides in under 10 seconds whether to follow or ignore based on the bio.
-
-**THE 4-LINE BIO FRAMEWORK:**
-
-**Line 1 (Attract/Repel):** This line should be SPECIFIC about what you do and who you help. It should attract your ideal audience and repel everyone else. Use concrete numbers, specific outcomes, and clear positioning.
-
-**Line 2 (Social Proof):** Show credibility through numbers - how many people you've helped, results you've delivered, or transformations you've created. Make it tangible and impressive.
-
-**Line 3 (CTA):** Clear call to action that tells them exactly what to do next. Should create urgency or curiosity.
-
-**Line 4 (Link):** The actual link (user provides this).
-
-**USER INPUT:**
-- Niche: ${niche}
-- Platform: ${platform} (${charLimit} character limit)
-- What they do: ${whatYouDo}
-${whoYouHelp ? `- Who they help: ${whoYouHelp}` : ""}
-${socialProof ? `- Social proof: ${socialProof}` : ""}
-${cta ? `- CTA idea: ${cta}` : ""}
-${linkUrl ? `- Link: ${linkUrl}` : ""}
-
-**YOUR TASK:**
-Generate 3 variations for each of the first 3 lines. Each variation should be different in tone and approach:
-- Variation 1: Bold and direct
-- Variation 2: Storytelling/relatable
-- Variation 3: Data-driven/authoritative
-
-Also provide profile picture tips specific to their niche.
-
-**CRITICAL RULES:**
-1. Line 1 must be HYPER-SPECIFIC. No generic statements like "I help people succeed." Instead: "I help 30-40 year old coaches go from $5k/mo to $50k/mo in 90 days"
-2. Line 2 must include NUMBERS. "Helped 6,000+ men" or "500+ transformations in 2024"
-3. Line 3 must be ACTION-ORIENTED. "DM me 'START'" or "Get my free training below"
-4. Keep each line concise - the full bio should be under ${charLimit} characters
-5. Make it platform-appropriate for ${platform}
-
-Return ONLY valid JSON in this exact format:
-{
-  "line1Options": ["option1", "option2", "option3"],
-  "line2Options": ["option1", "option2", "option3"],
-  "line3Options": ["option1", "option2", "option3"],
-  "line4": "${linkUrl || ""}",
-  "profilePictureTips": {
-    "dos": ["tip1", "tip2", "tip3"],
-    "donts": ["tip1", "tip2", "tip3"],
-    "specificTips": ["niche-specific tip1", "niche-specific tip2"]
-  }
-}`;
-
-      // Use Groq instead of Anthropic for bio generation
-      const raw = await callGroqJson(
-        "You are an expert bio writer who understands the psychology of social media bios. Return ONLY valid JSON.",
-        prompt,
-        2000
-      );
-
-      // Parse JSON from response
-      let jsonText = raw.trim();
-      
-      // Remove markdown code blocks if present
-      if (jsonText.startsWith("```json")) {
-        jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-      } else if (jsonText.startsWith("```")) {
-        jsonText = jsonText.replace(/```\n?/g, "");
-      }
-
-      const result = JSON.parse(jsonText);
-
-      // Calculate character count for first variation
-      const sampleBio = `${result.line1Options[0]}\n${result.line2Options[0]}\n${result.line3Options[0]}\n${result.line4}`;
-      result.characterCount = sampleBio.length;
-      result.platformOptimized = result.characterCount <= charLimit;
-
-      res.json(result);
-    } catch (error: any) {
-      console.error("Bio generation error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate bio" });
-    }
-  });
-
-
-  // ── Bio Generator Tools ────────────────────────────────────────────────────
-
-  // 1. Generate from Scratch (existing endpoint - already in routes.ts)
-  // /api/tools/bio-generator/generate
-
-  // 2. Improve Existing Bio
-  app.post("/api/tools/bio-generator/improve", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { currentBio, platform } = req.body;
-      if (!currentBio?.trim()) return res.status(400).json({ message: "currentBio is required" });
-
-      const _uBioImp = req.user as any;
-      if (_uBioImp.role !== "admin") {
-        const creditResult = await storage.deductCredits(_uBioImp.id, 5, "bio_improve", "Bio Improve analysis", _uBioImp.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
-      }
-
-      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
-      const limit = platformLimits[platform] || 150;
-
-      const systemPrompt = `You are an elite bio optimization expert. Analyze Instagram/Twitter/LinkedIn bios and provide detailed scoring + improvements. Return ONLY valid JSON.`;
-      
-      const userPrompt = `Analyze this ${platform} bio and return improvements:\n\nCurrent bio:\n"${currentBio}"\n\nPlatform: ${platform} (${limit} char limit)\n\nReturn this EXACT JSON:\n{\n  "score": 75,\n  "breakdown": {\n    "clarity": { "score": 15, "feedback": "specific feedback" },\n    "hook": { "score": 12, "feedback": "specific feedback" },\n    "cta": { "score": 14, "feedback": "specific feedback" },\n    "characterEfficiency": { "score": 16, "feedback": "specific feedback" },\n    "nicheSpecificity": { "score": 18, "feedback": "specific feedback" }\n  },\n  "improvedVersions": ["improved bio 1 under ${limit} chars", "improved bio 2", "improved bio 3"],\n  "whatChanged": ["change 1", "change 2", "change 3"]\n}`;
-
-      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
-      const parsed = JSON.parse(raw);
-      return res.json(parsed);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // 3. Polish Template
-  app.post("/api/tools/bio-generator/polish-template", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filledBio, platform, templateName } = req.body;
-      if (!filledBio?.trim()) return res.status(400).json({ message: "filledBio is required" });
-
-      const _uBioTpl = req.user as any;
-      if (_uBioTpl.role !== "admin") {
-        const creditResult = await storage.deductCredits(_uBioTpl.id, 3, "bio_template", "Bio Template Polish", _uBioTpl.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
-      }
-
-      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
-      const limit = platformLimits[platform] || 150;
-
-      const systemPrompt = `You are an expert bio writer. Polish and optimize filled bio templates. Return ONLY valid JSON.`;
-      
-      const userPrompt = `Polish this ${templateName} bio for ${platform}:\n\n"${filledBio}"\n\nPlatform limit: ${limit} characters\n\nReturn this EXACT JSON:\n{\n  "polishedVersions": ["polished version 1 under ${limit} chars", "polished version 2", "polished version 3"]\n}`;
-
-      const raw = await callGroqJson(systemPrompt, userPrompt, 1500);
-      const parsed = JSON.parse(raw);
-      return res.json(parsed);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // 4. Analyze Competitors
-  app.post("/api/tools/bio-generator/analyze-competitors", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { competitorBios, platform, userNiche } = req.body;
-      if (!Array.isArray(competitorBios) || competitorBios.length < 2) {
-        return res.status(400).json({ message: "At least 2 competitor bios required" });
-      }
-
-      const _uBioComp = req.user as any;
-      if (_uBioComp.role !== "admin") {
-        const creditResult = await storage.deductCredits(_uBioComp.id, 8, "bio_competitor", "Bio Competitor Analysis", _uBioComp.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
-      }
-
-      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
-      const limit = platformLimits[platform] || 150;
-
-      const systemPrompt = `You are an elite bio strategist. Analyze competitor bios, extract patterns, and generate unique bios. Return ONLY valid JSON.`;
-      
-      const userPrompt = `Analyze these ${competitorBios.length} competitor bios in the "${userNiche}" niche:\n\n${competitorBios.map((bio: string, i: number) => `Bio ${i + 1}: "${bio}"`).join("\n\n")}\n\nPlatform: ${platform} (${limit} char limit)\nUser's niche: ${userNiche}\n\nReturn this EXACT JSON:\n{\n  "patterns": {\n    "commonStructure": "what structure they all use",\n    "toneAnalysis": "tone they use",\n    "keywordFrequency": ["keyword1", "keyword2", "keyword3"],\n    "ctaPatterns": ["cta pattern 1", "cta pattern 2"],\n    "lengthAverage": 120\n  },\n  "insights": ["insight 1", "insight 2", "insight 3"],\n  "generatedBios": ["unique bio 1 for user under ${limit} chars", "unique bio 2", "unique bio 3"]\n}`;
-
-      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
-      const parsed = JSON.parse(raw);
-      return res.json(parsed);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
   // ── SMS Marketing ───────────────────────────────────────────────────────────
 
   const CARRIER_GATEWAYS: Record<string, string> = {
@@ -15949,148 +15498,6 @@ Return ONLY valid JSON in this exact format:
     res.json(b);
   });
 
-  // ── AI Board Generation ─────────────────────────────────────────────────────
-  app.post("/api/ai/board/generate", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { prompt } = req.body;
-      if (!prompt?.trim()) return res.status(400).json({ message: "prompt is required" });
-
-      const _u = req.user as any;
-      if (_u.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u.id, 5, "ai_board", "AI Board Generation", _u.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
-      }
-
-      const systemPrompt = `You are an expert board/flowchart designer. Given a user prompt, generate a structured board with nodes and connectors.
-
-Return ONLY valid JSON in this exact format:
-{
-  "nodes": [
-    {
-      "id": "n1",
-      "kind": "process|decision|terminator|database|document|cloud|star|person|text|sticky-yellow|sticky-green|sticky-blue|sticky-pink|sticky-purple|sticky-orange",
-      "x": number,
-      "y": number,
-      "w": number,
-      "h": number,
-      "title": "short title",
-      "body": "optional description"
-    }
-  ],
-  "connectors": [
-    {
-      "id": "c1",
-      "fromId": "n1",
-      "toId": "n2",
-      "label": "optional label",
-      "style": "curved"
-    }
-  ]
-}
-
-Rules:
-- Place nodes in a logical layout (left-to-right or top-to-bottom flow, no overlap)
-- Use the correct visual type for the concept: process for actions/steps, decision for branching, terminator for start/end, database for data stores, document for files, cloud for external systems, sticky for notes/ideas
-- Keep titles short (2-5 words) and bodies concise (1-2 sentences max)
-- Space nodes generously (300-400px apart horizontally, 200-300px vertically)
-- Add connectors between related nodes with descriptive labels
-- Generate 4-12 nodes depending on the complexity of the topic
-- Use appropriate node sizes (process: 180x70, decision: 180x120, terminator: 160x60, sticky: 160x140, cloud: 180x90, person: 120x120, star: 100x100, text: 140x50, database: 170x100, document: 170x120)`;
-
-      const raw = await callGroqJson(systemPrompt, prompt, 4000);
-      const parsed = JSON.parse(raw);
-      if (!parsed.nodes || !Array.isArray(parsed.nodes)) {
-        return res.status(500).json({ message: "AI returned invalid board structure" });
-      }
-      return res.json(parsed);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message || "Board generation failed" });
-    }
-  });
-
-  // ── Board Generation FROM IMAGE (vision) ──────────────────────────────────
-  app.post("/api/ai/board/generate-from-image", requireAuth, upload.single("image"), async (req: Request, res: Response) => {
-    try {
-      const prompt = req.body.prompt?.trim() || "Recreate this diagram as a structured board with nodes and connectors";
-      const file = req.file;
-      if (!file) return res.status(400).json({ message: "Image file is required" });
-
-      const _u = req.user as any;
-      if (_u.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u.id, 10, "ai_board_vision", "AI Board from Image", _u.plan || "free");
-        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
-      }
-
-      const base64Image = fs.readFileSync(file.path, { encoding: "base64" });
-      fs.unlinkSync(file.path);
-
-      const systemPrompt = `You are an expert diagram reverse-engineer with computer vision. Analyze the provided image of a diagram, chart, flowchart, architecture diagram, org chart, mind map, kanban board, or any visual diagram — and faithfully recreate it as a structured board.
-
-Return ONLY valid JSON (no markdown, no explanation):
-{
-  "title": "Inferred board title",
-  "nodes": [
-    {
-      "kind": "process|decision|terminator|database|document|cloud|server|person|ai-node|kanban-card|checklist|section|rounded-rect|sticky-yellow|sticky-green|sticky-blue|sticky-pink|component",
-      "x": number,
-      "y": number,
-      "w": number,
-      "h": number,
-      "title": "Exact text from the node in the image",
-      "body": "Any sub-text or description visible inside the node",
-      "color": "#hexcolor if node has a distinct background color",
-      "borderColor": "#hexcolor if node has a distinct border",
-      "status": "todo|inprogress|done (only if kanban-card with visible status)",
-      "priority": "low|medium|high (only if kanban-card)",
-      "items": ["item text"] (only if checklist visible),
-      "language": "language name (only if code block visible)"
-    }
-  ],
-  "connectors": [
-    {
-      "fromIdx": 0,
-      "toIdx": 1,
-      "label": "Arrow label text if visible",
-      "style": "curved"
-    }
-  ]
-}
-
-CRITICAL RULES:
-- fromIdx and toIdx are ZERO-BASED INDICES into the nodes array (NOT string IDs)
-- Extract EVERY visible node — do not skip any box, shape, circle, diamond, or element
-- Preserve the approximate spatial layout: if node A is top-left in image, give it small x,y values
-- Scale coordinates: map the image width to ~1200px, height to ~900px canvas space
-- Choose kind based on shape: diamond→decision, pill/oval→terminator, cylinder→database, cloud→cloud, rectangle→process, sticky/square with color→sticky-yellow/green/blue etc
-- Copy text EXACTLY as visible in the image
-- Add a connector for EVERY arrow or line visible between nodes
-- If diagram has color-coded groups, use section nodes behind the grouped nodes
-- Generate as many nodes as needed — do not simplify or omit`;
-
-      const raw = await callGroqVisionJson(systemPrompt, prompt, base64Image, 6000);
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return res.status(500).json({ message: "AI returned no JSON" });
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!parsed.nodes || !Array.isArray(parsed.nodes)) {
-        return res.status(500).json({ message: "AI returned invalid board structure from image" });
-      }
-      // Normalize: if AI used old "fromId"/"toId" string format, convert to fromIdx/toIdx
-      const nodeIds: string[] = parsed.nodes.map((n: any) => n.id || "");
-      if (parsed.connectors) {
-        parsed.connectors = parsed.connectors.map((c: any) => {
-          if (typeof c.fromIdx === "number") return c;
-          const fromIdx = nodeIds.indexOf(c.fromId);
-          const toIdx = nodeIds.indexOf(c.toId);
-          if (fromIdx < 0 || toIdx < 0) return null;
-          return { fromIdx, toIdx, label: c.label, color: c.color, style: c.style };
-        }).filter(Boolean);
-      }
-      return res.json(parsed);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message || "Board image generation failed" });
-    }
-  });
-
   // ── Modular route registrations ──────────────────────────────────────────────
   // Routes split into server/routes/ for maintainability
   registerWebinarPollRoutes(app, requireAuth);
@@ -16120,23 +15527,12 @@ CRITICAL RULES:
   await bootstrapCrmPublicApi().catch(err => console.error("[crm-public-api] bootstrap failed:", err));
   registerCrmPublicApi(app, requireAdmin);
 
-  // ── Email Marketing Platform (Growth+ tier) ───────────────────────────────
-  await bootstrapEmailMarketing().catch(err => console.error("[email-marketing] bootstrap failed:", err));
-  registerEmailMarketingRoutes(app, requireAuth);
-
   // ── Dialer (Twilio + AI calling) ──────────────────────────────────────────
   registerDialerRoutes(app, requireAuth);
   startSequenceRunner();
 
-  // ── SMS Marketing Platform ────────────────────────────────────────────────
-  await bootstrapSmsMarketing().catch(err => console.error("[sms-marketing] bootstrap failed:", err));
-  registerSmsMarketingRoutes(app, requireAuth);
-
   // ── Platform-wide AI Chat ─────────────────────────────────────────────────
   registerPlatformChatRoutes(app, requireAuth);
-
-  // ── Unified Analytics ─────────────────────────────────────────────────────
-  registerAnalyticsRoutes(app, requireAuth);
 
   // ── Admin Overview Stats ───────────────────────────────────────────────────
   registerAdminOverviewRoutes(app, requireAdmin);
@@ -16269,8 +15665,19 @@ CRITICAL RULES:
   const CLIP_FFMPEG = FFMPEG_PATH;
   const CLIP_UPLOADS = path.resolve("uploads");
 
+  // Client-supplied paths are confined to the uploads dir (basename only).
   function resolveClipPath(fp: string): string {
-    return path.isAbsolute(fp) ? fp : path.join(CLIP_UPLOADS, path.basename(fp));
+    return path.join(CLIP_UPLOADS, path.basename(String(fp || "")));
+  }
+
+  class ClipJobError extends Error { constructor(public userMessage: string) { super(userMessage); } }
+
+  /** Enqueue a clip-editor job and answer immediately; the client polls /api/video-editor/jobs/:id. */
+  async function enqueueClipJob(req: Request, res: Response, kind: string, payload: any) {
+    try {
+      const job = await enqueueJob({ userId: (req.user as any).id, kind, payload });
+      res.status(202).json({ jobId: job.id, job: publicJob(job) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   }
 
   function buildClipVFilters(clip: any, targetW: number, targetH: number): string[] {
@@ -16387,47 +15794,26 @@ CRITICAL RULES:
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // Auto-caption via Groq Whisper
+  // Auto-caption via Groq Whisper (background job; >25MB handled by audio extraction)
+  registerJobHandler("clip_transcribe", async (job, ctx) => {
+    const absPath = resolveClipPath(job.payload?.filePath);
+    if (!fs.existsSync(absPath)) throw new ClipJobError("File not found — it may have been removed by a server restart. Re-upload the clip.");
+    const t = await transcribeMedia(absPath, { onStage: (stage, p) => ctx.progress(p ?? 0, stage) });
+    return { words: t.words.map(w => ({ word: w.word, start: w.start, end: w.end })), text: t.text };
+  });
   app.post("/api/video-clip-editor/transcribe", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
-      const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
-      const FormDataNode = (await import("form-data")).default;
-      const fd = new FormDataNode();
-      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
-      fd.append("model", "whisper-large-v3-turbo");
-      fd.append("response_format", "verbose_json");
-      fd.append("timestamp_granularities[]", "word");
-
-      const fetch2 = (await import("node-fetch")).default as any;
-      const resp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
-        body: fd,
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`Groq transcription error: ${errText.slice(0, 200)}`);
-      }
-      const data: any = await resp.json();
-      const words = (data.words || []).map((w: any) => ({ word: w.word, start: w.start, end: w.end }));
-      res.json({ words, text: data.text || "" });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    const { filePath } = req.body || {};
+    if (!filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_transcribe", { filePath });
   });
 
   // Silence detection via FFmpeg silencedetect
-  app.post("/api/video-clip-editor/detect-silence", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath, trimStart = 0, trimEnd, threshold = "-35dB", minDuration = 0.4 } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
+  registerJobHandler("clip_detect_silence", async (job) => {
+      const { filePath, trimStart = 0, trimEnd, threshold = "-35dB", minDuration = 0.4 } = job.payload || {};
       const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+      if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
+      if (!/^-?\d+(\.\d+)?dB$/.test(String(threshold))) throw new ClipJobError("Invalid threshold");
 
       const args: string[] = [];
       if (trimStart > 0) args.push("-ss", String(trimStart));
@@ -16445,17 +15831,20 @@ CRITICAL RULES:
         const end   = parseFloat(endMatches[i][1])   + (trimStart || 0);
         if (end - start >= minDuration) silentRanges.push({ start, end });
       }
-      res.json({ silentRanges });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return { silentRanges };
+  });
+  app.post("/api/video-clip-editor/detect-silence", requireAuth, async (req: Request, res: Response) => {
+    if (!req.body?.filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(req.body.filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_detect_silence", req.body);
   });
 
   // Scene change detection via FFmpeg
-  app.post("/api/video-clip-editor/detect-scenes", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath, threshold = 0.3 } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
+  registerJobHandler("clip_detect_scenes", async (job) => {
+      const filePath = job.payload?.filePath;
+      const threshold = Math.min(1, Math.max(0.01, parseFloat(job.payload?.threshold) || 0.3));
       const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+      if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
 
       const output = await ffmpegCapture(CLIP_FFMPEG, [
         "-i", absPath,
@@ -16469,13 +15858,31 @@ CRITICAL RULES:
         const t = parseFloat(m[1]);
         if (!isNaN(t) && t > 0.5) timestamps.push(t);
       }
-      res.json({ timestamps: [...new Set(timestamps)].sort((a, b) => a - b) });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return { timestamps: [...new Set(timestamps)].sort((a, b) => a - b) };
+  });
+  app.post("/api/video-clip-editor/detect-scenes", requireAuth, async (req: Request, res: Response) => {
+    if (!req.body?.filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(req.body.filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_detect_scenes", req.body);
   });
 
   // Multi-clip export with transitions, Ken Burns, noise reduction, audio mix, B-roll overlay
+  // Runs as a background job: an export can take minutes, which must never
+  // block a web request on Render. POST returns { jobId } immediately.
   app.post("/api/video-clip-editor/process", requireAuth, async (req: Request, res: Response) => {
+    const clips = req.body?.clips;
+    if (!Array.isArray(clips) || !clips.length) return res.status(400).json({ message: "No clips provided" });
+    for (let i = 0; i < clips.length; i++) {
+      if (!clips[i]?.filePath || !fs.existsSync(resolveClipPath(clips[i].filePath))) {
+        return res.status(410).json({ message: `Clip ${i + 1} file not found on the server — it may have been removed by a restart. Re-upload it.` });
+      }
+    }
+    await enqueueClipJob(req, res, "clip_export", req.body);
+  });
+
+  registerJobHandler("clip_export", async (job, ctx) => {
     const tmpFiles: string[] = [];
+    const reqBody = job.payload || {};
     try {
       const {
         clips = [], aspectRatio = "16:9", masterVolume = 1,
@@ -16483,8 +15890,8 @@ CRITICAL RULES:
         audioTracks = [], brollClips = [],
         exportQuality = "1080p", exportFps = 30,
         watermarkPath = null, watermarkPos = "br", watermarkOpacity = 0.7,
-      } = req.body;
-      if (!clips.length) return res.status(400).json({ message: "No clips provided" });
+      } = reqBody;
+      if (!clips.length) throw new ClipJobError("No clips provided");
 
       // Determine output dimensions based on quality setting
       const scaleH = exportQuality === "720p" ? 720 : exportQuality === "4k" ? 2160 : 1080;
@@ -16503,6 +15910,7 @@ CRITICAL RULES:
         const clip = clips[i];
         const inputPath = resolveClipPath(clip.filePath);
         if (!fs.existsSync(inputPath)) throw new Error(`Clip ${i + 1} file not found`);
+        await ctx.progress(i / (clips.length + 1), `Processing clip ${i + 1} of ${clips.length}`);
         const tmpOut = path.join(CLIP_UPLOADS, `clip-tmp-${ts}-${i}.mp4`);
         tmpFiles.push(tmpOut);
 
@@ -16524,7 +15932,9 @@ CRITICAL RULES:
 
       const tmpClips = tmpFiles.filter(f => f.endsWith(".mp4"));
       const outputName = `export-${ts}.mp4`;
-      const outputPath = path.join(CLIP_UPLOADS, outputName);
+      // Written as .part and renamed when complete (stale parts are swept at boot).
+      const outputPath = path.join(CLIP_UPLOADS, `export-${ts}.part.mp4`);
+      tmpFiles.push(outputPath);
 
       if (tmpClips.length === 1 && !audioTracks.length && !brollClips.length) {
         fs.copyFileSync(tmpClips[0], outputPath);
@@ -16618,11 +16028,16 @@ CRITICAL RULES:
         }
       }
 
+      const finalPath = path.join(CLIP_UPLOADS, outputName);
+      fs.renameSync(outputPath, finalPath);
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
-      res.json({ downloadUrl: `/uploads/${outputName}`, filename: outputName });
+      await ctx.progress(0.95, "Saving export");
+      // Cloudinary when configured (survives restarts), local /uploads otherwise.
+      const downloadUrl = await saveMedia(finalPath, outputName);
+      return { downloadUrl, filename: outputName };
     } catch (e: any) {
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
-      res.status(500).json({ message: e.message });
+      throw e;
     }
   });
 
@@ -18074,48 +17489,31 @@ Request: "${message.trim()}"`;
   });
 
   // AI Highlights — transcribe + LLM identifies best 30–90s clip section
+  registerJobHandler("clip_highlights", async (job, ctx) => {
+    const absPath = resolveClipPath(job.payload?.filePath);
+    if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
+    const t = await transcribeMedia(absPath, { onStage: (stage, p) => ctx.progress((p ?? 0) * 0.8, stage) });
+    const segments = t.segments.length ? t.segments : [];
+    const totalDuration = t.duration || segments.at(-1)?.end || 60;
+    await ctx.progress(0.85, "Finding the best moment");
+    const highlightJson = await callGroqJson(
+      `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
+      `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${t.text}`,
+      200
+    );
+    const parsed = JSON.parse(highlightJson);
+    return {
+      start: Math.max(0, parsed.start || 0),
+      end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
+      reason: parsed.reason || "Most engaging section",
+      totalDuration,
+    };
+  });
   app.post("/api/video-clip-editor/highlights", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
-      const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
-      const FormDataNode = (await import("form-data")).default;
-      const fd = new FormDataNode();
-      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
-      fd.append("model", "whisper-large-v3-turbo");
-      fd.append("response_format", "verbose_json");
-      fd.append("timestamp_granularities[]", "segment");
-
-      const fetch2 = (await import("node-fetch")).default as any;
-      const tResp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
-        body: fd,
-      });
-      if (!tResp.ok) throw new Error("Transcription failed");
-      const tData: any = await tResp.json();
-      const fullText = tData.text || "";
-      const segments: any[] = tData.segments || [];
-      const totalDuration = segments.length ? segments[segments.length - 1].end : 60;
-
-      const highlightJson = await callGroqJson(
-        `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
-        `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${fullText}`,
-        200
-      );
-      const parsed = JSON.parse(highlightJson);
-      res.json({
-        start: Math.max(0, parsed.start || 0),
-        end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
-        reason: parsed.reason || "Most engaging section",
-        totalDuration,
-      });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    const { filePath } = req.body || {};
+    if (!filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_highlights", { filePath });
   });
 
   // AI Chat editor — natural language → structured editing actions via Groq LLaMA
@@ -18851,103 +18249,6 @@ Preserve all section IDs. Write real copy, no placeholders.`;
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── AI Board Generation ──────────────────────────────────────────────────
-  app.post("/api/board/ai-generate", requireAuth, async (req: Request, res: Response) => {
-    const { prompt, action, nodes: existingNodes, complexity = "detailed" } = req.body;
-    if (!prompt) return res.status(400).json({ error: "prompt required" });
-
-    const nodeCountGuide = complexity === "simple" ? "15-25" : complexity === "complex" ? "40-70" : "25-45";
-
-    const systemPrompt = `You are an expert visual board designer and systems architect. Generate highly detailed, realistic, professional boards as JSON.
-
-AVAILABLE NODE KINDS:
-- sticky-yellow/green/blue/pink/purple/orange/red/teal → sticky notes (ideas, annotations)
-- process → rectangular box (steps, actions, services, modules)
-- decision → diamond (if/else, branching, gateways)
-- terminator → rounded pill (start/end, triggers)
-- database → cylinder (databases, caches, data stores)
-- cloud → cloud shape (external APIs, SaaS, internet)
-- server → rack server (servers, VMs, containers)
-- person → user/actor (people, roles, teams)
-- document → dog-eared box (files, reports, artifacts)
-- ai-node → AI/ML model node (ML models, AI services)
-- kanban-card → task card with status/priority
-- checklist → checkbox list
-- section → large colored zone for grouping (use w=600+ h=400+)
-- rounded-rect → generic box
-- component → tech component (microservices, packages)
-- text → label/annotation
-
-Return ONLY valid JSON — no markdown fences, no explanation:
-{
-  "title": "Board title",
-  "nodes": [
-    {
-      "kind": "process",
-      "x": 100, "y": 100, "w": 200, "h": 70,
-      "title": "API Gateway",
-      "body": "Routes requests, rate limiting, auth",
-      "color": "#1e293b",
-      "borderColor": "#3b82f6",
-      "status": "inprogress",
-      "priority": "high",
-      "assignee": "Alice",
-      "items": ["Task A", "Task B"],
-      "checked": [true, false],
-      "language": "typescript",
-      "modelName": "GPT-4o"
-    }
-  ],
-  "connectors": [
-    { "fromIdx": 0, "toIdx": 1, "label": "REST", "color": "#3b82f6", "style": "curved" }
-  ]
-}
-
-SIZE GUIDE (w × h):
-- section: 600×400 to 1200×600 (background grouping zone)
-- sticky notes: 180×130
-- process/rounded-rect: 180×70 to 220×90
-- decision: 200×110
-- terminator: 180×50
-- database: 140×100
-- cloud: 180×110
-- server: 160×100
-- person: 120×140
-- document: 160×100
-- ai-node: 220×120
-- kanban-card: 200×110
-- checklist: 200×180
-- component: 180×80
-
-LAYOUT RULES:
-- Sections always come FIRST in the nodes array (lower z-index = behind other nodes)
-- Start coordinates at x=100, y=100. Leave 60px padding between sections.
-- Inside a section: place child nodes within its bounds
-- Flowcharts: top-to-bottom, 160px vertical gap, 240px horizontal gap
-- Mind maps: center hub at (500,400), branches radiate out 300px
-- Architecture diagrams: group by layer (frontend/API/backend/DB) using sections
-- Kanban: 4 columns (Todo/In Progress/Review/Done), each 260px wide, cards 120px apart vertically
-- Connect EVERY logically related pair. Label connectors with protocols/actions.
-- Use specific, realistic content — real technology names, real step names, not placeholders
-- Generate ${nodeCountGuide} nodes. Complex topics MUST use sections for grouping.
-- Color-code by layer: frontend=#1e40af, API=#1e3a5f, backend=#14532d, DB=#3b0764, external=#1c1917`;
-
-    const userMsg = action === "expand" && existingNodes
-      ? `Expand this node by adding 6-10 detailed connected sub-nodes that drill into its internals. Existing node: ${JSON.stringify(existingNodes[0])}. Return ONLY new nodes + connectors. fromIdx 0 = the existing node, indices 1+ = new nodes.`
-      : `Create a comprehensive, detailed board for: ${prompt}. Be specific and technical. Use real names, real components. Make it look like a real professional diagram an engineer would actually use.`;
-
-    try {
-      const raw = await callGroqJson(systemPrompt, userMsg, 8000);
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return res.status(500).json({ error: "Invalid AI response" });
-      const board = JSON.parse(jsonMatch[0]);
-      res.json(board);
-    } catch (e: any) {
-      console.error("[board-ai]", e.message);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
   // ── DM AI Brain (BYOK) ───────────────────────────────────────────────────────
   {
     const nodeCrypto = await import("crypto");
@@ -19136,436 +18437,6 @@ LAYOUT RULES:
       }
     });
   }
-
-  // ── MentorKit — Digital Product Builder ──────────────────────────────────
-
-  const pdfUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      if (file.mimetype === "application/pdf" || path.extname(file.originalname).toLowerCase() === ".pdf") cb(null, true);
-      else cb(new Error("Only PDF files allowed"));
-    },
-  });
-
-  app.post("/api/mentor-kit/parse-pdf", requireAuth, pdfUpload.single("pdf"), async (req: Request, res: Response) => {
-    try {
-      if (!req.file) return res.status(400).json({ message: "No PDF file provided" });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse");
-      const data = await pdfParse(req.file.buffer);
-      const text = data.text?.trim() || "";
-      if (!text) return res.status(400).json({ message: "Could not extract text from PDF" });
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      return res.json({ text: text.slice(0, 20000), wordCount });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.post("/api/mentor-kit/fill-step", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { stepIndex, currentForm } = req.body;
-
-      type StepFieldMap = Record<string, string>;
-      const STEP_FILL: Record<number, StepFieldMap> = {
-        // Step 4: Your Story
-        4: {
-          originStory: "2–3 paragraph personal origin story in first person — how they discovered the niche, the pivotal moment, what changed. Specific, vulnerable, real.",
-          personalTransformation: "Specific before/after with numbers — where they were before, what they achieved now, exact timeframe.",
-          biggestMistake: "One specific costly mistake, what it cost in time/money/opportunity, the insight they gained from it.",
-          wishKnownEarlier: "One key insight they wish they had at the start and why it would have cut their learning curve by months.",
-          influences: "2–3 mentors, books, or programs that shaped their thinking and the specific idea they took from each.",
-        },
-        // Step 5: Your Proof
-        5: {
-          biggestPersonalResult: "Single most impressive personal result with specific numbers, timeframe, and the method that got it there.",
-          clientResults: "3 specific client results with realistic names/descriptors, vivid before/after, and exact timeframes.",
-          caseStudies: "One detailed client case study — situation before, what they worked on together, breakthrough moment, specific result, direct quote.",
-          testimonials: "2 realistic client testimonials in their natural voice — enthusiastic, specific, not corporate.",
-          socialProof: "Realistic audience/student numbers across platforms and revenue milestones.",
-        },
-        // Step 6: Your Audience
-        6: {
-          audienceDescription: "Full paragraph describing the ideal student — daily life, situation, personality, ambitions, what holds them back. Make them feel deeply understood.",
-          topFrustrations: "3 specific frustrations in the audience's exact language — the phrases they type into Google at 11pm.",
-          triedBefore: "What the audience has already tried and the specific reason each thing failed for them.",
-          realReason: "The deep psychological or strategic block that explains why they haven't achieved their goal yet.",
-          verbatimLanguage: "5–6 verbatim phrases the audience actually uses when describing their problem to friends or on social media.",
-          beforePicture: "Vivid description of the audience's current Tuesday morning — what they see, feel, do, and think.",
-          afterPicture: "Vivid description of their life 90 days after completing the program — tangible, emotional, specific.",
-          biggestFear: "Their primary objection before buying, plus the deeper identity-level fear underneath it.",
-          secretDesire: "The thing they want that they'd never admit publicly — the identity they want to step into.",
-        },
-        // Step 7: Your Framework
-        7: {
-          frameworkDescription: "How the framework works — the core logic, why this order of steps, what makes it different. Raw and explained like a coaching call.",
-          differentiator: "What makes this approach work when others fail — the specific insight only this creator's experience could produce.",
-          phases: "3–4 transformation phases: name, duration, what students go from and to, key outcomes in each phase.",
-          quickWin: "The specific tangible result every student gets in their first 7 days — something they produce or do, not just learn.",
-          ahaMoment: "The early realisation that makes students believe this will work for them — when it hits and what triggers it.",
-          weeklyMilestones: "Week-by-week milestone for each week of the program — specific, measurable, one line each.",
-          moduleIdeas: "6–8 module ideas with titles and 2–3 topics/concepts covered in each.",
-        },
-        // Step 8: Your Philosophy
-        8: {
-          coreBelief: "The one fundamental belief about their space they'd stake everything on — and the experience that formed it.",
-          teachingPhilosophy: "How they believe people actually learn and change, and the 3 specific structural decisions this drives in their program.",
-          contrarianTakes: "4 bold contrarian takes — each one directly names a popular belief, explains why it's wrong, and offers the better alternative.",
-          biggestMyth: "The biggest damaging myth in the niche — stated boldly, debunked with evidence from their client work.",
-          coreRules: "3 non-negotiable rules they operate by as a mentor — named, explained, with the consequence of violating each.",
-          mentorValues: "What students say about working with them — their energy, communication style, what makes their mentorship distinctive.",
-        },
-        // Step 10: Student Experience
-        10: {
-          first24Hours: "Step-by-step: what arrives in the first hour, what they're asked to do in the first 30 min, what they feel at end of Day 1.",
-          accountabilityMechanisms: "5 specific accountability structures — check-ins, buddy systems, milestones, interventions for ghost students.",
-          supportChannel: "Where questions go, response time commitment, office hours, direct access policy.",
-          graduationExperience: "What happens when a student completes — certificate, celebration, community feature, testimonial process.",
-          postCompletion: "Alumni community access, next offer, referral program, what graduates get that enrolled students don't.",
-        },
-        // Step 11: Business Context
-        11: {
-          marketingChannels: "Primary channel, launch strategy type, paid ad plan (yes/no + platform), any partnerships, launch timeline.",
-          competitors: "2 realistic competitors — names, pricing, genuine strengths, and where students feel underserved.",
-          yourEdge: "3 non-negotiable reasons to choose this creator over every alternative — specific, provable, not generic.",
-        },
-      };
-
-      const fields = STEP_FILL[stepIndex as number];
-      if (!fields) return res.status(400).json({ message: "No AI fill available for this step" });
-
-      const ctx = currentForm || {};
-      const contextBlock = [
-        ctx.creatorName ? `Creator: ${ctx.creatorName}` : "",
-        ctx.niche ? `Niche: ${ctx.niche}` : "",
-        ctx.productType ? `Product type: ${ctx.productType}` : "",
-        ctx.duration ? `Duration: ${ctx.duration}` : "",
-        ctx.frameworkName ? `Framework: ${ctx.frameworkName}` : "",
-        ctx.audienceDescription ? `Audience: ${String(ctx.audienceDescription).slice(0, 300)}` : "",
-        ctx.originStory ? `Origin: ${String(ctx.originStory).slice(0, 200)}` : "",
-      ].filter(Boolean).join("\n");
-
-      const fieldInstructions = Object.entries(fields)
-        .map(([k, desc]) => `"${k}": ${desc}`)
-        .join("\n");
-
-      const systemPrompt = `You are a world-class digital product consultant filling in a course creation brief. Write in first person as if you ARE the creator. Be specific, vivid, and authentic — concrete numbers, real emotions, named examples. Return ONLY a valid JSON object with no markdown, no code fences, no commentary.`;
-
-      const userPrompt = `Creator context:
-${contextBlock || "Limited context provided — write with realistic assumptions for a knowledge entrepreneur / coach in the digital education space."}
-
-Fill in these fields. Each key must appear in the JSON output:
-${fieldInstructions}
-
-Write as if you ARE this creator sharing your real experience. No generic filler. Return ONLY the JSON object.`;
-
-      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
-      try {
-        const filled = JSON.parse(raw || "{}");
-        return res.json({ fields: filled });
-      } catch {
-        return res.status(500).json({ message: "AI returned invalid JSON" });
-      }
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.post("/api/mentor-kit/refine", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { field, label, currentValue, context } = req.body;
-
-      const ctx = context || {};
-      const contextBlock = [
-        ctx.creatorName ? `Creator name: ${ctx.creatorName}` : "",
-        ctx.niche ? `Niche: ${ctx.niche}` : "",
-        ctx.productType ? `Product type: ${ctx.productType}` : "",
-        ctx.duration ? `Program duration: ${ctx.duration}` : "",
-        ctx.frameworkName ? `Framework name: ${ctx.frameworkName}` : "",
-        ctx.audienceDescription ? `Audience (brief): ${String(ctx.audienceDescription).slice(0, 250)}` : "",
-        ctx.coreBelief ? `Core belief: ${String(ctx.coreBelief).slice(0, 150)}` : "",
-      ].filter(Boolean).join("\n");
-
-      const systemPrompt = `You are a world-class digital product consultant helping a creator build their program creation brief. Write in first person as the creator. Be specific, vivid, and authentic — never generic or templated. Sound like a real expert sharing their truth.`;
-
-      const userPrompt = `Field to fill: "${label}"
-${contextBlock ? `\nCreator context:\n${contextBlock}\n` : ""}
-${currentValue?.trim() ? `\nCurrent draft (improve and expand on this):\n${currentValue}\n` : "\nField is empty — write a complete, specific response.\n"}
-Write a strong, genuine, concrete response for this field. Use real-sounding specifics: numbers, timelines, emotions, named examples. If it's a story field, write in first person. If it's an audience field, use their language. If it's a framework/strategy field, be precise and structured. Output only the field content — no intro, no explanation, no quotes around it.`;
-
-      const suggestion = (await callGroq(systemPrompt, userPrompt, 700)).trim();
-      return res.json({ suggestion });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.post("/api/mentor-kit/generate", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { intelData, pdfContext, productType: legacyType, niche: legacyNiche, audience: legacyAudience, transformation: legacyTransformation, priceRange: legacyPrice } = req.body;
-
-      const MK_AI_KEY = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
-      if (!MK_AI_KEY) return res.status(503).json({ message: "AI not available" });
-      const MK_AI_URL = "https://openrouter.ai/api/v1/chat/completions";
-      const MK_AI_MODEL = "meta-llama/llama-3.3-70b-instruct";
-      const MK_AI_HEADERS: Record<string, string> = { "Authorization": `Bearer ${MK_AI_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
-
-      const systemPrompt = `You are a world-class digital product architect and course creation consultant with deep expertise in building premium programs for coaches, consultants, and knowledge entrepreneurs. You've helped hundreds of creators launch 6 and 7-figure programs.
-
-Your job: take everything in this creator brief and produce a comprehensive, deeply personalised product blueprint.
-
-CRITICAL RULES:
-- Use their exact framework name throughout
-- Reference their specific case studies and client results
-- Use their audience's verbatim language when describing pain points
-- Reflect their contrarian takes and philosophy in the curriculum angles
-- Make every module title, lesson, and assignment feel like it came from THEM, not a template
-- Be specific. Never be generic. A vague output fails this creator.
-- Output clean markdown with ## headers`;
-
-      let userPrompt: string;
-
-      if (intelData && (intelData.creatorName || intelData.niche)) {
-        const d = intelData;
-        const f = (v: string, label: string) => v?.trim() ? `\n${label}:\n${v.trim()}` : "";
-        const fi = (v: string, label: string) => v?.trim() ? `\n${label}: ${v.trim()}` : "";
-
-        const durationLabel: Record<string, string> = {
-          "4w": "4 weeks", "6w": "6 weeks", "8w": "8 weeks", "12w": "12 weeks",
-          "16w": "16 weeks", "6m": "6 months", "12m": "12 months", "custom": d.customDuration || "custom",
-        };
-
-        const knowledgeBase = [
-          pdfContext ? `--- PDF KNOWLEDGE BASE ---\n${pdfContext.slice(0, 12000)}` : "",
-          d.ownFrameworkText?.trim() ? `--- CREATOR'S OWN FRAMEWORK (their words) ---\n${d.ownFrameworkText}` : "",
-          d.existingContent?.trim() ? `--- EXISTING CONTENT & WRITING SAMPLES ---\n${d.existingContent.slice(0, 4000)}` : "",
-          d.deepCaseStudies?.trim() ? `--- DEEP CASE STUDIES ---\n${d.deepCaseStudies}` : "",
-        ].filter(Boolean).join("\n\n");
-
-        userPrompt = `=== COMPLETE CREATOR BRIEF ===
-
-## PRODUCT FORMAT
-Type: ${d.productType || "online program"}
-Delivery: ${d.deliveryMode || "hybrid"}
-Duration: ${durationLabel[d.duration] || d.duration || "to be defined"}
-Modules: ${d.moduleCount || "TBD"} | Lessons/module: ${d.lessonsPerModule || "TBD"} | Lesson length: ${d.lessonLength || "TBD"}
-Live calls: ${d.callCadence !== "none" ? `${d.callCadence} (${d.callLength || "60 min"} sessions)` : "No live calls — async"}
-Community: ${d.communityPlatform !== "none" ? d.communityPlatform : "None"}
-Platform: ${d.hostingPlatform || "TBD"}
-Certification: ${d.hasCertification ? "Yes — certificate on completion" : "No"}
-
-## CREATOR IDENTITY${fi(d.creatorName, "Name")}${fi(d.brandName, "Brand")}${fi(d.niche, "Niche")}${fi(d.subNiche, "Sub-niche")}${fi(d.yearsExperience, "Experience")}${f(d.originStory, "Origin Story")}${f(d.personalTransformation, "Personal Transformation")}${f(d.biggestMistake, "Biggest Early Mistake")}${f(d.wishKnownEarlier, "Wish They'd Known Earlier")}${f(d.credentials, "Credentials & Features")}${f(d.influences, "Influences & Mentors")}${fi(d.knownFor, "Known For")}
-
-## CREDIBILITY & PROOF${f(d.biggestPersonalResult, "Biggest Personal Result")}${f(d.clientResults, "Top Client/Student Results")}${f(d.caseStudies, "Case Studies")}${f(d.testimonials, "Testimonials (raw)")}${fi(d.socialProof, "Social Proof Numbers")}
-
-## AUDIENCE${f(d.audienceDescription, "Ideal Student Profile")}${fi(d.ageRange, "Age Range")}${fi(d.careerStage, "Career Stage")}${f(d.topFrustrations, "Top Daily Frustrations (their words)")}${f(d.triedBefore, "What They've Already Tried & Why It Failed")}${f(d.realReason, "The REAL Reason They Haven't Succeeded Yet")}${f(d.verbatimLanguage, "Their Exact Verbatim Language")}${f(d.beforePicture, "Their Life BEFORE (before state)")}${f(d.afterPicture, "Their Life AFTER (transformation vision)")}${f(d.biggestFear, "Biggest Fear / Main Objection")}${f(d.secretDesire, "Secret Desire (deeper than stated goal)")}${fi(d.wherePlatforms, "Where They Hang Out Online")}
-
-## FRAMEWORK & METHODOLOGY${fi(d.frameworkName, "Framework Name")}${f(d.frameworkDescription, "Framework Description")}${f(d.differentiator, "What Makes This Different")}${f(d.phases, "Transformation Phases")}${f(d.quickWin, "Week 1 Quick Win")}${f(d.ahaMoment, "Engineered Aha Moment")}${f(d.weeklyMilestones, "Week-by-Week Milestones")}${f(d.moduleIdeas, "Module Ideas")}${f(d.assignments, "Assignments & Homework")}${f(d.toolsRequired, "Tools & Resources")}
-
-## PHILOSOPHY & BELIEFS${f(d.coreBelief, "Core Belief")}${f(d.teachingPhilosophy, "Teaching Philosophy")}${f(d.contrarianTakes, "Contrarian Takes")}${f(d.biggestMyth, "Biggest Myth to Bust")}${f(d.coreRules, "Non-Negotiable Rules")}${f(d.mentorValues, "Values as a Mentor")}
-
-## STUDENT EXPERIENCE${f(d.first24Hours, "First 24 Hours Onboarding")}${f(d.accountabilityMechanisms, "Accountability Mechanisms")}${f(d.supportChannel, "Support Setup")}${f(d.graduationExperience, "Graduation Experience")}${f(d.postCompletion, "Post-Completion / Alumni")}${fi(d.upsellOffer, "Upsell Offer")}
-
-## BUSINESS CONTEXT${fi(d.pricePoint, "Price Point")}${fi(d.pricingModel, "Pricing Model")}${fi(d.firstCohortSize, "First Cohort Size Target")}${fi(d.revenueGoal, "Revenue Goal")}${fi(d.ranBefore, "Previously Run")}${f(d.previousResults, "Previous Run Results")}${f(d.marketingChannels, "Marketing Plan")}${fi(d.audienceSizes, "Current Audience Sizes")}${f(d.competitors, "Competitor Analysis")}${f(d.yourEdge, "Competitive Edge")}
-
-${knowledgeBase ? `=== KNOWLEDGE BASE ===\n${knowledgeBase}` : ""}
-
-=== END OF BRIEF ===
-
-Now build the complete product blueprint. Use EVERYTHING above. Reference the creator by name. Use their framework name throughout. Speak their audience's language. Include their case studies as proof points. Reflect their contrarian takes in lesson angles.
-
-Generate all of these sections in order:
-
-# PRODUCT TITLES
-Give 3 compelling title options with subtitles. Make them specific to their niche and transformation, not generic.
-
-# HOOK & POSITIONING
-One-paragraph hook that opens every sales conversation. Tagline (under 10 words). One-sentence positioning statement.
-
-# IDEAL STUDENT AVATAR
-Full 2-paragraph description using the audience data above. Use their verbatim language.
-
-# FULL CURRICULUM
-For every module (based on the duration and structure above), provide:
-### MODULE [N]: [Title]
-**Goal:** [what this module accomplishes]
-**Lessons:**
-1. [Lesson title] — [what's taught, key points, why this lesson exists here]
-2. [Lesson title] — [details]
-[continue for all lessons in the module]
-**Module Homework:** [specific assignment]
-**Module Result:** [what student has/can do at the end]
-
-# WEEK-BY-WEEK ROADMAP
-Every single week. Format: **Week [N]:** [Focus topic] — [Milestone students hit] — [What they produce/complete]
-
-# PRICING STRATEGY
-### Option 1: [Tier Name] — [Price]
-Includes: [specific list]
-Who it's for: [specific person]
-Positioning: [why this price makes sense]
-
-### Option 2: [Tier Name] — [Price]
-[same structure]
-
-### Option 3: [Tier Name] — [Price]
-[same structure]
-
-# BONUS STACK
-7 high-value bonuses with:
-- [Bonus name] — [specific description] — [why students will love this]
-
-# WELCOME EMAIL SEQUENCE
-Write 5 complete emails (subject line + full body):
-**Email 1 (Day 0 — immediately after purchase):** [full email]
-**Email 2 (Day 1):** [full email]
-**Email 3 (Day 3):** [full email]
-**Email 4 (Day 7):** [full email]
-**Email 5 (Day 14):** [full email]
-
-# FAQ & OBJECTION HANDLING
-10 Q&As covering the biggest objections. Make the answers confident and specific.
-
-# SALES PAGE OUTLINE
-Section-by-section breakdown of the sales page:
-- Headline options (3)
-- Above the fold hook
-- The problem section
-- The solution introduction (their framework)
-- Social proof placement
-- Curriculum breakdown
-- Pricing section
-- FAQ section
-- Final CTA
-
-Be thorough. Be specific. Do not use filler. Every word should feel like it came from this creator.`;
-
-      } else {
-        // Legacy simple prompt (backwards compat)
-        const niche = legacyNiche || "";
-        const audience = legacyAudience || "";
-        const transformation = legacyTransformation || "";
-        if (!legacyType || !niche) return res.status(400).json({ message: "Missing required fields" });
-
-        const pdfSection = pdfContext
-          ? `\n\nKnowledge base:\n--- BEGIN ---\n${pdfContext.slice(0, 15000)}\n--- END ---\nUse this to personalise the output.`
-          : "";
-
-        userPrompt = `Create a complete digital product blueprint for:
-Niche: ${niche}
-Audience: ${audience}
-Transformation: ${transformation}
-Price range: ${legacyPrice || "TBD"}${pdfSection}
-
-Generate: 3 title options, positioning, full curriculum (all modules + lessons), week-by-week roadmap, 3 pricing tiers, 5-email welcome sequence, FAQ (10 Qs), sales page outline. Be specific and thorough.`;
-      }
-
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-
-      const r = await fetch(MK_AI_URL, {
-        method: "POST",
-        headers: MK_AI_HEADERS,
-        body: JSON.stringify({
-          model: MK_AI_MODEL,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          temperature: 0.8,
-          max_tokens: 16000,
-          stream: true,
-        }),
-      });
-
-      if (!r.ok || !r.body) {
-        res.write(`data: ${JSON.stringify({ error: "AI generation failed" })}\n\n`);
-        return res.end();
-      }
-
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed === "data: [DONE]") continue;
-          if (trimmed.startsWith("data: ")) {
-            try {
-              const json = JSON.parse(trimmed.slice(6));
-              const token = json.choices?.[0]?.delta?.content;
-              if (token) res.write(`data: ${JSON.stringify({ token })}\n\n`);
-            } catch {}
-          }
-        }
-      }
-
-      res.write("data: [DONE]\n\n");
-      res.end();
-    } catch (err: any) {
-      if (!res.headersSent) res.status(500).json({ message: err.message });
-      else { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); }
-    }
-  });
-
-  app.post("/api/mentor-kit/save", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user?.id;
-      const { productType, title, inputData, generatedContent, pdfContextUsed } = req.body;
-      if (!productType || !generatedContent) return res.status(400).json({ message: "productType and generatedContent required" });
-      const result = await pool.query(
-        `INSERT INTO mentor_kit_products (user_id, product_type, title, input_data, generated_content, pdf_context_used)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [userId, productType, title || null, JSON.stringify(inputData || {}), generatedContent, pdfContextUsed || false]
-      );
-      return res.json(result.rows[0]);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.get("/api/mentor-kit/products", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user?.id;
-      const result = await pool.query(
-        `SELECT id, product_type, title, input_data, pdf_context_used, created_at FROM mentor_kit_products WHERE user_id = $1 ORDER BY created_at DESC`,
-        [userId]
-      );
-      return res.json(result.rows);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.get("/api/mentor-kit/product/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user?.id;
-      const result = await pool.query(
-        `SELECT * FROM mentor_kit_products WHERE id = $1 AND user_id = $2`,
-        [req.params.id, userId]
-      );
-      if (!result.rows[0]) return res.status(404).json({ message: "Product not found" });
-      return res.json(result.rows[0]);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.delete("/api/mentor-kit/product/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user?.id;
-      await pool.query(`DELETE FROM mentor_kit_products WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
-      return res.json({ success: true });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
 
   return httpServer;
 }

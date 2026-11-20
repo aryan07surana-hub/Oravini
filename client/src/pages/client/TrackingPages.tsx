@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { normalizeInstagramProfileUrl } from "@shared/instagramHandle";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -1606,11 +1607,8 @@ function InstagramSetupCard({ userId }: { userId: string }) {
   const analyze = async () => {
     const input = url.trim();
     if (!input) return;
-    let profileUrl = input;
-    if (!profileUrl.startsWith("http")) {
-      const handle = profileUrl.replace(/^@/, "");
-      profileUrl = `https://www.instagram.com/${handle}/`;
-    }
+    // Shared normalizer avoids "instagram.com/instagram.com/..." for pasted URLs.
+    const profileUrl = normalizeInstagramProfileUrl(input) || input;
     setAnalyzing(true);
     try {
       const res = await fetch("/api/instagram/analyze-profile", {

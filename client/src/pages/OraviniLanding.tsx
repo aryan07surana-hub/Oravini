@@ -308,7 +308,6 @@ const FEATURES = [
   { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
-  { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
   { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
   { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
   { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },

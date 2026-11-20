@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, MonitorPlay, Workflow, Database, Mail, Smartphone, LayoutTemplate, Globe
+  LogOut, ChevronRight, Menu, X, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, MonitorPlay, Workflow, Database, Globe
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -183,13 +183,13 @@ const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/community", label: "Community", icon: Users2 },
-  { href: "/scheduling", label: "Scheduling", icon: CalendarPlus },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
+  { href: "/video-studio", label: "AI Video Studio", icon: Sparkles },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/oravini-recorder", label: "Oravini Recorder", icon: MonitorPlay },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
@@ -197,8 +197,6 @@ const topNavItems = [
   { href: "/recordings", label: "Recordings", icon: Film },
   { href: "/pages-hub", label: "Pages & Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
-  { href: "/mentor-kit", label: "MentorKit", icon: LayoutTemplate },
-  { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
 const bottomNavItems = [
@@ -273,11 +271,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               {[
                 ...topNavItems.filter(item => {
                   if (item.href === "/documents") return (user as any)?.plan === "elite";
-                  if (item.href === "/scheduling") return ["growth", "pro", "elite"].includes((user as any)?.plan);
                   return true;
                 }),
-                ...(["growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/email-marketing", label: "Email & Workflows", icon: Mail }] : []),
-                ...(["starter", "growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/sms-marketing", label: "SMS Marketing", icon: Smartphone }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/crm", label: "CRM", icon: Database }] : []),
               ].map(({ href, label, icon: Icon }) => {
@@ -360,21 +355,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <SidebarReferralWidget />
           <CreditWidget />
 
-          <div className="px-4 pb-3">
-            <Link
-              href="/scheduling"
-              data-testid="sidebar-scheduling"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-colors group ${location === "/scheduling" ? "bg-primary text-primary-foreground" : "hover:bg-sidebar-accent"}`}
-            >
-              <CalendarPlus className="w-4 h-4 flex-shrink-0" style={location !== "/scheduling" ? { color: GOLD } : {}} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-tight">Scheduling</p>
-                <p className={`text-[10px] mt-0.5 ${location === "/scheduling" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Your booking page</p>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-            </Link>
-          </div>
 
           <div className="p-4 border-t border-sidebar-border space-y-2">
             <div className="flex items-center gap-3 px-2 py-1">
