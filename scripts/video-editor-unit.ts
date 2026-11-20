@@ -109,6 +109,30 @@ async function main() {
 
   if (sample) {
     const info = await probe(sample);
+
+    // BASIC version: trim + automatic word-timed captions → rendered export.
+    const basicWords: Word[] = [
+      { word: "before", start: 0.6, end: 1.2 }, { word: "keep", start: 2.6, end: 3.0 }, { word: "these", start: 3.1, end: 3.6 },
+      { word: "words", start: 4.6, end: 5.2 }, { word: "only.", start: 5.3, end: 6.0 }, { word: "after", start: 9.0, end: 9.5 },
+    ];
+    const def = defaultEdl(info.duration);
+    assert.ok(def.captions.enabled, "captions are on by default (automatic)");
+    const trimmed = applyOperations(def, [{ op: "set_trim", start: 2, end: 8 }], basicWords, info.duration).edl;
+    const capWords = remapWords(basicWords, trimmed);
+    ok("basic: trim keeps only words inside the window, re-timed from 0", () => {
+      assert.deepStrictEqual(capWords.map(w => w.word), ["keep", "these", "words", "only."]);
+      assert.strictEqual(capWords[0].start, 0.6); // 2.6 - 2
+      assert.ok(capWords.every(w => w.end <= 6.001));
+    });
+    const basicOut = path.join(outDir, "basic-trim-captions.mp4");
+    const br = await renderWithFfmpeg({ input: sample, edl: trimmed, words: basicWords, outputPath: basicOut, quality: "final" });
+    ok(`basic: trimmed render with auto captions → ${br.duration}s ${br.width}x${br.height}, ${br.captionLines} caption events, audio=${br.hasAudio}`, () => {
+      assert.ok(Math.abs(br.duration - 6) < 0.1, `duration ${br.duration}`);
+      assert.ok(br.captionLines > 0, "captions burned in");
+      assert.ok(br.hasAudio);
+      const dec = spawnSync(FFMPEG_PATH, ["-v", "error", "-i", basicOut, "-f", "null", "-"], { encoding: "utf8" });
+      assert.ok(dec.status === 0 && !dec.stderr.trim(), "decodes cleanly");
+    });
     const sw: Word[] = [
       { word: "caption", start: 0.6, end: 1.4 }, { word: "preset", start: 1.5, end: 2.4 }, { word: "check", start: 2.5, end: 3.2 },
     ];

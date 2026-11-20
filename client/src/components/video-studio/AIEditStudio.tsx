@@ -83,6 +83,22 @@ function captionLines(words: Word[], wordsPerLine: number) {
   return lines;
 }
 
+/** Seconds input that commits on blur / Enter (the server clamps and validates). */
+function TrimInput({ label, value, max, disabled, onCommit }: { label: string; value: number; max: number; disabled?: boolean; onCommit: (v: number) => void }) {
+  const [draft, setDraft] = useState(value.toFixed(1));
+  useEffect(() => { setDraft(value.toFixed(1)); }, [value]);
+  const commit = () => {
+    const v = parseFloat(draft);
+    if (Number.isFinite(v) && Math.abs(v - value) > 0.04) onCommit(Math.min(Math.max(0, v), max));
+    else setDraft(value.toFixed(1));
+  };
+  return (
+    <Input aria-label={`Trim ${label} (seconds)`} data-testid={`input-trim-${label}`} value={draft} disabled={disabled}
+      onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      inputMode="decimal" className="h-7 w-16 text-[11px] px-2 bg-zinc-950 border-zinc-700" />
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
     transcribing: "text-blue-400 bg-blue-500/15 border-blue-500/25", importing: "text-blue-400 bg-blue-500/15 border-blue-500/25",
@@ -463,6 +479,16 @@ function Editor({ project, caps, refetch, onClose }: { project: Project; caps?: 
                 <span>Speed <b className="text-foreground">{edl.speed}×</b></span>
                 <span>Aspect <b className="text-foreground">{edl.aspect}</b></span>
                 {(edl.trim.start > 0.01 || edl.trim.end < duration - 0.01) && <button className="text-primary hover:underline" onClick={() => applyOps([{ op: "set_trim", start: 0, end: duration }])}>reset trim</button>}
+              </div>
+              {/* Trim: cut the start/end of the clip (playhead buttons or exact seconds) */}
+              <div className="flex items-center gap-2 flex-wrap text-[11px]" data-testid="trim-controls">
+                <span className="font-bold text-foreground">Trim</span>
+                <Button size="sm" variant="outline" disabled={busyOp || t >= edl.trim.end - 0.5} onClick={() => applyOps([{ op: "set_trim", start: t, end: edl.trim.end }])} className="h-7 text-[11px]" data-testid="btn-trim-start">Start here ({fmt(t)})</Button>
+                <Button size="sm" variant="outline" disabled={busyOp || t <= edl.trim.start + 0.5} onClick={() => applyOps([{ op: "set_trim", start: edl.trim.start, end: t }])} className="h-7 text-[11px]" data-testid="btn-trim-end">End here ({fmt(t)})</Button>
+                <TrimInput label="start" value={edl.trim.start} max={duration} disabled={busyOp} onCommit={v => applyOps([{ op: "set_trim", start: v, end: edl.trim.end }])} />
+                <span className="text-muted-foreground">–</span>
+                <TrimInput label="end" value={edl.trim.end} max={duration} disabled={busyOp} onCommit={v => applyOps([{ op: "set_trim", start: edl.trim.start, end: v }])} />
+                <span className="text-muted-foreground">sec</span>
               </div>
               {edl.cuts.length > 0 && (
                 <div className="max-h-40 overflow-y-auto space-y-1" data-testid="cut-list">
