@@ -1,7 +1,6 @@
 import cron from "node-cron";
 import { storage } from "./storage";
 import { log } from "./index";
-import { processEmSendQueue, processBroadcastQueue } from "./routes/email-marketing";
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 import { aiChatJson } from "./aiService";
@@ -1341,7 +1340,5 @@ export function startCronJobs() {
   cron.schedule("*/15 * * * *", sendFollowUpEmails);
   cron.schedule("0 * * * *", processEmailSequences);
   cron.schedule("*/2 * * * *", processSmsSequences);
-  cron.schedule("*/5 * * * *", processEmSendQueue);
-  cron.schedule("*/5 * * * *", processBroadcastQueue);
-  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch every 2h; daily ideas 9AM; weekly digest Monday 9AM; weekly brief Monday 10:17; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
+  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch every 2h; daily ideas 9AM; weekly digest Monday 9AM; weekly brief Monday 10:17; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min", "cron");
 }
