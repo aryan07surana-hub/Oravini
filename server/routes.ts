@@ -14,6 +14,7 @@ import { captureLeadToCrmInBackground, pickUtm } from "./crmLeadCapture";
 import { ensurePageDomainsSchema, backfillSubdomains, ensureSubdomain, registerPageDomainRoutes } from "./pageDomains";
 import { ensurePageStudioSchema, registerPageStudioRoutes } from "./pageStudio";
 import { normalizeTheme } from "@shared/pageEngine";
+import { FUNNEL_SECTION_SCHEMAS, FunnelAiResponseError, parseAiJsonObject, cleanAiFunnelSections, sanitizeFunnelSections, validateFunnelSections } from "@shared/funnelSections";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
@@ -17131,12 +17132,13 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
 
           try {
             const raw = await callGroqJson(systemPrompt, userPrompt, 2500);
-            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-            const sections = (parsed.sections || []).map((s: any, i: number) => ({
+            const parsed = parseAiJsonObject(raw);
+            const typedSections = (Array.isArray(parsed.sections) ? parsed.sections : []).map((s: any, i: number) => ({
               ...s,
               id: Math.random().toString(36).slice(2, 10),
               type: stepDef.sections[i] || s.type,
             }));
+            const sections = sanitizeFunnelSections(typedSections).sections;
             return { ...stepDef, sections, price: priceToUse, product_name: productName };
           } catch {
             return { ...stepDef, sections: [], price: priceToUse, product_name: productName };
@@ -17326,6 +17328,10 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
       const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
       if (!f[0]) return res.status(403).json({ message: "Forbidden" });
       const { name, type, sections, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x, canvas_y } = req.body;
+      if (sections !== undefined && sections !== null) {
+        const v = validateFunnelSections(sections, "structure");
+        if (!v.ok) return res.status(400).json({ message: `Invalid sections: ${v.errors.slice(0, 3).join("; ")}` });
+      }
       // theme: unified page-engine theme (set by the template gallery); null reverts to the classic step renderer
       const stepThemeJson = req.body.theme === undefined ? undefined : req.body.theme === null ? null : JSON.stringify(normalizeTheme(req.body.theme));
       // Webinar settings: validated + merged over the stored value (partial updates allowed, e.g. { status: "live" })
@@ -17418,12 +17424,13 @@ Generate these sections in order: ${sectionTypes.join(", ")}
 Each section needs type-appropriate data fields filled with compelling copy.`;
 
       const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
-      const result = typeof raw === "string" ? JSON.parse(raw) : raw;
-      const sections = (result.sections || []).map((s: any, i: number) => ({
+      const result = parseAiJsonObject(raw);
+      const typed = (Array.isArray(result.sections) ? result.sections : []).map((s: any, i: number) => ({
         ...s,
         id: Math.random().toString(36).slice(2, 10),
-        type: sectionTypes[i] || s.type,
+        type: sectionTypes[i] || s?.type,
       }));
+      const { sections } = cleanAiFunnelSections(typed, { newId: newSectionId });
 
       await pool.query("UPDATE funnel_steps SET sections = $1, updated_at = now() WHERE id = $2", [JSON.stringify(sections), req.params.stepId]);
       res.json({ sections, pageTitle: result.pageTitle || step.name });
@@ -17437,34 +17444,19 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
   const FUNNEL_CHAT_DAILY_LIMIT = 30;
   const FUNNEL_STEP_TYPES = ["landing", "sales", "upsell", "downsell", "order_bump", "thank_you", "confirmation", "webinar"];
   const FUNNEL_OFFER_TYPES = ["sales", "upsell", "downsell"];
-  const FUNNEL_SECTION_SCHEMAS: Record<string, string> = {
-    hero: `{headline, subheadline, ctaText, badge?}`,
-    video: `{caption, videoUrl}`,
-    benefits: `{title, items: string[]}`,
-    testimonials: `{testimonials: [{name, role, quote}]}`,
-    pricing: `{pricingTitle, price, originalPrice, pricingFeatures: string[], ctaText}`,
-    faq: `{faqs: [{question, answer}]}`,
-    cta: `{headline, subtext, ctaText, ctaUrl?}`,
-    form: `{formTitle, formSubtext, buttonText, fields: ["name","email"]}`,
-    countdown: `{countdownTitle, targetDate: "YYYY-MM-DDTHH:mm"}`,
-    bio: `{name, role, bio}`,
-    guarantee: `{title, body, badgeText}`,
-    order_bump: `{title, description, price, ctaText}`,
-    urgency_bar: `{text, subtext}`,
-    stats: `{label, stats: [{number, desc}]}`,
-    press: `{label, logos: string[]}`,
-    comparison: `{title, headers: string[], rows: string[][]}`,
-    two_step_form: `{headline, buttonText, formTitle, buttonText2, fields: ["name","email"]}`,
-    image: `{src, alt, caption}`,
-    sticky_cta: `{text, ctaText, showAfterScroll}`,
-    exit_intent: `{headline, body, ctaText, dismissText}`,
-    divider: `{}`,
-  };
+  // FUNNEL_SECTION_SCHEMAS lives in @shared/funnelSections (shared with validation).
 
   const newSectionId = () => Math.random().toString(36).slice(2, 10);
 
-  /** Validate sections, keep valid ids, give new/duplicate ones a fresh id. */
-  function normalizeFunnelSections(input: any, fallback: any[]): any[] {
+  /**
+   * Validate sections, keep valid ids, give new/duplicate ones a fresh id.
+   * Chat (AI) mode: sanitize (hoist nested sections, strip leaked JSON) then strictly
+   * validate — throws so the whole transaction rolls back instead of saving broken data.
+   */
+  function normalizeFunnelSections(input: any, fallback: any[], mode: "chat" | "snapshot" = "snapshot"): any[] {
+    if (mode === "chat" && input !== undefined) {
+      input = cleanAiFunnelSections(input, { newId: newSectionId }).sections;
+    }
     if (!Array.isArray(input)) return fallback;
     const seen = new Set<string>();
     return input
@@ -17596,7 +17588,7 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
           isNew: !prev,
           name: String((!stub && src.name) || prev?.name || "New Step").slice(0, 120),
           type,
-          sections: stub ? prev.sections : normalizeFunnelSections(src.sections, prev?.sections || []),
+          sections: stub ? prev.sections : normalizeFunnelSections(src.sections, prev?.sections || [], opts.mode),
           price,
           product_name: rawProduct === null || rawProduct === undefined || rawProduct === "" ? null : String(rawProduct).slice(0, 200),
           color_scheme: (!stub && typeof src.color_scheme === "string" && src.color_scheme) || prev?.color_scheme || "gold",
@@ -17741,10 +17733,17 @@ ${JSON.stringify(promptSteps)}
 
 Request: "${message.trim()}"`;
 
-      const parseResult = (raw: string) => {
-        const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-        const parsed = JSON.parse(cleaned);
-        if (!parsed || !Array.isArray(parsed.steps)) throw new Error("Response missing steps array");
+      // Parse robustly (code fences, surrounding prose, trailing commas), then sanitize +
+      // strictly validate every changed step's sections. Anything still broken → retry once.
+      const parseResult = (raw: unknown) => {
+        const parsed = parseAiJsonObject(raw);
+        if (!parsed || !Array.isArray(parsed.steps)) throw new FunnelAiResponseError("Response missing steps array");
+        parsed.steps.forEach((st: any, i: number) => {
+          if (!st || typeof st !== "object" || st.unchanged || st.sections === undefined) return;
+          const { sections, issues } = cleanAiFunnelSections(st.sections, { newId: newSectionId, where: `steps[${i}].sections` });
+          if (issues.length) console.warn(`[funnel-chat] repaired AI sections for step ${st.id}:`, issues.slice(0, 10));
+          st.sections = sections;
+        });
         return parsed;
       };
 
@@ -17753,11 +17752,19 @@ Request: "${message.trim()}"`;
         result = parseResult(await _aiChatJson(systemPrompt, userPrompt, { maxTokens: 8000, temperature: 0.5 }));
       } catch (firstErr: any) {
         console.warn("[funnel-chat] first attempt failed, retrying:", firstErr.message);
-        result = parseResult(await _aiChatJson(
-          systemPrompt,
-          `${userPrompt}\n\nIMPORTANT: Your previous answer was not valid JSON in the required shape. Return ONLY the JSON object {"steps": [...], "reply": "...", "changes": [...]}.`,
-          { maxTokens: 8000, temperature: 0.3 },
-        ));
+        try {
+          result = parseResult(await _aiChatJson(
+            systemPrompt,
+            `${userPrompt}\n\nIMPORTANT: Your previous answer was not valid JSON in the required shape. Return valid JSON only — no markdown, no code fences, no trailing commas — exactly {"steps": [...], "reply": "...", "changes": [...]}. Every section must be its own item in the step's top-level "sections" array (never put a section inside another section's data), and copy strings must contain plain text only.`,
+            { maxTokens: 8000, temperature: 0.2 },
+          ));
+        } catch (secondErr: any) {
+          if (quotaTaken) { await refundFunnelChatQuota(user); quotaTaken = false; }
+          console.error("[funnel-chat] invalid AI response twice:", secondErr.message);
+          return res.status(422).json({
+            message: "The copilot returned an invalid page layout twice, so nothing was changed. Please try again or rephrase your request.",
+          });
+        }
       }
 
       // Guard against the model silently dropping steps: only delete when asked.
@@ -18529,9 +18536,17 @@ User request: "${message}"
 Apply the changes and return the full modified sections array.`;
 
       const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
-      const result = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const result = parseAiJsonObject(raw);
 
-      const updatedSections = result.sections || currentSections;
+      let updatedSections = currentSections;
+      if (result.sections !== undefined) {
+        try {
+          updatedSections = cleanAiFunnelSections(result.sections).sections;
+        } catch (e: any) {
+          console.error("[funnel-ai-chat] invalid AI sections:", e.message);
+          return res.status(422).json({ message: "The AI returned an invalid page layout, so nothing was changed. Please try again." });
+        }
+      }
 
       // Persist to DB
       await pool.query(

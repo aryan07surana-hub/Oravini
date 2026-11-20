@@ -13,6 +13,7 @@
  * aiFeature() express middleware (AsyncLocalStorage), so nested helper calls inherit them.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { parseAiJsonObject } from "@shared/funnelSections";
 import type { Request, Response, NextFunction } from "express";
 
 const OR_BASE = "https://openrouter.ai/api/v1/chat/completions";
@@ -105,6 +106,8 @@ function extractJson(raw: string): string {
   if (objMatch) { try { JSON.parse(objMatch[1]); return objMatch[1]; } catch {} }
   const arrMatch = stripped.match(/(\[[\s\S]*\])/);
   if (arrMatch) { try { JSON.parse(arrMatch[1]); return arrMatch[1]; } catch {} }
+  // Repair pass: fenced / prose-wrapped object with trailing commas.
+  try { return JSON.stringify(parseAiJsonObject(trimmed)); } catch {}
   throw new Error("No valid JSON found in AI response");
 }
 
