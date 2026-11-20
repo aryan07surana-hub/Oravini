@@ -3289,6 +3289,14 @@ export const webinarFunnels = pgTable("webinar_funnels", {
   ctaUrl: text("cta_url"),
   status: text("status").notNull().default("draft"), // draft | published | ended
   createdAt: timestamp("created_at").defaultNow(),
+  // Live-experience fields (added idempotently in runMigrations)
+  deckUrl: text("deck_url"),                 // PDF upload, Google Slides or Canva public link
+  replayUrl: text("replay_url"),             // YouTube replay; falls back to youtubeVideoId
+  offerText: text("offer_text"),
+  offerPrice: text("offer_price"),
+  offerExpiresAt: timestamp("offer_expires_at"),
+  durationMinutes: integer("duration_minutes").default(60),
+  remindersEnabled: boolean("reminders_enabled").notNull().default(true),
 }, (t) => [index("idx_webinar_funnels_user").on(t.userId)]);
 export type WebinarFunnel = typeof webinarFunnels.$inferSelect;
 
@@ -3299,5 +3307,46 @@ export const webinarFunnelRegistrations = pgTable("webinar_funnel_registrations"
   email: text("email").notNull(),
   phone: text("phone"),
   createdAt: timestamp("created_at").defaultNow(),
+  reminder1hSentAt: timestamp("reminder_1h_sent_at"),
 }, (t) => [index("idx_webinar_funnel_regs_webinar").on(t.webinarId)]);
 export type WebinarFunnelRegistration = typeof webinarFunnelRegistrations.$inferSelect;
+
+// Live chat + Q&A on /w/:slug/live (polled, no websockets). Host "delete" = hidden_at (soft).
+export const webinarChatMessages = pgTable("webinar_chat_messages", {
+  id: serial("id").primaryKey(),
+  webinarId: varchar("webinar_id").notNull().references(() => webinarFunnels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  body: text("body").notNull(),
+  isQuestion: boolean("is_question").notNull().default(false),
+  isHost: boolean("is_host").notNull().default(false),
+  answeredAt: timestamp("answered_at"),
+  hiddenAt: timestamp("hidden_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_webinar_chat_webinar").on(t.webinarId, t.id)]);
+export type WebinarChatMessage = typeof webinarChatMessages.$inferSelect;
+
+// One row per (webinar, anonymous viewer key); updated by the 15s heartbeat.
+export const webinarAttendance = pgTable("webinar_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinarFunnels.id, { onDelete: "cascade" }),
+  viewerKey: text("viewer_key").notNull(),
+  email: text("email"),
+  registrationId: varchar("registration_id"),
+  source: text("source").notNull().default("live"), // live | replay (phase at first join)
+  joinAt: timestamp("join_at").defaultNow(),
+  lastSeen: timestamp("last_seen").defaultNow(),
+  watchSeconds: integer("watch_seconds").notNull().default(0),
+}, (t) => [
+  index("idx_webinar_attendance_webinar").on(t.webinarId, t.lastSeen),
+  uniqueIndex("uq_webinar_attendance_viewer").on(t.webinarId, t.viewerKey), // heartbeat upsert target
+]);
+export type WebinarAttendance = typeof webinarAttendance.$inferSelect;
+
+export const webinarCtaClicks = pgTable("webinar_cta_clicks", {
+  id: serial("id").primaryKey(),
+  webinarId: varchar("webinar_id").notNull().references(() => webinarFunnels.id, { onDelete: "cascade" }),
+  viewerKey: text("viewer_key"),
+  email: text("email"),
+  registrationId: varchar("registration_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_webinar_cta_clicks_webinar").on(t.webinarId)]);

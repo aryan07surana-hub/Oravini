@@ -14,7 +14,48 @@ export type PublicWebinar = {
   ctaText: string | null;
   ctaUrl: string | null;
   status: "published" | "ended";
+  deckUrl?: string | null;
+  replayVideoId?: string | null;
+  offerText?: string | null;
+  offerPrice?: string | null;
+  offerExpiresAt?: string | null;
+  durationMinutes?: number;
 };
+
+// ── Attendee identity (localStorage; every access guarded) ─────────────────
+export type StoredRegistration = { registrationId?: string; name?: string; email?: string };
+export const regKey = (slug: string) => `oravini:webinar-registered:${slug}`;
+
+/** Registration saved by the landing page. Old builds stored "1" — treated as registered with no details. */
+export function readRegistration(slug: string): StoredRegistration | null {
+  try {
+    const raw = localStorage.getItem(regKey(slug));
+    if (!raw) return null;
+    if (raw === "1") return {};
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" ? v : {};
+  } catch { return null; }
+}
+export function saveRegistration(slug: string, reg: StoredRegistration) {
+  try { localStorage.setItem(regKey(slug), JSON.stringify(reg)); } catch {}
+}
+
+/** Stable anonymous id for heartbeat/CTA attribution. Falls back to a per-load id. */
+let memoryViewerKey: string | null = null;
+export function getViewerKey(): string {
+  const make = () => {
+    const a = new Uint8Array(12);
+    (globalThis.crypto || (window as any).msCrypto).getRandomValues(a);
+    return Array.from(a, b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+  };
+  try {
+    let k = localStorage.getItem("oravini:webinar-viewer");
+    if (!k || !/^[A-Za-z0-9_-]{8,64}$/.test(k)) { k = make(); localStorage.setItem("oravini:webinar-viewer", k); }
+    return k;
+  } catch {
+    return (memoryViewerKey ||= make());
+  }
+}
 
 /** Fetches public webinar data. `data === null` means not found (404). */
 export function usePublicWebinar(slug: string | undefined) {

@@ -19,7 +19,9 @@ import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES } from "@shared/schema";
-import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE } from "@shared/webinarFunnel";
+import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl } from "@shared/webinarFunnel";
+import { registerWebinarFunnelLiveRoutes } from "./webinarFunnelLive";
+import { sendWebinarConfirmation } from "./webinarFunnelEmail";
 import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -11102,6 +11104,18 @@ Rules:
       ctaUrl: httpUrl,
       status: z.enum(WEBINAR_FUNNEL_STATUSES).optional(),
       slug: z.string().trim().toLowerCase().regex(WEBINAR_SLUG_RE, "Slug may only contain a-z, 0-9 and dashes").optional(),
+      // Live-experience fields
+      deckUrl: z.union([
+        z.string().trim().max(2000).refine(v => v === "" || isValidDeckUrl(v), "Slides link must be a PDF upload or an https:// link"),
+        z.null(),
+      ]).optional().transform(v => (v === undefined ? undefined : v ? v : null)),
+      replay: z.union([z.string().trim().max(500), z.null()]).optional(),
+      offerText: optStr(1000),
+      offerPrice: optStr(120),
+      offerExpiresAt: z.union([z.string().refine(v => v === "" || !isNaN(Date.parse(v)), "Invalid offer expiry"), z.null()]).optional()
+        .transform(v => (v === undefined ? undefined : v ? new Date(v) : null)),
+      durationMinutes: z.number().int().min(5).max(600).optional(),
+      remindersEnabled: z.boolean().optional(),
     });
 
     const YT_INVALID_MSG = "Couldn't find a YouTube video ID in that link. Use a youtube.com/watch?v=..., youtube.com/live/..., or youtu.be/... link, or the 11-character video ID.";
@@ -11162,6 +11176,8 @@ Rules:
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
         if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
+        const replay = resolveVideoId(body.replay);
+        if (!replay.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in the replay link" });
         let slug = body.slug;
         if (slug) {
           if (await slugTaken(slug)) return res.status(409).json({ message: "That link is already taken" });
@@ -11179,6 +11195,13 @@ Rules:
           ctaText: body.ctaText ?? null,
           ctaUrl: body.ctaUrl ?? null,
           status: body.status ?? "draft",
+          deckUrl: body.deckUrl ?? null,
+          replayUrl: replay.id ?? null,
+          offerText: body.offerText ?? null,
+          offerPrice: body.offerPrice ?? null,
+          offerExpiresAt: body.offerExpiresAt ?? null,
+          durationMinutes: body.durationMinutes ?? 60,
+          remindersEnabled: body.remindersEnabled ?? true,
         }).returning();
         res.status(201).json({ ...row, registrationCount: 0 });
       } catch (e: any) {
@@ -11205,6 +11228,8 @@ Rules:
         const body = parsed.data;
         const video = resolveVideoId(body.youtube);
         if (!video.ok) return res.status(400).json({ message: YT_INVALID_MSG });
+        const replay = resolveVideoId(body.replay);
+        if (!replay.ok) return res.status(400).json({ message: "Couldn't find a YouTube video ID in the replay link" });
         if (body.slug && body.slug !== existing.slug && (await slugTaken(body.slug, existing.id))) {
           return res.status(409).json({ message: "That link is already taken" });
         }
@@ -11218,6 +11243,13 @@ Rules:
         if (body.ctaUrl !== undefined) updates.ctaUrl = body.ctaUrl;
         if (body.status !== undefined) updates.status = body.status;
         if (body.slug !== undefined) updates.slug = body.slug;
+        if (body.deckUrl !== undefined) updates.deckUrl = body.deckUrl;
+        if (replay.id !== undefined) updates.replayUrl = replay.id;
+        if (body.offerText !== undefined) updates.offerText = body.offerText;
+        if (body.offerPrice !== undefined) updates.offerPrice = body.offerPrice;
+        if (body.offerExpiresAt !== undefined) updates.offerExpiresAt = body.offerExpiresAt;
+        if (body.durationMinutes !== undefined) updates.durationMinutes = body.durationMinutes;
+        if (body.remindersEnabled !== undefined) updates.remindersEnabled = body.remindersEnabled;
         if (Object.keys(updates).length === 0) return res.json(existing);
         const [row] = await db.update(webinarFunnels).set(updates)
           .where(and(eq(webinarFunnels.id, existing.id), eq(webinarFunnels.userId, userId)))
@@ -11268,8 +11300,16 @@ Rules:
         // Idempotent per email: re-registering returns success without a duplicate row
         const [already] = await db.select({ id: webinarFunnelRegistrations.id }).from(webinarFunnelRegistrations)
           .where(and(eq(webinarFunnelRegistrations.webinarId, funnel.id), eq(webinarFunnelRegistrations.email, email)));
+        let registrationId = already?.id;
         if (!already) {
-          await db.insert(webinarFunnelRegistrations).values({ webinarId: funnel.id, name, email, phone: phone || null });
+          const [created] = await db.insert(webinarFunnelRegistrations)
+            .values({ webinarId: funnel.id, name, email, phone: phone || null })
+            .returning({ id: webinarFunnelRegistrations.id });
+          registrationId = created.id;
+          // Confirmation + .ics (fire-and-forget; never blocks or fails registration)
+          if (funnel.remindersEnabled !== false) {
+            sendWebinarConfirmation(funnel, { id: created.id, name, email }).catch(() => {});
+          }
         }
         // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
         captureLeadToCrmInBackground({
@@ -11282,7 +11322,7 @@ Rules:
           context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
           utm: pickUtm(req.body),
         });
-        res.status(already ? 200 : 201).json({ success: true });
+        res.status(already ? 200 : 201).json({ success: true, registrationId });
       } catch (e: any) {
         console.error("[webinar-funnels] register error:", e.message);
         res.status(500).json({ message: "Registration failed. Please try again." });
@@ -11304,8 +11344,17 @@ Rules:
         ctaText: f.ctaText,
         ctaUrl: f.ctaUrl,
         status: f.status,
+        deckUrl: f.deckUrl,
+        replayVideoId: f.replayUrl,
+        offerText: f.offerText,
+        offerPrice: f.offerPrice,
+        offerExpiresAt: f.offerExpiresAt,
+        durationMinutes: f.durationMinutes ?? 60,
       });
     });
+
+    // Live room: chat/Q&A, heartbeat attendance, CTA clicks, analytics, deck upload
+    registerWebinarFunnelLiveRoutes(app, requireAuth, getOwnedFunnel);
   }
 
   // All contacts across user's forms (CRM)

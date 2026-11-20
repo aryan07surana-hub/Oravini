@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,6 +54,13 @@ import WebinarFunnelLanding from "@/pages/public/WebinarFunnelLanding";
 import WebinarFunnelLive from "@/pages/public/WebinarFunnelLive";
 import WebinarFunnels from "@/pages/client/WebinarFunnels";
 import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
+import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
+
+// New webinars start in the guided wizard; "?mode=advanced" opens the plain form.
+function WebinarFunnelNew() {
+  const advanced = new URLSearchParams(useSearch()).get("mode") === "advanced";
+  return advanced ? <WebinarFunnelEditor id="new" /> : <WebinarSetupWizard />;
+}
 import WebinarFunnelRegistrations from "@/pages/client/WebinarFunnelRegistrations";
 
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -402,6 +409,8 @@ function AppRoutes() {
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
       <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
+      <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
+      <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
       <Route path="/tools/webinars">{() => <Guard component={WebinarFunnels} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>

@@ -77,3 +77,55 @@ export function formatIST(date: string | Date): string {
     }) + " IST"
   );
 }
+
+// ── Slides / deck embeds ───────────────────────────────────────────────────
+export type DeckEmbed =
+  | { kind: "pdf" | "google" | "canva" | "other"; src: string; label: string }
+  | null;
+
+/**
+ * Turns a deck link into something we can iframe on the live page.
+ *   PDF (upload or any *.pdf URL) → used as-is
+ *   Google Slides  docs.google.com/presentation/d/<id>/edit  → /d/<id>/embed
+ *                  docs.google.com/presentation/d/e/<pubId>/pub → /d/e/<pubId>/embed
+ *   Canva          canva.com/design/<id>/<key>/view|edit → …/view?embed
+ * Returns null for empty/unsafe input.
+ */
+export function deckEmbed(input: string | null | undefined): DeckEmbed {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  if (/^\/uploads\/[\w.\-]+$/i.test(raw)) return { kind: "pdf", src: raw, label: "PDF deck" };
+  if (!/^https?:\/\//i.test(raw)) return null;
+  let url: URL;
+  try { url = new URL(raw); } catch { return null; }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const segs = url.pathname.split("/").filter(Boolean);
+
+  if (host === "docs.google.com" && segs[0] === "presentation" && segs[1] === "d") {
+    if (segs[2] === "e" && segs[3]) {
+      return { kind: "google", src: `https://docs.google.com/presentation/d/e/${segs[3]}/embed?start=false&loop=false`, label: "Google Slides" };
+    }
+    if (segs[2]) {
+      return { kind: "google", src: `https://docs.google.com/presentation/d/${segs[2]}/embed?start=false&loop=false`, label: "Google Slides" };
+    }
+  }
+  if ((host === "canva.com" || host.endsWith(".canva.com")) && segs[0] === "design" && segs[1]) {
+    const base = `https://www.canva.com/design/${segs[1]}${segs[2] && segs[2] !== "view" && segs[2] !== "edit" ? `/${segs[2]}` : ""}/view`;
+    return { kind: "canva", src: `${base}?embed`, label: "Canva" };
+  }
+  if (/\.pdf$/i.test(url.pathname)) return { kind: "pdf", src: url.toString(), label: "PDF deck" };
+  return { kind: "other", src: url.toString(), label: "Slides" };
+}
+
+/** Validates a deck link for saving: our own /uploads/ path or an http(s) URL. */
+export function isValidDeckUrl(input: string): boolean {
+  const v = input.trim();
+  return /^\/uploads\/[\w.\-]+$/i.test(v) || /^https?:\/\/[^\s]+$/i.test(v);
+}
+
+/** Where the public live page is right now. */
+export type WebinarLivePhase = "waiting" | "live" | "replay";
+export function webinarLivePhase(status: string, scheduledAt: string | Date, now = Date.now()): WebinarLivePhase {
+  if (status === "ended") return "replay";
+  return new Date(scheduledAt).getTime() <= now ? "live" : "waiting";
+}
