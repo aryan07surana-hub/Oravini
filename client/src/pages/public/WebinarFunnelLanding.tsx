@@ -106,7 +106,17 @@ export default function WebinarFunnelLanding() {
 
         {/* Registration */}
         <div className="md:col-span-2 rounded-2xl p-6" style={{ background: "#0e0e10", border: `1px solid ${GOLD}30` }}>
-          {registered ? (
+          {registered && webinar.status === "ended" ? (
+            <div className="text-center py-4" data-testid="webinar-ended-replay">
+              <PlayCircle className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+              <p className="text-xl font-black text-white mb-4">This webinar has ended - watch the replay</p>
+              <Link href={liveHref} data-testid="link-replay-page"
+                className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
+                style={{ background: GOLD, color: "#0a0910" }}>
+                <PlayCircle className="w-4 h-4" /> Watch the replay
+              </Link>
+            </div>
+          ) : registered ? (
             <div className="text-center py-4" data-testid="webinar-registered">
               <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
               <p className="text-xl font-black text-white mb-1">You're in!</p>
