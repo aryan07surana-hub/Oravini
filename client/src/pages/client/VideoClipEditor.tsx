@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { runVideoJob, type VideoJob } from "@/lib/videoJobs";
 import { Input } from "@/components/ui/input";
 import {
   Play, Pause, Upload, Download, Scissors, Zap, Palette,
@@ -12,6 +13,21 @@ import {
   MessageSquare, SendHorizonal, X,
   RotateCcw, Eye, Globe, Camera, MapPin, FlipHorizontal2, ImagePlus,
 } from "lucide-react";
+
+/**
+ * Heavy clip-editor endpoints now run as background jobs (202 + jobId). This
+ * keeps the old `fetch → res.ok / res.json()` call sites working: it waits for
+ * the job and returns a Response-like object with the job's result.
+ */
+async function jobFetch(url: string, init: { body?: any; [key: string]: any }, onUpdate?: (job: VideoJob) => void): Promise<{ ok: boolean; json: () => Promise<any> }> {
+  try {
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body;
+    const result = await runVideoJob(url, body, onUpdate);
+    return { ok: true, json: async () => result };
+  } catch (e: any) {
+    return { ok: false, json: async () => ({ message: e?.message || "Request failed" }) };
+  }
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type ColorGrade   = "none" | "warm" | "cool" | "cinematic" | "vivid" | "bw";
@@ -547,7 +563,7 @@ export default function VideoClipEditor() {
           // Show onboarding overlay on first ever upload
           if (isFirstUploadRef.current) { isFirstUploadRef.current = false; setTimeout(() => setShowOnboarding(true), 800); }
           // Background silence analysis
-          fetch("/api/video-clip-editor/detect-silence", {
+          jobFetch("/api/video-clip-editor/detect-silence", {
             method: "POST", credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ filePath: data.filePath }),
@@ -898,7 +914,7 @@ export default function VideoClipEditor() {
   const fetchTranscript = async (clip: Clip): Promise<WordStamp[]> => {
     const cached = clipTranscripts[clip.id];
     if (cached) return cached;
-    const res = await fetch("/api/video-clip-editor/transcribe", {
+    const res = await jobFetch("/api/video-clip-editor/transcribe", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filePath: clip.filePath }),
@@ -1035,7 +1051,7 @@ export default function VideoClipEditor() {
     if (!selectedClip?.filePath) { toast({ title: "Select a clip with uploaded file first", variant: "destructive" }); return; }
     setIsRemovingSilence(true);
     try {
-      const res = await fetch("/api/video-clip-editor/detect-silence", {
+      const res = await jobFetch("/api/video-clip-editor/detect-silence", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath: selectedClip.filePath, trimStart: selectedClip.trimStart, trimEnd: selectedClip.trimEnd }),
@@ -1067,7 +1083,7 @@ export default function VideoClipEditor() {
     if (!selectedClip?.filePath) { toast({ title: "Select a clip with uploaded file first", variant: "destructive" }); return; }
     setIsDetectingScenes(true);
     try {
-      const res = await fetch("/api/video-clip-editor/detect-scenes", {
+      const res = await jobFetch("/api/video-clip-editor/detect-scenes", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath: selectedClip.filePath }),
@@ -1174,7 +1190,7 @@ export default function VideoClipEditor() {
             setSelectedClipId(targetClip.id);
             setIsRemovingSilence(true);
             try {
-              const r = await fetch("/api/video-clip-editor/detect-silence", {
+              const r = await jobFetch("/api/video-clip-editor/detect-silence", {
                 method: "POST", credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ filePath: targetClip.filePath, trimStart: targetClip.trimStart, trimEnd: targetClip.trimEnd }),
@@ -1206,7 +1222,7 @@ export default function VideoClipEditor() {
             setSelectedClipId(targetClip.id);
             setIsDetectingScenes(true);
             try {
-              const r = await fetch("/api/video-clip-editor/detect-scenes", {
+              const r = await jobFetch("/api/video-clip-editor/detect-scenes", {
                 method: "POST", credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ filePath: targetClip.filePath }),
@@ -1370,7 +1386,7 @@ export default function VideoClipEditor() {
     if (!clip.filePath) { toast({ title: "Clip must finish uploading first", variant: "destructive" }); return; }
     setIsGettingHighlights(true);
     try {
-      const resp = await fetch("/api/video-clip-editor/highlights", {
+      const resp = await jobFetch("/api/video-clip-editor/highlights", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath: clip.filePath }),
@@ -1402,7 +1418,7 @@ export default function VideoClipEditor() {
     setSelectedClipId(clip.id);
     try {
       // Remove silences
-      const r = await fetch("/api/video-clip-editor/detect-silence", {
+      const r = await jobFetch("/api/video-clip-editor/detect-silence", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath: clip.filePath, trimStart: clip.trimStart, trimEnd: clip.trimEnd }),
@@ -1624,11 +1640,10 @@ export default function VideoClipEditor() {
         })),
       };
       setExportProgress("Processing with FFmpeg…");
-      const res = await fetch("/api/video-clip-editor/process", {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await jobFetch("/api/video-clip-editor/process", { body: payload }, job =>
+        setExportProgress(job.status === "queued"
+          ? `Queued${job.queuePosition ? ` (${job.queuePosition} ahead)` : ""}…`
+          : `${job.stage || "Rendering"} — ${job.progress}%`));
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setExportUrl(data.downloadUrl);

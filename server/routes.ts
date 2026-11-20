@@ -32,6 +32,9 @@ import { saveMedia } from "./mediaStorage";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { FFMPEG_PATH, FFPROBE_PATH, ffmpegAvailable } from "./ffmpegPath";
+import { registerVideoStudioRoutes, createProjectFromTranscript } from "./videoEditor/routes";
+import { enqueueJob, registerJobHandler, getJob, publicJob } from "./videoEditor/jobs";
+import { transcribeMedia } from "./videoEditor/transcribe";
 import { computeWebinarTimeline, computeStayRates, matchAttendedRegistrations, sessionEndMs, dropOffMinute, median, normEmail, pct } from "./webinar-analytics";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
 import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson, aiChatCompletion as _aiChatCompletion, aiFeature } from "./aiService";
@@ -7632,6 +7635,7 @@ Return JSON:
   // ── Clip Finder — file upload (Whisper transcribe + AI clip analysis) ──────
   app.post("/api/clip-finder/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    let keepUpload = false;
     try {
       const _uCfu = req.user as any;
       if (_uCfu.role !== "admin") {
@@ -7641,37 +7645,10 @@ Return JSON:
           return res.status(402).json({ message: cfuCredit.message, insufficientCredits: true });
         }
       }
-      const fileStat = fs.statSync(req.file.path);
-      const MAX_WHISPER = 25 * 1024 * 1024;
-      if (fileStat.size > MAX_WHISPER) {
-        try { fs.unlinkSync(req.file.path); } catch { }
-        return res.status(413).json({ message: "File too large — Whisper supports up to 25MB. Compress your video or export audio-only first." });
-      }
-
-      // 1. Transcribe with Groq Whisper (word-level timestamps)
-      const FormDataLib = (await import("form-data")).default;
-      const formData = new FormDataLib();
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const ext = path.extname(req.file.originalname).toLowerCase();
-      const mimeMap: Record<string, string> = {
-        ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
-        ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v",
-        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
-      };
-      formData.append("file", fileBuffer, { filename: req.file.originalname || "video.mp4", contentType: mimeMap[ext] || "video/mp4" });
-      formData.append("model", "whisper-large-v3");
-      formData.append("response_format", "verbose_json");
-      formData.append("timestamp_granularities[]", "word");
-      const formBuffer = formData.getBuffer();
-
-      const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
-        body: formBuffer,
-      });
-      if (!whisperRes.ok) throw new Error(`Transcription failed: ${await whisperRes.text()}`);
-      const transcriptData = await whisperRes.json() as any;
-
+      // 1. Transcribe with Groq Whisper (word-level timestamps). Audio is
+      //    extracted/compressed with ffmpeg first, so files over Whisper's
+      //    25MB limit work (long audio is chunked automatically).
+      const transcriptData = await transcribeMedia(req.file.path, { filename: req.file.originalname });
       const words: any[] = transcriptData.words || [];
       const duration = words.length > 0 ? words[words.length - 1].end : (transcriptData.duration || 0);
       const videoTitle = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
@@ -7718,12 +7695,25 @@ Return JSON:
         };
       });
 
-      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true });
+      // Keep the upload as a Video Studio project so "Open in Editor" can
+      // reuse this transcript instead of re-uploading / re-transcribing.
+      let editorProjectId: number | null = null;
+      try {
+        const proj = await createProjectFromTranscript({
+          userId: _uCfu.id, filePath: req.file.path, originalName: req.file.originalname, title: videoTitle,
+          transcript: { text: transcriptData.text || "", words, duration },
+        });
+        editorProjectId = proj.id;
+      } catch (e: any) {
+        console.log("[clip-finder/upload] could not create editor project:", e.message);
+      }
+      keepUpload = editorProjectId !== null;
+      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true, editorProjectId });
     } catch (err: any) {
       console.log("[clip-finder/upload] error:", err.message);
-      return res.status(500).json({ message: err.message || "Processing failed" });
+      return res.status(500).json({ message: err.userMessage || err.message || "Processing failed" });
     } finally {
-      try { if (req.file) fs.unlinkSync(req.file.path); } catch { }
+      try { if (req.file && !keepUpload) fs.unlinkSync(req.file.path); } catch { }
     }
   });
 
@@ -11310,196 +11300,11 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     }
   });
 
-  // ── Video Studio ────────────────────────────────────────────────────────────
-  const SHOTSTACK_KEY = process.env.SHOTSTACK_API_KEY || "";
-  const SHOTSTACK_BASE = "https://api.shotstack.io/stage";
-
-  function detectSilences(words: any[], threshold = 0.5) {
-    const silences: { start: number; end: number; duration: number }[] = [];
-    for (let i = 1; i < words.length; i++) {
-      const gap = words[i].start - words[i - 1].end;
-      if (gap >= threshold) silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
-    }
-    return silences;
-  }
-
-  function buildShotstackTimeline(videoUrl: string, transcript: any, settings: any) {
-    const words: any[] = transcript?.words || [];
-    const rawDuration = words.length > 0 ? words[words.length - 1].end + 0.5 : 60;
-    const speed = parseFloat(settings.speed || "1");
-    const filterMap: Record<string, string> = { cinematic: "contrast", warm: "boost", cool: "muted", bright: "lighten" };
-    const shotstackFilter = settings.colorGrade && settings.colorGrade !== "none" ? filterMap[settings.colorGrade] : undefined;
-    const captionStyleMap: Record<string, string> = { bold: "blockbuster", netflix: "chunk", minimal: "minimal", karaoke: "minimal" };
-    const captionStyle = captionStyleMap[settings.captionStyle] || "minimal";
-    const captionColor = settings.captionStyle === "karaoke" ? "#ffff00" : "#ffffff";
-
-    type Segment = { start: number; end: number };
-    let segments: Segment[] = [];
-    let condensedSegStarts: number[] = [];
-    let totalCondensed = 0;
-
-    if (settings.removeSilences && words.length > 0) {
-      const threshold = parseFloat(settings.silenceThreshold || "0.5");
-      let segStart = words[0].start;
-      let prevEnd = words[0].end;
-      for (let i = 1; i < words.length; i++) {
-        if (words[i].start - prevEnd >= threshold) {
-          segments.push({ start: segStart, end: prevEnd });
-          segStart = words[i].start;
-        }
-        prevEnd = words[i].end;
-      }
-      segments.push({ start: segStart, end: prevEnd + 0.3 });
-    } else {
-      segments = [{ start: 0, end: rawDuration }];
-    }
-
-    const videoClips: any[] = [];
-    for (const seg of segments) {
-      condensedSegStarts.push(totalCondensed);
-      const segLen = (seg.end - seg.start) / speed;
-      const clip: any = { asset: { type: "video", src: videoUrl, trim: seg.start }, start: totalCondensed, length: seg.end - seg.start };
-      if (shotstackFilter) clip.filter = shotstackFilter;
-      if (speed !== 1) clip.speed = speed;
-      videoClips.push(clip);
-      totalCondensed += segLen;
-    }
-
-    const captionClips: any[] = [];
-    if (settings.addCaptions && words.length > 0) {
-      const SIZE = 5;
-      for (let i = 0; i < words.length; i += SIZE) {
-        const chunk = words.slice(i, Math.min(i + SIZE, words.length));
-        const text = chunk.map((w: any) => w.word).join(" ").trim();
-        const wOrigStart = chunk[0].start;
-        const wOrigEnd = chunk[chunk.length - 1].end;
-        let condensedStart = wOrigStart / speed;
-        for (let j = segments.length - 1; j >= 0; j--) {
-          if (wOrigStart >= segments[j].start && wOrigStart <= segments[j].end) {
-            condensedStart = condensedSegStarts[j] + (wOrigStart - segments[j].start) / speed;
-            break;
-          }
-        }
-        const wLen = Math.max((wOrigEnd - wOrigStart) / speed, 0.5);
-        captionClips.push({ asset: { type: "title", text, style: captionStyle, color: captionColor, size: "medium" }, start: Math.max(condensedStart, 0), length: wLen, position: "bottom", offset: { x: 0, y: -0.1 } });
-      }
-    }
-
-    const tracks: any[] = [{ clips: videoClips }];
-    if (captionClips.length > 0) tracks.push({ clips: captionClips });
-    return { timeline: { background: "#000000", tracks }, output: { format: "mp4", resolution: "hd", fps: 25 } };
-  }
-
-  app.get("/api/video-studio", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edits = await storage.getVideoEdits(userId);
-    res.json(edits);
-  });
-
-  app.get("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    res.json(edit);
-  });
-
-  app.delete("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch { }
-    await storage.deleteVideoEdit(Number(p(req.params.id)), userId);
-    res.json({ ok: true });
-  });
-
-  app.post("/api/video-studio/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const userId = (req.user as any).id;
-    const fileUrl = `/uploads/${req.file.filename}`;
-    const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
-    const edit = await storage.createVideoEdit({ userId, title, originalFilename: req.file.originalname, filePath: req.file.path, fileUrl, status: "transcribing" });
-    res.json(edit);
-
-    (async () => {
-      try {
-        const fileStat = fs.statSync(req.file!.path);
-        const MAX_WHISPER_BYTES = 25 * 1024 * 1024; // 25MB Groq limit
-        if (fileStat.size > MAX_WHISPER_BYTES) {
-          await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-          console.log("[video-studio] file too large for Whisper:", fileStat.size, "bytes");
-          return;
-        }
-        const FormDataLib = (await import("form-data")).default;
-        const formData = new FormDataLib();
-        const fileBuffer = fs.readFileSync(req.file!.path);
-        const ext = path.extname(req.file!.originalname).toLowerCase();
-        const mimeMap: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav" };
-        const contentType = mimeMap[ext] || "video/mp4";
-        formData.append("file", fileBuffer, { filename: req.file!.originalname || "video.mp4", contentType });
-        formData.append("model", "whisper-large-v3");
-        formData.append("response_format", "verbose_json");
-        formData.append("timestamp_granularities[]", "word");
-        const formBuffer = formData.getBuffer();
-        const formHeaders = formData.getHeaders();
-        const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
-          body: formBuffer,
-        });
-        if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
-        const transcriptData = await whisperRes.json() as any;
-        const words = transcriptData.words || [];
-        const duration = words.length > 0 ? words[words.length - 1].end : transcriptData.duration || 0;
-        const silences = detectSilences(words);
-        const publicVideoUrl = `${getRequestAwareBase(req)}${fileUrl}`;
-        await storage.updateVideoEdit(edit.id, userId, { transcript: { text: transcriptData.text, words, duration: transcriptData.duration }, silences, duration, fileUrl: publicVideoUrl, status: "transcribed" });
-      } catch (e: any) {
-        console.log("[video-studio] transcription error:", e.message);
-        await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-      }
-    })();
-  });
-
-  app.post("/api/video-studio/:id/render", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    if (!edit.fileUrl) return res.status(400).json({ message: "Video not yet transcribed" });
-    const settings = req.body.settings || {};
-    const timeline = buildShotstackTimeline(edit.fileUrl, edit.transcript, settings);
-    const renderRes = await fetch(`${SHOTSTACK_BASE}/render`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": SHOTSTACK_KEY },
-      body: JSON.stringify(timeline),
-    });
-    const renderData = await renderRes.json() as any;
-    if (!renderRes.ok || !renderData.response?.id) {
-      console.log("[video-studio] shotstack error:", JSON.stringify(renderData));
-      return res.status(502).json({ message: renderData.message || "Shotstack error", detail: renderData });
-    }
-    const renderId = renderData.response.id;
-    await storage.updateVideoEdit(edit.id, userId, { status: "rendering", shotstackRenderId: renderId, settings });
-    res.json({ ok: true, renderId });
-  });
-
-  app.get("/api/video-studio/:id/status", requireAuth, async (req: Request, res: Response) => {
-    const userId = (req.user as any).id;
-    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (!edit) return res.status(404).json({ message: "Not found" });
-    if (!edit.shotstackRenderId) return res.json(edit);
-    if (edit.status === "done" || edit.status === "failed") return res.json(edit);
-    const statusRes = await fetch(`${SHOTSTACK_BASE}/render/${edit.shotstackRenderId}`, { headers: { "x-api-key": SHOTSTACK_KEY } });
-    const statusData = await statusRes.json() as any;
-    const ssStatus = statusData.response?.status;
-    if (ssStatus === "done") {
-      const outputUrl = statusData.response?.url;
-      await storage.updateVideoEdit(edit.id, userId, { status: "done", outputUrl });
-      return res.json({ ...edit, status: "done", outputUrl });
-    } else if (ssStatus === "failed") {
-      await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
-      return res.json({ ...edit, status: "failed" });
-    }
-    res.json({ ...edit, status: "rendering" });
-  });
+  // ── Video Studio (AI video editor) ─────────────────────────────────────────
+  // Upload → background Whisper → AI chat EDL edits → background ffmpeg render.
+  // See server/videoEditor/. Shotstack (stage sandbox, watermarked) is only a
+  // fallback for hosts without ffmpeg.
+  registerVideoStudioRoutes(app, { requireAuth: requireAuth as any, videoUpload, aiJson: callGroqJson });
 
   // ── B-Roll Library ──────────────────────────────────────────────────────────
   app.get("/api/broll", requireAuth, async (req: Request, res: Response) => {
@@ -16219,8 +16024,19 @@ CRITICAL RULES:
   const CLIP_FFMPEG = FFMPEG_PATH;
   const CLIP_UPLOADS = path.resolve("uploads");
 
+  // Client-supplied paths are confined to the uploads dir (basename only).
   function resolveClipPath(fp: string): string {
-    return path.isAbsolute(fp) ? fp : path.join(CLIP_UPLOADS, path.basename(fp));
+    return path.join(CLIP_UPLOADS, path.basename(String(fp || "")));
+  }
+
+  class ClipJobError extends Error { constructor(public userMessage: string) { super(userMessage); } }
+
+  /** Enqueue a clip-editor job and answer immediately; the client polls /api/video-editor/jobs/:id. */
+  async function enqueueClipJob(req: Request, res: Response, kind: string, payload: any) {
+    try {
+      const job = await enqueueJob({ userId: (req.user as any).id, kind, payload });
+      res.status(202).json({ jobId: job.id, job: publicJob(job) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   }
 
   function buildClipVFilters(clip: any, targetW: number, targetH: number): string[] {
@@ -16337,47 +16153,26 @@ CRITICAL RULES:
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // Auto-caption via Groq Whisper
+  // Auto-caption via Groq Whisper (background job; >25MB handled by audio extraction)
+  registerJobHandler("clip_transcribe", async (job, ctx) => {
+    const absPath = resolveClipPath(job.payload?.filePath);
+    if (!fs.existsSync(absPath)) throw new ClipJobError("File not found — it may have been removed by a server restart. Re-upload the clip.");
+    const t = await transcribeMedia(absPath, { onStage: (stage, p) => ctx.progress(p ?? 0, stage) });
+    return { words: t.words.map(w => ({ word: w.word, start: w.start, end: w.end })), text: t.text };
+  });
   app.post("/api/video-clip-editor/transcribe", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
-      const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
-      const FormDataNode = (await import("form-data")).default;
-      const fd = new FormDataNode();
-      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
-      fd.append("model", "whisper-large-v3-turbo");
-      fd.append("response_format", "verbose_json");
-      fd.append("timestamp_granularities[]", "word");
-
-      const fetch2 = (await import("node-fetch")).default as any;
-      const resp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
-        body: fd,
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`Groq transcription error: ${errText.slice(0, 200)}`);
-      }
-      const data: any = await resp.json();
-      const words = (data.words || []).map((w: any) => ({ word: w.word, start: w.start, end: w.end }));
-      res.json({ words, text: data.text || "" });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    const { filePath } = req.body || {};
+    if (!filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_transcribe", { filePath });
   });
 
   // Silence detection via FFmpeg silencedetect
-  app.post("/api/video-clip-editor/detect-silence", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath, trimStart = 0, trimEnd, threshold = "-35dB", minDuration = 0.4 } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
+  registerJobHandler("clip_detect_silence", async (job) => {
+      const { filePath, trimStart = 0, trimEnd, threshold = "-35dB", minDuration = 0.4 } = job.payload || {};
       const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+      if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
+      if (!/^-?\d+(\.\d+)?dB$/.test(String(threshold))) throw new ClipJobError("Invalid threshold");
 
       const args: string[] = [];
       if (trimStart > 0) args.push("-ss", String(trimStart));
@@ -16395,17 +16190,20 @@ CRITICAL RULES:
         const end   = parseFloat(endMatches[i][1])   + (trimStart || 0);
         if (end - start >= minDuration) silentRanges.push({ start, end });
       }
-      res.json({ silentRanges });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return { silentRanges };
+  });
+  app.post("/api/video-clip-editor/detect-silence", requireAuth, async (req: Request, res: Response) => {
+    if (!req.body?.filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(req.body.filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_detect_silence", req.body);
   });
 
   // Scene change detection via FFmpeg
-  app.post("/api/video-clip-editor/detect-scenes", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath, threshold = 0.3 } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
+  registerJobHandler("clip_detect_scenes", async (job) => {
+      const filePath = job.payload?.filePath;
+      const threshold = Math.min(1, Math.max(0.01, parseFloat(job.payload?.threshold) || 0.3));
       const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+      if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
 
       const output = await ffmpegCapture(CLIP_FFMPEG, [
         "-i", absPath,
@@ -16419,13 +16217,31 @@ CRITICAL RULES:
         const t = parseFloat(m[1]);
         if (!isNaN(t) && t > 0.5) timestamps.push(t);
       }
-      res.json({ timestamps: [...new Set(timestamps)].sort((a, b) => a - b) });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return { timestamps: [...new Set(timestamps)].sort((a, b) => a - b) };
+  });
+  app.post("/api/video-clip-editor/detect-scenes", requireAuth, async (req: Request, res: Response) => {
+    if (!req.body?.filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(req.body.filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_detect_scenes", req.body);
   });
 
   // Multi-clip export with transitions, Ken Burns, noise reduction, audio mix, B-roll overlay
+  // Runs as a background job: an export can take minutes, which must never
+  // block a web request on Render. POST returns { jobId } immediately.
   app.post("/api/video-clip-editor/process", requireAuth, async (req: Request, res: Response) => {
+    const clips = req.body?.clips;
+    if (!Array.isArray(clips) || !clips.length) return res.status(400).json({ message: "No clips provided" });
+    for (let i = 0; i < clips.length; i++) {
+      if (!clips[i]?.filePath || !fs.existsSync(resolveClipPath(clips[i].filePath))) {
+        return res.status(410).json({ message: `Clip ${i + 1} file not found on the server — it may have been removed by a restart. Re-upload it.` });
+      }
+    }
+    await enqueueClipJob(req, res, "clip_export", req.body);
+  });
+
+  registerJobHandler("clip_export", async (job, ctx) => {
     const tmpFiles: string[] = [];
+    const reqBody = job.payload || {};
     try {
       const {
         clips = [], aspectRatio = "16:9", masterVolume = 1,
@@ -16433,8 +16249,8 @@ CRITICAL RULES:
         audioTracks = [], brollClips = [],
         exportQuality = "1080p", exportFps = 30,
         watermarkPath = null, watermarkPos = "br", watermarkOpacity = 0.7,
-      } = req.body;
-      if (!clips.length) return res.status(400).json({ message: "No clips provided" });
+      } = reqBody;
+      if (!clips.length) throw new ClipJobError("No clips provided");
 
       // Determine output dimensions based on quality setting
       const scaleH = exportQuality === "720p" ? 720 : exportQuality === "4k" ? 2160 : 1080;
@@ -16453,6 +16269,7 @@ CRITICAL RULES:
         const clip = clips[i];
         const inputPath = resolveClipPath(clip.filePath);
         if (!fs.existsSync(inputPath)) throw new Error(`Clip ${i + 1} file not found`);
+        await ctx.progress(i / (clips.length + 1), `Processing clip ${i + 1} of ${clips.length}`);
         const tmpOut = path.join(CLIP_UPLOADS, `clip-tmp-${ts}-${i}.mp4`);
         tmpFiles.push(tmpOut);
 
@@ -16569,10 +16386,13 @@ CRITICAL RULES:
       }
 
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
-      res.json({ downloadUrl: `/uploads/${outputName}`, filename: outputName });
+      await ctx.progress(0.95, "Saving export");
+      // Cloudinary when configured (survives restarts), local /uploads otherwise.
+      const downloadUrl = await saveMedia(outputPath, outputName);
+      return { downloadUrl, filename: outputName };
     } catch (e: any) {
       for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
-      res.status(500).json({ message: e.message });
+      throw e;
     }
   });
 
@@ -18018,48 +17838,31 @@ Request: "${message.trim()}"`;
   });
 
   // AI Highlights — transcribe + LLM identifies best 30–90s clip section
+  registerJobHandler("clip_highlights", async (job, ctx) => {
+    const absPath = resolveClipPath(job.payload?.filePath);
+    if (!fs.existsSync(absPath)) throw new ClipJobError("File not found");
+    const t = await transcribeMedia(absPath, { onStage: (stage, p) => ctx.progress((p ?? 0) * 0.8, stage) });
+    const segments = t.segments.length ? t.segments : [];
+    const totalDuration = t.duration || segments.at(-1)?.end || 60;
+    await ctx.progress(0.85, "Finding the best moment");
+    const highlightJson = await callGroqJson(
+      `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
+      `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${t.text}`,
+      200
+    );
+    const parsed = JSON.parse(highlightJson);
+    return {
+      start: Math.max(0, parsed.start || 0),
+      end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
+      reason: parsed.reason || "Most engaging section",
+      totalDuration,
+    };
+  });
   app.post("/api/video-clip-editor/highlights", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { filePath } = req.body;
-      if (!filePath) return res.status(400).json({ message: "filePath required" });
-      const absPath = resolveClipPath(filePath);
-      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
-      const FormDataNode = (await import("form-data")).default;
-      const fd = new FormDataNode();
-      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
-      fd.append("model", "whisper-large-v3-turbo");
-      fd.append("response_format", "verbose_json");
-      fd.append("timestamp_granularities[]", "segment");
-
-      const fetch2 = (await import("node-fetch")).default as any;
-      const tResp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
-        body: fd,
-      });
-      if (!tResp.ok) throw new Error("Transcription failed");
-      const tData: any = await tResp.json();
-      const fullText = tData.text || "";
-      const segments: any[] = tData.segments || [];
-      const totalDuration = segments.length ? segments[segments.length - 1].end : 60;
-
-      const highlightJson = await callGroqJson(
-        `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
-        `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${fullText}`,
-        200
-      );
-      const parsed = JSON.parse(highlightJson);
-      res.json({
-        start: Math.max(0, parsed.start || 0),
-        end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
-        reason: parsed.reason || "Most engaging section",
-        totalDuration,
-      });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    const { filePath } = req.body || {};
+    if (!filePath) return res.status(400).json({ message: "filePath required" });
+    if (!fs.existsSync(resolveClipPath(filePath))) return res.status(404).json({ message: "File not found" });
+    await enqueueClipJob(req, res, "clip_highlights", { filePath });
   });
 
   // AI Chat editor — natural language → structured editing actions via Groq LLaMA
