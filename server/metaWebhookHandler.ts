@@ -8,12 +8,22 @@
  * The page / IG account in each entry is mapped to an Oravini user through meta_tokens
  * (ig_account_id or fb_page_id). Every fired trigger is logged. Nothing in here throws:
  * unknown or malformed event shapes are logged and skipped.
+ *
+ * Reliability log (server/dmOnboarding.ts): every inbound DM / comment / story mention for
+ * a connected user is recorded in dm_webhook_events, and every automation that matched is
+ * recorded in dm_automation_runs (sent / failed + Meta error) for the status panel.
+ * Also handled here: story mentions → story_reply_configs, and first-time DMs with no
+ * keyword match → welcome_dm_configs.
  */
 import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "./storage";
 import { metaTokens, dmTriggers, commentAutoReplies } from "@shared/schema";
 import type { DmTrigger, CommentAutoReply } from "@shared/schema";
 import { getUserMetaCredentials, sendInstagramDM, sendInstagramPrivateReply, replyToInstagramComment } from "./meta";
+import type { DmEventType } from "@shared/dmOnboarding";
+import {
+  recordWebhookEvent, recordAutomationRun, hasPriorDmFromSender, getActiveStoryReply, getActiveWelcomeDm,
+} from "./dmOnboarding";
 
 const LOG = "[Meta Webhook]";
 
@@ -69,7 +79,15 @@ export function matchesKeyword(text: string, keyword: string, matchType: string)
 }
 
 // ── Direct messages ─────────────────────────────────────────────────────────
-async function handleMessagingEvent(accountId: string, userId: string, creds: SendCreds, evt: any): Promise<void> {
+export function classifyMessagingEvent(evt: any): DmEventType | null {
+  const message = evt?.message;
+  if (!message || typeof message !== "object") return null;
+  const attachments: any[] = Array.isArray(message.attachments) ? message.attachments : [];
+  if (attachments.some(a => a?.type === "story_mention")) return "story_mention";
+  return "dm";
+}
+
+async function handleMessagingEvent(accountId: string, userId: string, creds: SendCreds, evt: any, eventId: string | null = null): Promise<void> {
   const message = evt?.message;
   if (!message || typeof message !== "object") {
     console.log(`${LOG} Skipping non-message messaging event for ${accountId}:`, Object.keys(evt || {}).join(","));
@@ -78,7 +96,17 @@ async function handleMessagingEvent(accountId: string, userId: string, creds: Se
   const senderId: string | undefined = evt?.sender?.id;
   if (!senderId || senderId === accountId) return;
   const text: string = typeof message.text === "string" ? message.text : "";
-  if (!text.trim()) return; // attachments / reactions / story mentions: no keyword to match
+  if (classifyMessagingEvent(evt) === "story_mention") {
+    if (alreadyHandled(message.mid ? `story:${message.mid}` : undefined)) return;
+    await handleStoryMention(accountId, userId, creds, senderId, eventId);
+    return;
+  }
+  if (!text.trim()) {
+    // attachments / reactions: no keyword to match, but a first-time sender still gets the welcome DM
+    if (alreadyHandled(message.mid ? `dm:${message.mid}` : undefined)) return;
+    await maybeSendWelcome(accountId, userId, creds, senderId, "", eventId);
+    return;
+  }
   if (alreadyHandled(message.mid ? `dm:${message.mid}` : undefined)) return;
 
   const triggers: DmTrigger[] = await db
@@ -89,7 +117,10 @@ async function handleMessagingEvent(accountId: string, userId: string, creds: Se
   // First matching trigger wins (oldest first, so the order users created them in is respected).
   const ordered = [...triggers].sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
   const trigger = ordered.find(t => matchesKeyword(text, t.keyword, t.matchType));
-  if (!trigger) return;
+  if (!trigger) {
+    await maybeSendWelcome(accountId, userId, creds, senderId, text, eventId);
+    return;
+  }
 
   try {
     const { messageId } = await sendInstagramDM(creds.igAccountId, senderId, trigger.replyMessage, creds.token);
@@ -97,8 +128,39 @@ async function handleMessagingEvent(accountId: string, userId: string, creds: Se
       .set({ triggerCount: sql`${dmTriggers.triggerCount} + 1` })
       .where(eq(dmTriggers.id, trigger.id));
     console.log(`${LOG} Fired DM trigger "${trigger.name}" (${trigger.id}) user=${userId} account=${accountId} recipient=${senderId} keyword="${trigger.keyword}" match=${trigger.matchType} messageId=${messageId}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "dm_trigger", automationId: trigger.id, automationName: trigger.name, triggerEvent: "dm", triggerText: text, senderId, action: "dm", status: "sent" });
   } catch (e: any) {
     console.error(`${LOG} DM trigger "${trigger.name}" (${trigger.id}) matched but send failed: ${e.message}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "dm_trigger", automationId: trigger.id, automationName: trigger.name, triggerEvent: "dm", triggerText: text, senderId, action: "dm", status: "failed", errorMessage: e.message });
+  }
+}
+
+// First message from someone new, no keyword matched → welcome DM (if configured).
+async function maybeSendWelcome(accountId: string, userId: string, creds: SendCreds, senderId: string, text: string, eventId: string | null): Promise<void> {
+  const welcome = await getActiveWelcomeDm(userId);
+  if (!welcome) return;
+  if (await hasPriorDmFromSender(userId, senderId, eventId)) return;
+  try {
+    const { messageId } = await sendInstagramDM(creds.igAccountId, senderId, welcome.message, creds.token);
+    console.log(`${LOG} Sent welcome DM user=${userId} account=${accountId} recipient=${senderId} messageId=${messageId}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "welcome_dm", automationId: userId, automationName: "Welcome new DMs", triggerEvent: "dm", triggerText: text, senderId, action: "dm", status: "sent" });
+  } catch (e: any) {
+    console.error(`${LOG} welcome DM send failed user=${userId}: ${e.message}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "welcome_dm", automationId: userId, automationName: "Welcome new DMs", triggerEvent: "dm", triggerText: text, senderId, action: "dm", status: "failed", errorMessage: e.message });
+  }
+}
+
+// Someone @mentioned the account in their story → thank-you DM (if configured).
+async function handleStoryMention(accountId: string, userId: string, creds: SendCreds, senderId: string, eventId: string | null): Promise<void> {
+  const cfg = await getActiveStoryReply(userId);
+  if (!cfg) return;
+  try {
+    const { messageId } = await sendInstagramDM(creds.igAccountId, senderId, cfg.replyMessage, creds.token);
+    console.log(`${LOG} Sent story-mention thank-you user=${userId} account=${accountId} recipient=${senderId} messageId=${messageId}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "story_reply", automationId: cfg.id, automationName: "Story mention thank-you", triggerEvent: "story_mention", senderId, action: "dm", status: "sent" });
+  } catch (e: any) {
+    console.error(`${LOG} story-mention DM failed user=${userId}: ${e.message}`);
+    await recordAutomationRun({ userId, eventId, automationKind: "story_reply", automationId: cfg.id, automationName: "Story mention thank-you", triggerEvent: "story_mention", senderId, action: "dm", status: "failed", errorMessage: e.message });
   }
 }
 
@@ -126,7 +188,7 @@ async function getMediaPermalink(mediaId: string, token: string): Promise<string
   return permalink;
 }
 
-async function handleCommentChange(accountId: string, userId: string, creds: SendCreds, value: any): Promise<void> {
+async function handleCommentChange(accountId: string, userId: string, creds: SendCreds, value: any, eventId: string | null = null): Promise<void> {
   const commentId: string | undefined = value?.id;
   const text: string = typeof value?.text === "string" ? value.text : "";
   const fromId: string | undefined = value?.from?.id;
@@ -160,21 +222,35 @@ async function handleCommentChange(accountId: string, userId: string, creds: Sen
   if (!rule) return;
 
   const actions: string[] = [];
+  const attempted: string[] = [];
+  const errors: string[] = [];
   if (rule.replyMessage?.trim()) {
+    attempted.push("public-reply");
     try {
       await replyToInstagramComment(commentId, rule.replyMessage.trim(), creds.token);
       actions.push("public-reply");
     } catch (e: any) {
       console.error(`${LOG} Comment rule "${rule.name}" (${rule.id}) public reply failed: ${e.message}`);
+      errors.push(e.message);
     }
   }
   if (rule.alsoDm && rule.dmMessage?.trim()) {
+    attempted.push("dm");
     try {
       await sendInstagramPrivateReply(commentId, rule.dmMessage.trim(), creds.token);
       actions.push("dm");
     } catch (e: any) {
       console.error(`${LOG} Comment rule "${rule.name}" (${rule.id}) comment-to-DM failed: ${e.message}`);
+      errors.push(e.message);
     }
+  }
+  if (attempted.length) {
+    await recordAutomationRun({
+      userId, eventId, automationKind: "comment_reply", automationId: rule.id, automationName: rule.name,
+      triggerEvent: "comment", triggerText: text, senderId: fromId ?? null, action: attempted.join("+"),
+      status: errors.length === 0 ? "sent" : actions.length ? "partial" : "failed",
+      errorMessage: errors.length ? errors.join(" | ") : null,
+    });
   }
   if (!actions.length) return;
 
@@ -214,17 +290,42 @@ export async function handleMetaWebhookEvent(body: any): Promise<void> {
           console.warn(`${LOG} No connected Oravini account for IG/page id ${accountId} — skipping ${messaging.length} message(s), ${commentChanges.length} comment(s)`);
           continue;
         }
+        // Record every inbound event first (even if sending will fail) so the status
+        // panel can show that Instagram is delivering webhooks.
+        const messagingIds = new Map<any, string | null>();
+        for (const evt of messaging) {
+          const type = classifyMessagingEvent(evt);
+          if (!type) continue;
+          const sender = evt?.sender?.id != null ? String(evt.sender.id) : null;
+          if (sender && sender === accountId) continue;
+          messagingIds.set(evt, await recordWebhookEvent({
+            userId, accountId, eventType: type, senderId: sender,
+            externalId: evt?.message?.mid ? `msg:${evt.message.mid}` : null,
+            text: typeof evt?.message?.text === "string" ? evt.message.text : null,
+          }));
+        }
+        const commentIds = new Map<any, string | null>();
+        for (const change of commentChanges) {
+          const v = change?.value;
+          if (!v?.id || (v?.from?.id && String(v.from.id) === accountId)) continue;
+          commentIds.set(change, await recordWebhookEvent({
+            userId, accountId, eventType: "comment", externalId: `comment:${v.id}`,
+            senderId: v?.from?.id != null ? String(v.from.id) : null,
+            senderUsername: typeof v?.from?.username === "string" ? v.from.username : null,
+            text: typeof v?.text === "string" ? v.text : null, mediaId: v?.media?.id != null ? String(v.media.id) : null,
+          }));
+        }
         const creds = await getSendCreds(userId, accountId);
         if (!creds) {
           console.warn(`${LOG} No Meta access token stored for user=${userId} (account ${accountId}) — reconnect Instagram; skipping ${messaging.length} message(s), ${commentChanges.length} comment(s)`);
           continue;
         }
         for (const evt of messaging) {
-          try { await handleMessagingEvent(accountId, userId, creds, evt); }
+          try { await handleMessagingEvent(accountId, userId, creds, evt, messagingIds.get(evt) ?? null); }
           catch (e: any) { console.error(`${LOG} messaging event error: ${e.message}`); }
         }
         for (const change of commentChanges) {
-          try { await handleCommentChange(accountId, userId, creds, change?.value); }
+          try { await handleCommentChange(accountId, userId, creds, change?.value, commentIds.get(change) ?? null); }
           catch (e: any) { console.error(`${LOG} comment change error: ${e.message}`); }
         }
       } catch (e: any) {

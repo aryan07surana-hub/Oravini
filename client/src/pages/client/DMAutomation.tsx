@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -23,7 +23,7 @@ import {
   Search, XCircle, LayoutGrid, List, Send, Info,
   Link2, ShieldCheck, RefreshCw, ExternalLink, Wifi, WifiOff, Eye, EyeOff,
   Database, Settings, Webhook, ChevronDown, ChevronUp, BookOpen, Sparkles,
-  Target, Trophy, Lock, Layers, Key, Tag
+  Target, Trophy, Lock, Layers, Key, Tag, Activity, Rocket
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,8 @@ import { WelcomeDMConfig } from "@/components/dm/WelcomeDMConfig";
 import { OptOutToggle, OptOutBadge, OptOutFilter } from "@/components/dm/OptOutManagement";
 import { CSVExportButton, CSVExportCard } from "@/components/dm/CSVExport";
 import { AIBrainConfig } from "@/components/dm/AIBrainConfig";
+import { DMOnboardingWizard, useDmOnboarding, ONBOARDING_QUERY_KEY } from "@/components/dm/DMOnboardingWizard";
+import { DMReliabilityPanel, DMHealthAlertBanner } from "@/components/dm/DMReliabilityPanel";
 
 // ── DM Tracker constants ──────────────────────────────────────────────────────
 
@@ -1167,6 +1169,26 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
     retry: 1,
   });
 
+  // Onboarding wizard + reliability surface — always about the signed-in user's own
+  // Instagram connection, so hide them while an admin is viewing another client.
+  const ownView = !activeClientId || activeClientId === user?.id;
+  const { data: onboarding } = useDmOnboarding(ownView);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardAutoChecked, setWizardAutoChecked] = useState(false);
+  useEffect(() => {
+    if (onboarding && !wizardAutoChecked) {
+      setWizardAutoChecked(true);
+      if (onboarding.showWizard) setWizardOpen(true);
+    }
+  }, [onboarding, wizardAutoChecked]);
+  const openWizard = async () => {
+    // Clear "skipped"/"finished" first so the wizard mounts with fresh progress.
+    await apiRequest("PUT", "/api/dm/onboarding", { reopen: true }).catch(() => {});
+    await queryClient.refetchQueries({ queryKey: ONBOARDING_QUERY_KEY });
+    setWizardOpen(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // Automation mutations
   const deleteTriggerMutation  = useMutation({ mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/triggers/${id}`),  onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/triggers"] });  toast({ title: "Trigger deleted" }); } });
   const toggleTriggerMutation  = useMutation({ mutationFn: ({ id, isActive }: any) => apiRequest("PATCH", `/api/dm/triggers/${id}`,  { isActive }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/triggers"] }) });
@@ -1264,8 +1286,13 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
             <h1 className="text-xl font-bold text-foreground">DM Automation</h1>
             <p className="text-xs text-muted-foreground">Leads, auto-replies & sequences</p>
           </div>
+          {ownView && !wizardOpen && (
+            <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs ml-auto" onClick={openWizard} data-testid="button-open-wizard">
+              <Rocket className="w-3.5 h-3.5" />Setup wizard
+            </Button>
+          )}
           {isAdmin && clients.length > 0 && (
-            <div className="ml-auto">
+            <div className={ownView && !wizardOpen ? "" : "ml-auto"}>
               <Select value={selectedClientId} onValueChange={setSelectedClientId}>
                 <SelectTrigger className="w-44 h-9 text-xs" data-testid="select-filter-client">
                   <SelectValue placeholder="All clients" />
@@ -1278,6 +1305,16 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
             </div>
           )}
         </div>
+
+        {/* Reliability alerts (token expired, webhook silent, send failures) */}
+        {ownView && activeTab !== "status" && (
+          <DMHealthAlertBanner onOpenLogs={() => setActiveTab("status")} onOpenWizard={openWizard} />
+        )}
+
+        {/* Guided onboarding wizard */}
+        {ownView && wizardOpen && onboarding && (
+          <DMOnboardingWizard state={onboarding} onClose={() => setWizardOpen(false)} onOpenLogs={() => setActiveTab("status")} />
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1321,6 +1358,9 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
                 <TabsTrigger value="settings"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Settings className="w-3.5 h-3.5" />Settings{!isConnected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}</TabsTrigger>
                 <TabsTrigger value="triggers"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Zap className="w-3.5 h-3.5" />Auto-Replies</TabsTrigger>
                 <TabsTrigger value="quick-replies" className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><MessageSquare className="w-3.5 h-3.5" />Templates</TabsTrigger>
+                {ownView && (
+                  <TabsTrigger value="status" className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8" data-testid="tab-status"><Activity className="w-3.5 h-3.5" />Status &amp; Logs</TabsTrigger>
+                )}
               </TabsList>
               <div className="w-px h-5 bg-border mx-1" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">Automation</span>
@@ -1340,6 +1380,13 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
               </TabsList>
             </div>
           </div>
+
+          {/* Status & Logs Tab (reliability surface) */}
+          {ownView && (
+            <TabsContent value="status" className="mt-4">
+              <DMReliabilityPanel onOpenWizard={openWizard} />
+            </TabsContent>
+          )}
 
           {/* Auto-Replies Tab */}
           <TabsContent value="triggers" className="mt-4 space-y-4">

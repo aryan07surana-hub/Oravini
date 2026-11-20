@@ -9,6 +9,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
+import { registerDmOnboardingRoutes } from "./dmOnboarding";
 import { registerMetaAdsRoutes } from "./metaAdsRoutes";
 import { registerMetaAdsManagerRoutes } from "./metaAdsManagerRoutes";
 import { registerMetaAdsCreationRoutes } from "./metaAdsCreationRoutes";
@@ -1336,6 +1337,7 @@ async function runMigrations() {
 
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
+  registerDmOnboardingRoutes(app);
   registerMetaAdsRoutes(app);
   registerMetaAdsManagerRoutes(app);
   registerMetaAdsCreationRoutes(app);
