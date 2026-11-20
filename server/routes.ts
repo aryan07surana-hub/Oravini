@@ -39,6 +39,9 @@ import { computeWebinarTimeline, computeStayRates, matchAttendedRegistrations, s
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
 import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson, aiChatCompletion as _aiChatCompletion, aiFeature } from "./aiService";
 import { handleMetaWebhookEvent } from "./metaWebhookHandler";
+import { signYoutubeState, verifyYoutubeState, safeReturnPath, withQuery, DEFAULT_YOUTUBE_RETURN, YOUTUBE_OAUTH_SCOPES } from "./youtubeOAuthState";
+import { registerWebinarYoutubeRoutes } from "./webinarYoutube";
+import { encryptToken as encryptSecret, decryptToken as decryptSecret } from "./security/tokenEncryption";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -9250,41 +9253,53 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     );
   }
 
+  const youtubeConfigured = () => !!(process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET);
+
+  // Optional ?returnTo=/in/app/path sends the user back there after connecting
+  // (e.g. the webinar wizard). Defaults to the YouTube scheduler.
   app.get("/api/auth/youtube", requireAuth, (req: Request, res: Response) => {
-    if (!process.env.YOUTUBE_CLIENT_ID || !process.env.YOUTUBE_CLIENT_SECRET) {
-      return res.status(500).json({ message: "YouTube credentials not configured" });
+    const returnTo = safeReturnPath(req.query.returnTo) || DEFAULT_YOUTUBE_RETURN;
+    if (!youtubeConfigured()) {
+      // This is a browser navigation, so bounce back with a readable error instead of raw JSON.
+      return res.redirect(withQuery(returnTo, "yt_error", "YouTube integration isn't configured on this server yet (YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET missing)."));
     }
     const oauth2Client = getYoutubeOAuth2Client();
     const callbackUrl = getYoutubeCallbackUrl();
     console.log(`[youtube] OAuth starting, callback=${callbackUrl}`);
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
-      scope: [
-        "https://www.googleapis.com/auth/youtube.upload",
-        "https://www.googleapis.com/auth/youtube.readonly",
-      ],
+      scope: YOUTUBE_OAUTH_SCOPES,
       prompt: "consent",
-      state: (req.user as any).id,
+      include_granted_scopes: true,
+      state: signYoutubeState((req.user as any).id, returnTo),
     });
     return res.redirect(url);
   });
 
   app.get("/api/auth/youtube/callback", async (req: Request, res: Response) => {
     const base = getSiteBase();
+    let returnTo = DEFAULT_YOUTUBE_RETURN;
     try {
-      const { code, state: userId, error, error_description } = req.query as {
+      const { code, state, error, error_description } = req.query as {
         code?: string; state?: string; error?: string; error_description?: string;
       };
+      const verified = verifyYoutubeState(state);
+      returnTo = verified?.returnTo || DEFAULT_YOUTUBE_RETURN;
 
       if (error) {
         console.log(`[youtube] OAuth denied: ${error} — ${error_description}`);
-        return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(error_description || error)}`);
+        return res.redirect(`${base}${withQuery(returnTo, "yt_error", error_description || error)}`);
       }
 
-      if (!code || !userId) {
-        console.log("[youtube] OAuth callback: missing code or state");
-        return res.redirect(`${base}/youtube-scheduler?yt_error=missing_code`);
+      if (!code || !verified) {
+        console.log("[youtube] OAuth callback: missing code or invalid/expired state");
+        return res.redirect(`${base}${withQuery(returnTo, "yt_error", !code ? "missing_code" : "Your connect link expired — please try again.")}`);
       }
+      // The signed state must belong to the logged-in user when a session is present.
+      if (req.isAuthenticated?.() && (req.user as any)?.id !== verified.userId) {
+        return res.redirect(`${base}${withQuery(returnTo, "yt_error", "Signed-in account changed during connect — please try again.")}`);
+      }
+      const userId = verified.userId;
 
       const oauth2Client = getYoutubeOAuth2Client();
       const { tokens } = await oauth2Client.getToken(code);
@@ -9296,9 +9311,10 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
       const channel = channelRes.data.items?.[0];
 
+      const prevToken = await storage.getYoutubeToken(userId);
       await storage.upsertYoutubeToken(userId, {
         accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token ?? null,
+        refreshToken: tokens.refresh_token ?? prevToken?.refreshToken ?? null,
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         channelId: channel?.id ?? null,
         channelTitle: channel?.snippet?.title ?? null,
@@ -9306,18 +9322,19 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       });
 
       console.log(`[youtube] Connected: channel=${channel?.snippet?.title} user=${userId}`);
-      return res.redirect(`${base}/youtube-scheduler?yt_connected=1`);
+      return res.redirect(`${base}${withQuery(returnTo, "yt_connected", "1")}`);
     } catch (err: any) {
       console.log(`[youtube] Callback error: ${err.message}`);
-      return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(err.message)}`);
+      return res.redirect(`${base}${withQuery(returnTo, "yt_error", err.message)}`);
     }
   });
 
   app.get("/api/youtube/status", requireAuth, async (req: Request, res: Response) => {
     const token = await storage.getYoutubeToken((req.user as any).id);
-    if (!token) return res.json({ connected: false });
+    if (!token) return res.json({ connected: false, configured: youtubeConfigured() });
     return res.json({
       connected: true,
+      configured: youtubeConfigured(),
       channelId: token.channelId,
       channelTitle: token.channelTitle,
       channelThumbnail: token.channelThumbnail,
@@ -9333,7 +9350,8 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     const token = await storage.getYoutubeToken(userId);
     if (!token) throw new Error("YouTube not connected");
     const oauth2Client = getYoutubeOAuth2Client();
-    if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
+    // Refresh a minute early so a request doesn't race the expiry.
+    if (token.expiresAt && new Date(token.expiresAt).getTime() < Date.now() + 60_000) {
       if (!token.refreshToken) throw new Error("YouTube token expired, please reconnect");
       oauth2Client.setCredentials({ refresh_token: token.refreshToken });
       const { credentials } = await oauth2Client.refreshAccessToken();
@@ -11102,6 +11120,13 @@ Rules:
       return row;
     };
 
+    // The (encrypted) YouTube stream key never goes out with the regular webinar
+    // payload — the owner reads it via GET /api/webinar-funnels/:id/youtube/status.
+    const ownerView = <T extends typeof webinarFunnels.$inferSelect>(row: T) => {
+      const { youtubeStreamKey, ...rest } = row;
+      return { ...rest, youtubeStreamKeySet: !!youtubeStreamKey };
+    };
+
     // List (owner)
     app.get("/api/webinar-funnels", requireAuth, async (req: Request, res: Response) => {
       try {
@@ -11114,7 +11139,7 @@ Rules:
           .from(webinarFunnels)
           .where(eq(webinarFunnels.userId, userId))
           .orderBy(desc(webinarFunnels.scheduledAt));
-        res.json(rows.map(r => ({ ...r.funnel, registrationCount: Number(r.registrationCount) || 0 })));
+        res.json(rows.map(r => ({ ...ownerView(r.funnel), registrationCount: Number(r.registrationCount) || 0 })));
       } catch (e: any) {
         console.error("[webinar-funnels] list error:", e.message);
         res.status(500).json({ message: "Failed to load webinars" });
@@ -11157,7 +11182,7 @@ Rules:
           durationMinutes: body.durationMinutes ?? 60,
           remindersEnabled: body.remindersEnabled ?? true,
         }).returning();
-        res.status(201).json({ ...row, registrationCount: 0 });
+        res.status(201).json({ ...ownerView(row), registrationCount: 0 });
       } catch (e: any) {
         console.error("[webinar-funnels] create error:", e.message);
         res.status(500).json({ message: "Failed to create webinar" });
@@ -11168,7 +11193,7 @@ Rules:
     app.get("/api/webinar-funnels/:id", requireAuth, async (req: Request, res: Response) => {
       const row = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
       if (!row) return res.status(404).json({ message: "Not found" });
-      res.json(row);
+      res.json(ownerView(row));
     });
 
     // Update (owner)
@@ -11204,11 +11229,11 @@ Rules:
         if (body.offerExpiresAt !== undefined) updates.offerExpiresAt = body.offerExpiresAt;
         if (body.durationMinutes !== undefined) updates.durationMinutes = body.durationMinutes;
         if (body.remindersEnabled !== undefined) updates.remindersEnabled = body.remindersEnabled;
-        if (Object.keys(updates).length === 0) return res.json(existing);
+        if (Object.keys(updates).length === 0) return res.json(ownerView(existing));
         const [row] = await db.update(webinarFunnels).set(updates)
           .where(and(eq(webinarFunnels.id, existing.id), eq(webinarFunnels.userId, userId)))
           .returning();
-        res.json(row);
+        res.json(ownerView(row));
       } catch (e: any) {
         console.error("[webinar-funnels] update error:", e.message);
         res.status(500).json({ message: "Failed to update webinar" });
@@ -11309,6 +11334,25 @@ Rules:
 
     // Live room: chat/Q&A, heartbeat attendance, CTA clicks, analytics, deck upload
     registerWebinarFunnelLiveRoutes(app, requireAuth, getOwnedFunnel);
+
+    // YouTube Live: create broadcast + stream on the host's own channel, status, replay
+    registerWebinarYoutubeRoutes(app, requireAuth, {
+      getOwnedFunnel,
+      getConnection: async (userId) => {
+        const t = await storage.getYoutubeToken(userId);
+        return t ? { channelId: t.channelId, channelTitle: t.channelTitle } : null;
+      },
+      getClient: (userId) => getAuthedYoutubeClient(userId) as any,
+      updateFunnel: async (id, userId, updates) => {
+        const [row] = await db.update(webinarFunnels).set(updates)
+          .where(and(eq(webinarFunnels.id, id), eq(webinarFunnels.userId, userId)))
+          .returning();
+        return row;
+      },
+      encrypt: encryptSecret,
+      decrypt: decryptSecret,
+      isConfigured: youtubeConfigured,
+    });
   }
 
   // All contacts across user's forms (CRM)

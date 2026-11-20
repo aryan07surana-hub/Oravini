@@ -1326,6 +1326,10 @@ async function runMigrations() {
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_expires_at TIMESTAMP;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_broadcast_id TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_stream_id TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_stream_key TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_ingestion_address TEXT;
       ALTER TABLE webinar_funnel_registrations ADD COLUMN IF NOT EXISTS reminder_1h_sent_at TIMESTAMP;
       CREATE TABLE IF NOT EXISTS webinar_chat_messages (
         id SERIAL PRIMARY KEY,

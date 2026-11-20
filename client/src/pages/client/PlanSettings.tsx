@@ -10,6 +10,7 @@ import {
   Globe, Languages, MessageCircle, Star
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
+import YoutubeConnectionCard from "@/components/YoutubeConnectionCard";
 import { useTimezone, TIMEZONES, LANGUAGES } from "@/hooks/use-timezone";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -670,6 +671,9 @@ export default function PlanSettings() {
             </div>
           </div>
         </div>
+
+        {/* ── CONNECTIONS ── */}
+        <YoutubeConnectionCard />
 
         {/* ── TIMEZONE & LANGUAGE ── */}
         <div className="mt-4">
