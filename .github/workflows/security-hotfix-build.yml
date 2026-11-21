@@ -1,0 +1,28 @@
+name: Security Hotfix Build
+on:
+  push:
+    branches: [fix/confirm-plan-no-self-upgrade]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test-and-production-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --include=dev --legacy-peer-deps
+      - name: Existing regression tests
+        run: npm test
+      - name: Plan confirmation security tests
+        run: npx tsx --test tests/planConfirmation.test.ts
+      - name: Full production client and server build
+        run: node script/build.mjs

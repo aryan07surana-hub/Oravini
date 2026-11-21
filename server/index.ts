@@ -1,3 +1,4 @@
+import { registerPlanConfirmationGuard } from "./planConfirmation";
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
@@ -1419,6 +1420,8 @@ async function runMigrations() {
     }
   }
 
+  // Register before the legacy onboarding route; never allow its billing side effects.
+  registerPlanConfirmationGuard(app, storage);
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
   registerDmOnboardingRoutes(app);
