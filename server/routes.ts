@@ -19,8 +19,8 @@ import { FUNNEL_SECTION_SCHEMAS, FunnelAiResponseError, parseAiJsonObject, clean
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDMForUser, getUserMetaCredentials, metaGet } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
-import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES } from "@shared/schema";
-import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl } from "@shared/webinarFunnel";
+import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES, meetingTypes } from "@shared/schema";
+import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl, isValidCtaUrl } from "@shared/webinarFunnel";
 import { registerWebinarFunnelLiveRoutes } from "./webinarFunnelLive";
 import { sendWebinarConfirmation } from "./webinarFunnelEmail";
 import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
@@ -11104,6 +11104,23 @@ Rules:
   });
 
   // ── Webinar Funnels (YouTube Live registration + watch pages) ─────────────
+  // Signed-in user's active booking pages (for pointing a webinar CTA at
+  // /book/:slug). Booking pages owned by non-admin accounts are retired (the
+  // public /book/:slug routes 404 them), so only admin-owned ones are offered.
+  app.get("/api/meeting-types", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== "admin") return res.json([]);
+      const rows = await db.select({ id: meetingTypes.id, slug: meetingTypes.slug, title: meetingTypes.title })
+        .from(meetingTypes)
+        .where(and(eq(meetingTypes.userId, user.id), eq(meetingTypes.isActive, true)))
+        .orderBy(asc(meetingTypes.title));
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Namespaced under /api/webinar-funnels because /api/webinars belongs to the
   // existing LiveKit webinar studio. Public read endpoint: /api/public/webinars/:slug
   {
@@ -11111,7 +11128,7 @@ Rules:
       z.union([z.string().trim().max(max), z.null()]).optional()
         .transform(v => (v === undefined ? undefined : v && v.length ? v : null));
     const httpUrl = z.union([
-      z.string().trim().max(2000).refine(v => v === "" || /^https?:\/\/[^\s]+$/i.test(v), "CTA URL must start with http:// or https://"),
+      z.string().trim().max(2000).refine(v => v === "" || isValidCtaUrl(v), "CTA URL must start with http:// or https:// (or be a booking page path like /book/…)"),
       z.null(),
     ]).optional().transform(v => (v === undefined ? undefined : v ? v : null));
     const funnelBody = z.object({

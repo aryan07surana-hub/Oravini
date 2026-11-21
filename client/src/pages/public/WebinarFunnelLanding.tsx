@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { CalendarClock, CheckCircle2, Mic, PlayCircle, Radio } from "lucide-react";
-import { formatIST } from "@shared/webinarFunnel";
+import { formatIST, googleCalendarUrl } from "@shared/webinarFunnel";
 import {
   GOLD, Countdown, PublicLoading, PublicShell, WebinarNotFound, useCountdown, usePublicWebinar, readRegistration, saveRegistration,
 } from "@/components/webinar-funnel/shared";
@@ -34,6 +34,13 @@ export default function WebinarFunnelLanding() {
   if (isError || !webinar) return <WebinarNotFound />;
 
   const liveHref = `/w/${webinar.slug}/live`;
+  const pageUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "";
+  const calendarHref = googleCalendarUrl({
+    title: webinar.title,
+    start: webinar.scheduledAt,
+    durationMinutes: webinar.durationMinutes,
+    details: pageUrl ? `Join here: ${pageUrl}` : undefined,
+  });
   const started = msLeft === 0;
   const canRegister = webinar.status === "published";
 
@@ -119,7 +126,13 @@ export default function WebinarFunnelLanding() {
             <div className="text-center py-4" data-testid="webinar-registered">
               <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
               <p className="text-xl font-black text-white mb-1">You're in!</p>
-              <p className="text-xs text-zinc-500 mb-5">Save the date: {formatIST(webinar.scheduledAt)}. Come back to this link when it's time.</p>
+              <p className={`text-xs text-zinc-500 ${calendarHref ? "mb-2" : "mb-5"}`}>Save the date: {formatIST(webinar.scheduledAt)}. Come back to this link when it's time.</p>
+              {calendarHref && (
+                <a href={calendarHref} target="_blank" rel="noopener noreferrer" data-testid="link-add-to-google-calendar"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold mb-5 hover:underline" style={{ color: GOLD }}>
+                  <CalendarClock className="w-3.5 h-3.5" /> Add to Google Calendar
+                </a>
+              )}
               <Link href={liveHref} data-testid="link-live-page"
                 className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
                 style={{ background: GOLD, color: "#0a0910" }}>
