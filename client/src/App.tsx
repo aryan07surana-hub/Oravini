@@ -62,6 +62,7 @@ function WebinarFunnelNew() {
   return advanced ? <WebinarFunnelEditor id="new" /> : <WebinarSetupWizard />;
 }
 import WebinarFunnelRegistrations from "@/pages/client/WebinarFunnelRegistrations";
+import WebinarRevenue from "@/pages/client/WebinarRevenue";
 
 import ClientDashboard from "@/pages/client/Dashboard";
 import ClientDocuments from "@/pages/client/Documents";
@@ -409,6 +410,7 @@ function AppRoutes() {
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
+      <Route path="/tools/webinars/:id/revenue">{(p) => <Guard component={WebinarRevenue} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
       <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>

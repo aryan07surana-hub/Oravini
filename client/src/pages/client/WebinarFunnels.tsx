@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatIST } from "@shared/webinarFunnel";
 import {
-  Plus, Radio, Copy, ExternalLink, Trash2, Users, CalendarClock, CheckCircle2, Clock, Pencil,
+  Plus, Radio, Copy, ExternalLink, Trash2, Users, CalendarClock, CheckCircle2, Clock, Pencil, DollarSign,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -152,6 +152,15 @@ export default function WebinarFunnels() {
                       title="View registrations"
                     >
                       <Users className="w-3.5 h-3.5" /> {w.registrationCount}
+                    </button>
+                    <button
+                      onClick={() => navigate(`/tools/webinars/${w.id}/revenue`)}
+                      data-testid={`btn-revenue-${w.id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+                      style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}35`, color: GOLD }}
+                      title="Revenue dashboard"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" /> Revenue
                     </button>
                     <button onClick={() => copyLink(w)} data-testid={`btn-copy-link-${w.id}`} title="Copy public link"
                       className="p-2 rounded-lg text-zinc-500 hover:text-white transition-colors" style={{ background: "rgba(255,255,255,0.03)" }}>

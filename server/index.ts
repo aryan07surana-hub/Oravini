@@ -1379,6 +1379,28 @@ async function runMigrations() {
         CONSTRAINT webinar_cta_clicks_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS idx_webinar_cta_clicks_webinar ON webinar_cta_clicks(webinar_id);
+      CREATE TABLE IF NOT EXISTS webinar_funnel_polls (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        webinar_id VARCHAR NOT NULL,
+        question TEXT NOT NULL,
+        options JSONB NOT NULL DEFAULT '[]'::jsonb,
+        active BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_funnel_polls_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_funnel_polls_webinar ON webinar_funnel_polls(webinar_id, active);
+      CREATE TABLE IF NOT EXISTS webinar_funnel_poll_votes (
+        id SERIAL PRIMARY KEY,
+        poll_id VARCHAR NOT NULL,
+        option_index INTEGER NOT NULL,
+        registration_id VARCHAR,
+        email TEXT,
+        viewer_key TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT webinar_funnel_poll_votes_poll_id_fk FOREIGN KEY (poll_id) REFERENCES webinar_funnel_polls(id) ON DELETE CASCADE,
+        CONSTRAINT uq_webinar_poll_vote_registration UNIQUE (poll_id, registration_id),
+        CONSTRAINT uq_webinar_poll_vote_viewer UNIQUE (poll_id, viewer_key)
+      );
     `);
     console.log("[migration] webinar live-experience tables ensured");
   } catch (e: any) {

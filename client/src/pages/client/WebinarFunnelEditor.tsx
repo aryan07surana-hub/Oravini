@@ -6,11 +6,12 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST, deckEmbed } from "@shared/webinarFunnel";
-import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye, Wand2, BarChart3, MessagesSquare, Settings2, Upload, X, Bell } from "lucide-react";
+import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye, Wand2, BarChart3, MessagesSquare, Settings2, Upload, X, Bell, Vote } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";
 import { uploadDeck, type WebinarFunnelFull } from "@/components/webinar-funnel/hostUtils";
 import { HostLiveRoom, WebinarAnalyticsPanel } from "@/components/webinar-funnel/HostPanels";
 import { YoutubeLivePanel } from "@/components/webinar-funnel/YoutubeLivePanel";
+import { HostPollsPanel } from "@/components/webinar-funnel/Polls";
 import { YOUTUBE_STATUS_KEY, consumeYoutubeConnectResult } from "@/components/webinar-funnel/youtube";
 
 const GOLD = "#d4b461";
@@ -59,9 +60,9 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const [tab, setTab] = useState<"details" | "live" | "analytics">(() => {
+  const [tab, setTab] = useState<"details" | "live" | "polls" | "analytics">(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return t === "live" || t === "analytics" ? t : "details";
+    return t === "live" || t === "polls" || t === "analytics" ? t : "details";
   });
   const { data: existing, isLoading } = useQuery<WebinarFunnelFull | null>({
     queryKey: [`/api/webinar-funnels/${id}`],
@@ -282,6 +283,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
             {([
               { id: "details", label: "Details", icon: Settings2 },
               { id: "live", label: "Live room", icon: MessagesSquare },
+              { id: "polls", label: "Polls", icon: Vote },
               { id: "analytics", label: "Analytics", icon: BarChart3 },
             ] as const).map(t => (
               <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} data-testid={`editor-tab-${t.id}`}
@@ -294,6 +296,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
         )}
 
         {!isNew && existing && tab === "live" && <HostLiveRoom webinar={existing} />}
+        {!isNew && existing && tab === "polls" && <HostPollsPanel webinarId={existing.id} />}
         {!isNew && existing && tab === "analytics" && <WebinarAnalyticsPanel webinar={existing} />}
 
         <div hidden={!isNew && tab !== "details"}>
