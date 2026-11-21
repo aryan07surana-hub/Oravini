@@ -79,8 +79,6 @@ import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
 import DMAutomation from "@/pages/client/DMAutomation";
-import EmailMarketing from "@/pages/client/EmailMarketing";
-import SmsMarketing from "@/pages/client/SmsMarketing";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -88,6 +86,7 @@ import YouTubeScheduler from "@/pages/client/YouTubeScheduler";
 import Sessions from "@/pages/client/Sessions";
 import Credits from "@/pages/client/Credits";
 import PlanSettings from "@/pages/client/PlanSettings";
+import Payments from "@/pages/client/Payments";
 import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
@@ -102,12 +101,6 @@ import SendDM from "@/pages/client/SendDM";
 import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
-import BoardBuilder from "@/pages/client/BoardBuilder";
-import BioGeneratorHub from "@/pages/client/BioGeneratorHub";
-import BioGenerateFromScratch from "@/pages/client/BioGenerateFromScratch";
-import BioImprove from "@/pages/client/BioImprove";
-import BioTemplates from "@/pages/client/BioTemplates";
-import BioCompetitor from "@/pages/client/BioCompetitor";
 import FormResponses from "@/pages/client/FormResponses";
 import FormsCRM from "@/pages/client/FormsCRM";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
@@ -148,11 +141,6 @@ import FunnelDomain from "@/pages/client/FunnelDomain";
 // PublicFunnelDomain (legacy custom-domain redirector) is superseded by HostGate; file kept for reference.
 import PublicFunnelStep from "@/pages/public/PublicFunnelStep";
 import PageStudio, { PageStudioNew } from "@/pages/client/PageStudio";
-import ClientScheduling from "@/pages/client/Scheduling";
-import Analytics from "@/pages/client/Analytics";
-import MentorKit from "@/pages/client/MentorKit";
-import MentorKitNew from "@/pages/client/MentorKitNew";
-import MentorKitProduct from "@/pages/client/MentorKitProduct";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -165,7 +153,6 @@ import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
 import AdminCRMSuite from "@/pages/admin/AdminCRMSuite";
 import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
-import AdminSmsMarketing from "@/pages/admin/AdminSmsMarketing";
 import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
 import AdminReferrals from "@/pages/admin/AdminReferrals";
 import AdminResponses from "@/pages/admin/AdminResponses";
@@ -378,8 +365,6 @@ function AppRoutes() {
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
-      <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
-      <Route path="/sms-marketing">{() => <Guard component={SmsMarketing} />}</Route>
       <Route path="/pages-hub">{() => <Guard component={PagesHub} />}</Route>
       <Route path="/landing-pages">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/landing-pages/:id/edit">{() => <Guard component={LandingPageBuilder} />}</Route>
@@ -416,6 +401,8 @@ function AppRoutes() {
       <Route path="/youtube-scheduler">{() => <Guard component={YouTubeScheduler} />}</Route>
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
+      <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
+      <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
@@ -427,25 +414,13 @@ function AppRoutes() {
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
       <Route path="/tools/webinars">{() => <Guard component={WebinarFunnels} />}</Route>
-      <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
-      <Route path="/tools/bio-generator/generate">{() => <Guard component={BioGenerateFromScratch} />}</Route>
-      <Route path="/tools/bio-generator/improve">{() => <Guard component={BioImprove} />}</Route>
-      <Route path="/tools/bio-generator/templates">{() => <Guard component={BioTemplates} />}</Route>
-      <Route path="/tools/bio-generator/competitor">{() => <Guard component={BioCompetitor} />}</Route>
-      <Route path="/tools/bio-generator">{() => <Guard component={BioGeneratorHub} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
-      <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
       <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
-      <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
 
-      {/* MentorKit — Digital Product Builder */}
-      <Route path="/mentor-kit/product/:id">{(p) => <Guard component={MentorKitProduct} id={p.id} />}</Route>
-      <Route path="/mentor-kit/new">{() => <Guard component={MentorKitNew} />}</Route>
-      <Route path="/mentor-kit">{() => <Guard component={MentorKit} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}
       <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>
@@ -485,7 +460,6 @@ function AppRoutes() {
       <Route path="/admin/crm-legacy">{() => <Guard component={AdminCRM} adminOnly />}</Route>
       <Route path="/admin/crm-suite">{() => <Guard component={AdminCRMSuite} adminOnly />}</Route>
       <Route path="/admin/email-marketing">{() => <Guard component={AdminEmailMarketing} adminOnly />}</Route>
-      <Route path="/admin/sms-marketing">{() => <Guard component={AdminSmsMarketing} adminOnly />}</Route>
       <Route path="/admin/churn">{() => <Guard component={AdminChurnAnalysis} adminOnly />}</Route>
       <Route path="/admin/referrals">{() => <Guard component={AdminReferrals} adminOnly />}</Route>
       <Route path="/admin/responses">{() => <Guard component={AdminResponses} adminOnly />}</Route>

@@ -9,6 +9,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
+import { registerDmOnboardingRoutes } from "./dmOnboarding";
 import { registerMetaAdsRoutes } from "./metaAdsRoutes";
 import { registerMetaAdsManagerRoutes } from "./metaAdsManagerRoutes";
 import { registerMetaAdsCreationRoutes } from "./metaAdsCreationRoutes";
@@ -27,6 +28,7 @@ import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
 import { startWebinarEmailScheduler } from "./jobs/webinar-email-scheduler";
 import { startWebinarFunnelReminderJob } from "./webinarFunnelEmail";
+import { startWebinarFunnelFollowupJob } from "./webinarFunnelFollowup";
 import { startSchedulingCronJobs } from "./schedulingCron";
 import { startRtmpServer } from "./rtmp";
 import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
@@ -218,7 +220,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      // Payment connection / revenue responses are private to each user: never log their bodies.
+      if (capturedJsonResponse && !path.startsWith("/api/payments")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
       log(logLine);
@@ -838,7 +841,7 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cdp_user ON competitor_detected_posts(user_id, detected_at DESC)`);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cdp_url ON competitor_detected_posts(watchlist_id, post_url)`);
-    await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`).catch((e: any) => console.warn("[migration] competitor_detected_posts.is_seen skipped:", e.message));
     await pool.query(`
       CREATE TABLE IF NOT EXISTS competitor_content_ideas (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1180,6 +1183,15 @@ async function runMigrations() {
     console.warn("[migration] meta_ads_ad_snapshots skipped:", e.message);
   }
 
+  // ── AI Video Editor: jobs table + additive video_edits columns ────────────
+  try {
+    const { VIDEO_EDITOR_SCHEMA_SQL } = await import("./videoEditor/jobs");
+    await pool.query(VIDEO_EDITOR_SCHEMA_SQL);
+    console.log("[migration] video_editor_jobs + video_edits columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] video editor schema skipped:", e.message);
+  }
+
   // ── Meta Ads Bulk Jobs ────────────────────────────────────────────────────
   try {
     await pool.query(`
@@ -1326,6 +1338,10 @@ async function runMigrations() {
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_expires_at TIMESTAMP;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_broadcast_id TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_stream_id TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_stream_key TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_ingestion_address TEXT;
       ALTER TABLE webinar_funnel_registrations ADD COLUMN IF NOT EXISTS reminder_1h_sent_at TIMESTAMP;
       CREATE TABLE IF NOT EXISTS webinar_chat_messages (
         id SERIAL PRIMARY KEY,
@@ -1364,6 +1380,19 @@ async function runMigrations() {
         CONSTRAINT webinar_cta_clicks_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS idx_webinar_cta_clicks_webinar ON webinar_cta_clicks(webinar_id);
+      CREATE TABLE IF NOT EXISTS webinar_funnel_followup_log (
+        id SERIAL PRIMARY KEY,
+        webinar_id VARCHAR NOT NULL,
+        registration_id VARCHAR NOT NULL,
+        email_norm TEXT NOT NULL,
+        segment TEXT NOT NULL,
+        claimed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMP,
+        error TEXT,
+        CONSTRAINT webinar_funnel_followup_log_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE,
+        CONSTRAINT uq_webinar_followup_registration UNIQUE (webinar_id, registration_id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_webinar_followup_email ON webinar_funnel_followup_log(webinar_id, email_norm);
     `);
     console.log("[migration] webinar live-experience tables ensured");
   } catch (e: any) {
@@ -1392,6 +1421,7 @@ async function runMigrations() {
 
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
+  registerDmOnboardingRoutes(app);
   registerMetaAdsRoutes(app);
   registerMetaAdsManagerRoutes(app);
   registerMetaAdsCreationRoutes(app);
@@ -1401,6 +1431,10 @@ async function runMigrations() {
   registerMetaAdsCampaignManagerRoutes(app);
   registerMetaAdsMyRoutes(app);
   await registerMetaAdsAIAdvisorRoutes(app);
+  {
+    const { registerPaymentRoutes } = await import("./paymentsRoutes");
+    await registerPaymentRoutes(app);
+  }
 
   // ── Meta Ads AI Agent — scheduled runs ───────────────────────────────────
   // 24h update: every day at 8:00 AM
@@ -1441,6 +1475,7 @@ async function runMigrations() {
     startCronJobs();
     startWebinarEmailScheduler();
     startWebinarFunnelReminderJob();
+    startWebinarFunnelFollowupJob();
     startSchedulingCronJobs();
   });
 })();

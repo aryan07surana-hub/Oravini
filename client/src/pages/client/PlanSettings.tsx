@@ -10,6 +10,10 @@ import {
   Globe, Languages, MessageCircle, Star
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
+import YoutubeConnectionCard from "@/components/YoutubeConnectionCard";
+import PaymentConnections from "@/components/payments/PaymentConnections";
+import { CreditCard } from "lucide-react";
+import { Link } from "wouter";
 import { useTimezone, TIMEZONES, LANGUAGES } from "@/hooks/use-timezone";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -671,6 +675,9 @@ export default function PlanSettings() {
           </div>
         </div>
 
+        {/* ── CONNECTIONS ── */}
+        <YoutubeConnectionCard />
+
         {/* ── TIMEZONE & LANGUAGE ── */}
         <div className="mt-4">
           <div className="rounded-2xl p-6" style={{ background: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.12)" }}>
@@ -711,6 +718,25 @@ export default function PlanSettings() {
                 <p className="text-xs text-zinc-600 mt-1.5">More languages coming soon</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── PAYMENTS ── */}
+        <div className="mt-4" id="payments">
+          <div className="rounded-2xl p-6" style={{ background: "rgba(124,127,240,0.04)", border: "1px solid rgba(124,127,240,0.14)" }} data-testid="settings-payments">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(124,127,240,0.12)", border: "1px solid rgba(124,127,240,0.22)" }}>
+                <CreditCard className="w-4 h-4" style={{ color: "#7c7ff0" }} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">Payments</p>
+                <p className="text-xs text-zinc-500">Connect Stripe or Whop to see your revenue dashboard</p>
+              </div>
+              <Link href="/payments" className="text-xs font-semibold flex items-center gap-1 hover:opacity-80" style={{ color: GOLD }} data-testid="link-revenue-dashboard">
+                Revenue dashboard <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <PaymentConnections />
           </div>
         </div>
 

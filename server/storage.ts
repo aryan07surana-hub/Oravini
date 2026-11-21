@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { encryptYoutubeTokenFields, decryptYoutubeTokenRow } from "./youtubeTokenCrypto";
 import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr, inArray } from "drizzle-orm";
 import {
@@ -1240,10 +1241,13 @@ class DatabaseStorage implements IStorage {
   }
 
   async getUnseenFeedCount(userId: string) {
-    const rows = await db.select({ id: competitorDetectedPosts.id })
-      .from(competitorDetectedPosts)
-      .where(and(eq(competitorDetectedPosts.userId, userId), eq(competitorDetectedPosts.isSeen, false)));
-    return rows.length;
+    if (!userId) return 0;
+    // COUNT in SQL instead of loading every unseen row on each 60s badge poll.
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM competitor_detected_posts WHERE user_id = $1 AND is_seen = false`,
+      [userId],
+    );
+    return Number(rows[0]?.count ?? 0);
   }
 
   async markFeedSeen(userId: string) {
@@ -1800,19 +1804,23 @@ class DatabaseStorage implements IStorage {
     await db.delete(aiSessionHistory).where(and(eq(aiSessionHistory.id, id), eq(aiSessionHistory.userId, userId)));
   }
 
+  // YouTube OAuth tokens are encrypted at rest (AES-256-GCM, same as Meta tokens).
+  // Reads go through decryptYoutubeTokenRow, which passes legacy plaintext rows through
+  // unchanged, so callers always see plaintext tokens.
   async getYoutubeToken(userId: string): Promise<YoutubeToken | null> {
     const [row] = await db.select().from(youtubeTokens).where(eq(youtubeTokens.userId, userId));
-    return row ?? null;
+    return row ? decryptYoutubeTokenRow(row) : null;
   }
 
   async upsertYoutubeToken(userId: string, data: Omit<YoutubeToken, "id" | "userId" | "createdAt">): Promise<YoutubeToken> {
-    const existing = await this.getYoutubeToken(userId);
+    const enc = encryptYoutubeTokenFields(data);
+    const [existing] = await db.select({ id: youtubeTokens.id }).from(youtubeTokens).where(eq(youtubeTokens.userId, userId));
     if (existing) {
-      const [row] = await db.update(youtubeTokens).set(data).where(eq(youtubeTokens.userId, userId)).returning();
-      return row;
+      const [row] = await db.update(youtubeTokens).set(enc).where(eq(youtubeTokens.userId, userId)).returning();
+      return decryptYoutubeTokenRow(row);
     }
-    const [row] = await db.insert(youtubeTokens).values({ userId, ...data }).returning();
-    return row;
+    const [row] = await db.insert(youtubeTokens).values({ userId, ...enc }).returning();
+    return decryptYoutubeTokenRow(row);
   }
 
   async deleteYoutubeToken(userId: string): Promise<void> {
