@@ -88,3 +88,58 @@ test("tier gate Live Webinars card describes what actually happens", () => {
   assert.match(all, /community links/i, "optional post-signup community links should be described");
   assert.match(all, /No webinar email or SMS is sent/i, "card should state that no webinar email or SMS is sent");
 });
+
+// ── YouTube section placement and purpose ──────────────────────────────────
+/** The full YouTube webinar section markup, from its opening tag to its close. */
+function youtubeSection(): string {
+  const start = src.indexOf('id="youtube-webinars"');
+  assert.notEqual(start, -1, "youtube-webinars section should exist");
+  const end = src.indexOf("</section>", start);
+  assert.notEqual(end, -1, "youtube-webinars section should be closed");
+  return src.slice(start, end);
+}
+
+test("youtube webinar section comes before generic marketing sections", () => {
+  const youtubeAt = src.indexOf('id="youtube-webinars"');
+  for (const marker of ["WHAT IS ORAVINI", 'id="features-section"', 'id="pricing"']) {
+    const at = src.indexOf(marker);
+    assert.notEqual(at, -1, `${marker} should exist`);
+    assert.ok(youtubeAt < at, `youtube-webinars should precede ${marker}`);
+  }
+});
+
+test("youtube webinar section states its purpose and features", () => {
+  const section = youtubeSection();
+  assert.match(section, /business software for creators and coaches/i, "purpose should be stated up front");
+  for (const feature of [
+    /webinar registration/i,
+    /video pages/i,
+    /attendee CRM/i,
+    /community links/i,
+    /YouTube scheduler/i,
+    /channel you choose/i,
+    /broadcast/i,
+    /stream health/i,
+    /archive|replay/i,
+    /uploads to your channel/i,
+  ]) {
+    assert.match(section, feature, `section should mention ${feature}`);
+  }
+});
+
+test("youtube webinar section explains Google data use and intended use", () => {
+  const section = youtubeSection();
+  assert.match(section, /Google data/i, "should name Google data");
+  assert.match(section, /used only to provide these connected features/i, "should limit data use to connected features");
+  assert.match(section, /do not sell/i, "should state data is not sold");
+  assert.match(section, /advertising targeting/i, "should exclude advertising targeting");
+  assert.match(section, /general AI training/i, "should exclude general AI training");
+  assert.match(section, /not a service for sharing intimate imagery/i, "should state intended-use limits");
+  assert.match(section, /non-consensual intimate imagery is prohibited/i, "should prohibit NCII");
+});
+
+test("youtube webinar section links privacy and terms", () => {
+  const section = youtubeSection();
+  assert.match(section, /href="\/privacy"/, "should link the privacy policy");
+  assert.match(section, /href="\/terms"/, "should link the terms of service");
+});
