@@ -920,6 +920,26 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── YOUTUBE WEBINARS ─────────────────────────────────────────────── */}
+      <section id="youtube-webinars" aria-labelledby="youtube-webinars-title" style={{scrollMarginTop:84,padding:"64px 24px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <p style={{color:GOLD,fontSize:12,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:12}}>YouTube connection on Oravini</p>
+          <h2 id="youtube-webinars-title" style={{fontSize:"clamp(26px,4vw,40px)",fontWeight:800,marginBottom:18}}>Oravini is business software for creators and coaches.</h2>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8}}>Use Oravini for webinar registration, video pages, an attendee CRM, optional community links, and an optional YouTube scheduler.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>Oravini connects to the YouTube channel you choose and identifies it in your dashboard. When you create a webinar, Oravini can create a scheduled, unlisted YouTube Live broadcast, bind it to a stream, show it on your webinar page, check stream health, and link the available YouTube archive as a replay. You choose which videos the scheduler uploads to your channel.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>You send your camera and audio through YouTube Studio or your encoder, such as OBS. Oravini does not replace the encoder or record your camera itself. Connecting YouTube is optional: you can paste an existing stream link instead, and attendees do not connect a YouTube account to register. Channel eligibility and YouTube processing affect live streaming and replay availability.</p>
+          <h3 style={{fontSize:20,fontWeight:700,marginTop:26,marginBottom:12}}>Why we ask for YouTube access</h3>
+          <ul style={{paddingLeft:22,color:"rgba(255,255,255,0.65)",lineHeight:1.9}}>
+            <li>Read your channel and video details to identify the connected channel and show stream and replay status.</li>
+            <li>Manage live broadcasts and streams when you create a webinar and check its stream health.</li>
+            <li>Upload videos to your chosen channel when you use the YouTube video scheduler.</li>
+          </ul>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:20}}>Google data from your connected YouTube account is used only to provide these connected features. We do not sell it, use it for advertising targeting, or use it for general AI training.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>Oravini is intended for business webinars and video content. It is not a service for sharing intimate imagery, and non-consensual intimate imagery is prohibited.</p>
+          <p style={{marginTop:20,lineHeight:1.8}}><a href="/privacy" style={{color:GOLD}}>Privacy policy</a> · <a href="/terms" style={{color:GOLD}}>Terms of service</a></p>
+        </div>
+      </section>
+
       {/* ── WHAT IS ORAVINI ───────────────────────────────────────────────── */}
       <section style={{ padding: "120px 24px", maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
         <Anim>
@@ -1850,22 +1870,6 @@ export default function OraviniLanding() {
       <style>{`@media(max-width:768px){ .mobile-device-notice{ display:block !important; } }`}</style>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
-      <section id="youtube-webinars" aria-labelledby="youtube-webinars-title" style={{scrollMarginTop:84,padding:"64px 24px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-        <div style={{maxWidth:1000,margin:"0 auto"}}>
-          <p style={{color:GOLD,fontSize:12,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:12}}>YouTube connection on Oravini</p>
-          <h2 id="youtube-webinars-title" style={{fontSize:"clamp(26px,4vw,40px)",fontWeight:800,marginBottom:18}}>Host YouTube Live webinars. Manage your registration page in Oravini.</h2>
-          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8}}>Oravini connects to the YouTube channel you choose. Create a scheduled, unlisted YouTube Live stream, show it on your webinar page, check stream health, and add the available YouTube recording as a replay. You send your camera and audio through YouTube Studio or your encoder, such as OBS. Oravini does not replace the encoder or record your camera itself.</p>
-          <h3 style={{fontSize:20,fontWeight:700,marginTop:26,marginBottom:12}}>Why we ask for YouTube access</h3>
-          <ul style={{paddingLeft:22,color:"rgba(255,255,255,0.65)",lineHeight:1.9}}>
-            <li>Read your channel and video details to identify the connected channel and show stream and replay status.</li>
-            <li>Manage live broadcasts and streams when you create a webinar and check its stream health.</li>
-            <li>Upload videos to your chosen channel when you use the YouTube video scheduler.</li>
-          </ul>
-          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:20}}>Connecting YouTube is optional. You can paste an existing stream link instead, and attendees do not connect a YouTube account to register. Channel eligibility and YouTube processing affect live streaming and replay availability.</p>
-          <p style={{marginTop:20,lineHeight:1.8}}><a href="/privacy" style={{color:GOLD}}>Privacy policy</a> · <a href="/terms" style={{color:GOLD}}>Terms of service</a></p>
-        </div>
-      </section>
-
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "40px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
