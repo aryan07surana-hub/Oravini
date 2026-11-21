@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams } from "wouter";
 import {
   AnnotationOverlay,
@@ -11,6 +11,15 @@ import {
   type Chapter,
 } from "@/components/video-marketing/InteractiveOverlays";
 import { OraviniBadge, type WatermarkPosition } from "@/components/video-marketing/OraviniBadge";
+import {
+  parseProgressConfig,
+  resolveCurve,
+  isIdentityCurve,
+  buildKnots,
+  realToDisplay,
+  displayToReal,
+  type CurveKnot,
+} from "@shared/progressCurve";
 
 /**
  * Oravini Embed Player — Wistia-style embeddable video player.
@@ -331,6 +340,7 @@ function PlayerControls({
   onSpeedChange,
   onFullscreen,
   onCaptionsToggle,
+  progressKnots,
 }: {
   videoRef: React.RefObject<HTMLVideoElement>;
   playing: boolean;
@@ -353,17 +363,26 @@ function PlayerControls({
   onSpeedChange: (s: number) => void;
   onFullscreen: () => void;
   onCaptionsToggle: () => void;
+  /** Fake-progress curve knots; when set the bar follows the curve, not real time. */
+  progressKnots?: CurveKnot[] | null;
 }) {
   const [showSpeed, setShowSpeed] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // Displayed bar position. With a fake-progress curve, real time is mapped
+  // through the curve; otherwise it is plain currentTime / duration.
+  const toPct = (sec: number) =>
+    duration > 0
+      ? (progressKnots ? realToDisplay(progressKnots, sec) : sec / duration) * 100
+      : 0;
+  const pct = toPct(currentTime);
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!progressRef.current || !duration) return;
     const rect = progressRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    onSeek(x * duration);
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    // Seeking always seeks the real video: find the real time where the bar shows x.
+    onSeek(progressKnots ? displayToReal(progressKnots, x) : x * duration);
   };
 
   return (
@@ -380,7 +399,7 @@ function PlayerControls({
         style={{ background: "rgba(255,255,255,0.15)" }}
       >
         <div className="h-full transition-all" style={{ width: `${pct}%`, background: brandColor }} />
-        {chapters && chapters.length > 0 && <ChapterMarkers chapters={chapters} duration={duration} brandColor={brandColor} />}
+        {chapters && chapters.length > 0 && <ChapterMarkers chapters={chapters} duration={duration} brandColor={brandColor} toPct={progressKnots ? toPct : undefined} />}
         <div
           className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
           style={{ left: `${pct}%`, transform: `translate(-50%, -50%)`, background: brandColor, boxShadow: `0 0 6px ${brandColor}80` }}
@@ -398,10 +417,12 @@ function PlayerControls({
           )}
         </button>
 
-        {/* Time */}
-        <span className="text-[11px] font-mono text-zinc-300 min-w-[80px]">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
+        {/* Time — hidden with a fake-progress curve, since real time would contradict the bar */}
+        {!progressKnots && (
+          <span className="text-[11px] font-mono text-zinc-300 min-w-[80px]">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+        )}
 
         <div className="flex-1" />
 
@@ -686,6 +707,15 @@ export default function EmbedPlayer() {
     setSpeed(s);
   }, []);
 
+  // Fake progress bar: map real time -> displayed progress via the configured curve.
+  const progressConfigRaw = video?.progressBarConfig;
+  const progressKnots = useMemo<CurveKnot[] | null>(() => {
+    if (!(duration > 0) || !Number.isFinite(duration)) return null;
+    const curve = resolveCurve(parseProgressConfig(progressConfigRaw));
+    if (!curve || isIdentityCurve(curve)) return null;
+    return buildKnots(curve, duration);
+  }, [progressConfigRaw, duration]);
+
   const handleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -875,6 +905,7 @@ export default function EmbedPlayer() {
             onMuteToggle={handleMuteToggle}
             onSpeedChange={handleSpeedChange}
             onFullscreen={handleFullscreen}
+            progressKnots={progressKnots}
             onCaptionsToggle={() => {
               const newEnabled = !captionsEnabled;
               setCaptionsEnabled(newEnabled);

@@ -24,7 +24,7 @@ import path from "path";
 
 export const UPLOADS_DIR = path.resolve("uploads");
 
-interface CloudinaryConfig {
+export interface CloudinaryConfig {
   cloudName: string;
   apiKey: string;
   apiSecret: string;
@@ -78,9 +78,9 @@ async function ensureLocal(bufferOrPath: Buffer | string, filename: string): Pro
   return name;
 }
 
-async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer | Blob, filename: string): Promise<string> {
+async function uploadToCloudinary(cfg: CloudinaryConfig, data: Buffer | Blob, filename: string, folderOverride?: string): Promise<string> {
   const timestamp = Math.floor(Date.now() / 1000);
-  const folder = process.env.CLOUDINARY_FOLDER || "oravini";
+  const folder = folderOverride || process.env.CLOUDINARY_FOLDER || "oravini";
   const publicId = path.parse(safeFilename(filename)).name;
 
   // Signature: sorted params (excluding file, api_key, resource_type) + secret, SHA-1.
@@ -115,6 +115,33 @@ async function fileBlob(p: string): Promise<Blob> {
 export interface SaveMediaOptions {
   /** Delete the local copy after a successful Cloudinary upload (default true for paths inside uploads/). */
   removeLocalAfterUpload?: boolean;
+  /**
+   * Use these Cloudinary credentials instead of the platform's env config
+   * (e.g. an account's bring-your-own-key settings).
+   */
+  cloudinary?: CloudinaryConfig | null;
+  /** Cloudinary folder override (defaults to CLOUDINARY_FOLDER or "oravini"). */
+  folder?: string;
+}
+
+/**
+ * Check Cloudinary credentials with the Admin API ping endpoint (free, no
+ * upload, no transformation credits). Returns null on success, else a message.
+ */
+export async function verifyCloudinaryCredentials(cfg: CloudinaryConfig): Promise<string | null> {
+  try {
+    const auth = Buffer.from(`${cfg.apiKey}:${cfg.apiSecret}`).toString("base64");
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cfg.cloudName)}/ping`, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) return null;
+    if (res.status === 401 || res.status === 403) return "Cloudinary rejected these credentials (check API key and secret).";
+    if (res.status === 404) return "Cloudinary cloud name not found.";
+    return `Cloudinary verification failed (HTTP ${res.status}).`;
+  } catch (err: any) {
+    return `Could not reach Cloudinary to verify credentials: ${err.message}`;
+  }
 }
 
 /**
@@ -126,7 +153,7 @@ export async function saveMedia(
   filename: string,
   opts: SaveMediaOptions = {},
 ): Promise<string> {
-  const cfg = getCloudinaryConfig();
+  const cfg = opts.cloudinary || getCloudinaryConfig();
 
   if (cfg) {
     try {
@@ -135,7 +162,7 @@ export async function saveMedia(
       const data = typeof bufferOrPath === "string"
         ? await fileBlob(bufferOrPath)
         : bufferOrPath;
-      const url = await uploadToCloudinary(cfg, data, filename);
+      const url = await uploadToCloudinary(cfg, data, filename, opts.folder);
       if (typeof bufferOrPath === "string" && opts.removeLocalAfterUpload !== false) {
         const abs = path.resolve(bufferOrPath);
         if (path.dirname(abs) === UPLOADS_DIR) {
