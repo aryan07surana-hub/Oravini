@@ -36,6 +36,6 @@ describe("YouTube OAuth state", () => {
     assert.equal(safeReturnPath("https://evil.com"), null);
     assert.equal(verifyYoutubeState(signYoutubeState("u_1", "//evil.com"))?.returnTo, "/youtube-scheduler");
     assert.ok(YOUTUBE_OAUTH_SCOPES.includes("https://www.googleapis.com/auth/youtube.force-ssl"));
-    assert.ok(YOUTUBE_OAUTH_SCOPES.includes("https://www.googleapis.com/auth/youtube.upload"));
+    assert.deepEqual(YOUTUBE_OAUTH_SCOPES, ["https://www.googleapis.com/auth/youtube.force-ssl"]);
   });
 });
