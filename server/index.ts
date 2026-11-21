@@ -1398,6 +1398,16 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] webinar live-experience skipped:", e.message);
   }
+
+  // ── Webinar Funnel emails: per-account sender, send log, per-funnel follow-up templates ──
+  // Additive only (new tables + one nullable JSONB column). Same SQL the module self-ensures with.
+  try {
+    const { WEBINAR_EMAIL_SCHEMA_SQL } = await import("./webinarEmailSender");
+    await pool.query(WEBINAR_EMAIL_SCHEMA_SQL);
+    console.log("[migration] webinar email sender / send log ensured");
+  } catch (e: any) {
+    console.warn("[migration] webinar email sender skipped:", e.message);
+  }
 }
 
 (async () => {
