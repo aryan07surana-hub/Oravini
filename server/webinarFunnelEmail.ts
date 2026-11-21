@@ -17,7 +17,7 @@ import { formatIST } from "@shared/webinarFunnel";
 const GOLD = "#d4b461";
 
 let cachedTransport: nodemailer.Transporter | null | undefined;
-function getTransport(): nodemailer.Transporter | null {
+export function getTransport(): nodemailer.Transporter | null {
   if (cachedTransport !== undefined) return cachedTransport;
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     cachedTransport = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
@@ -34,7 +34,7 @@ function getTransport(): nodemailer.Transporter | null {
   return cachedTransport;
 }
 
-function fromAddress(hostName: string | null) {
+export function fromAddress(hostName: string | null) {
   const addr = process.env.EMAIL_USER || process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@oravini.com";
   const display = (hostName || "Oravini").replace(/["<>]/g, "");
   return `"${display}" <${addr}>`;
