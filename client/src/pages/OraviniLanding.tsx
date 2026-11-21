@@ -1847,6 +1847,22 @@ export default function OraviniLanding() {
       <style>{`@media(max-width:768px){ .mobile-device-notice{ display:block !important; } }`}</style>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
+      <section id="youtube-webinars" aria-labelledby="youtube-webinars-title" style={{scrollMarginTop:84,padding:"64px 24px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <p style={{color:GOLD,fontSize:12,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:12}}>YouTube connection on Oravini</p>
+          <h2 id="youtube-webinars-title" style={{fontSize:"clamp(26px,4vw,40px)",fontWeight:800,marginBottom:18}}>Host YouTube Live webinars. Manage your registration page in Oravini.</h2>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8}}>Oravini connects to the YouTube channel you choose. Create a scheduled, unlisted YouTube Live stream, show it on your webinar page, check stream health, and add the available YouTube recording as a replay. You send your camera and audio through YouTube Studio or your encoder, such as OBS. Oravini does not replace the encoder or record your camera itself.</p>
+          <h3 style={{fontSize:20,fontWeight:700,marginTop:26,marginBottom:12}}>Why we ask for YouTube access</h3>
+          <ul style={{paddingLeft:22,color:"rgba(255,255,255,0.65)",lineHeight:1.9}}>
+            <li>Read your channel and video details to identify the connected channel and show stream and replay status.</li>
+            <li>Manage live broadcasts and streams when you create a webinar and check its stream health.</li>
+            <li>Upload videos to your chosen channel when you use the YouTube video scheduler.</li>
+          </ul>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:20}}>Connecting YouTube is optional. You can paste an existing stream link instead, and attendees do not connect a YouTube account to register. Channel eligibility and YouTube processing affect live streaming and replay availability.</p>
+          <p style={{marginTop:20,lineHeight:1.8}}><a href="/privacy" style={{color:GOLD}}>Privacy policy</a> · <a href="/terms" style={{color:GOLD}}>Terms of service</a></p>
+        </div>
+      </section>
+
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "40px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1880,8 +1896,9 @@ export default function OraviniLanding() {
       </footer>
 
       {/* ── FLOATING QUIZ WIDGET (bottom-right) ──────────────────────────────── */}
+      <style>{`@media(max-width:600px){.floating-landing-quiz{display:none !important}}`}</style>
       {!showQuiz && (
-        <div
+        <div className="floating-landing-quiz"
           onClick={() => setShowQuiz(true)}
           style={{ position: "fixed", bottom: 24, right: 24, zIndex: 900, background: "#0a0a0f", border: `1px solid ${GOLD}44`, borderRadius: 16, padding: "14px 20px", maxWidth: 260, cursor: "pointer", boxShadow: `0 4px 30px rgba(0,0,0,0.6), 0 0 40px ${GOLD}10`, transition: "transform 0.3s, box-shadow 0.3s" }}
           onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 40px rgba(0,0,0,0.7), 0 0 60px ${GOLD}20`; }}

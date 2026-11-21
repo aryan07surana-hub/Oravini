@@ -33,7 +33,7 @@ export default function Privacy() {
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Privacy Policy</h1>
-          <p className="text-zinc-400 text-sm">Last updated: June 1, 2026</p>
+          <p className="text-zinc-400 text-sm">Last updated: November 21, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
             This policy explains how Oravini collects, uses, stores, and protects your personal data.
             We are committed to full transparency — if anything is unclear, email us at{" "}
@@ -70,6 +70,7 @@ export default function Privacy() {
               ["22", "Children's Privacy"],
               ["23", "Changes to This Policy"],
               ["24", "Contact"],
+              ["25", "YouTube API Services & Google User Data"],
             ].map(([n, t]) => (
               <li key={n}>
                 <a href={`#section-${n}`} className="hover:underline">{n}. {t}</a>
@@ -413,6 +414,17 @@ export default function Privacy() {
               <p className="text-zinc-500 text-sm">Response time: within 48 hours for general queries, 30 days for formal data requests.</p>
             </div>
           </Section>
+
+          <Section num="25" title="YouTube API Services & Google User Data">
+            <p>When you choose to connect a YouTube channel, Oravini uses YouTube API Services. We receive the channel ID, title and thumbnail, OAuth access and refresh tokens, and the video, broadcast and stream details needed for the features you use. Stream keys are private credentials. We store connection tokens and stream keys encrypted and do not display them to other users.</p>
+            <p>We use this data to identify your channel, create and update webinar broadcasts, bind a stream, show stream health and recording status, link an available recording as a replay, and upload videos you choose through the YouTube scheduler. Connecting is optional. You can use an existing YouTube link without connecting an account.</p>
+            <p>The combined webinar and upload integration requests one OAuth scope: <code className="break-all text-sm">https://www.googleapis.com/auth/youtube.force-ssl</code>. Google describes this permission broadly, including editing and permanently deleting YouTube content. Oravini uses it for the features described above, not to delete your YouTube content. This is the minimum scope set for this combined integration, not a read-only permission.</p>
+            <p>Oravini's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" className="underline" style={{color:GOLD}}>Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+            <p>We do not sell Google user data, use it for advertising or ad targeting, or use it to train generalized AI models. We use and share it only as needed to provide the user-facing features you request, protect security, comply with law, or as otherwise permitted by the Google API Services User Data Policy. The permissions do not authorize unrelated use of your channel.</p>
+            <p>You can disconnect YouTube in Oravini or revoke Oravini's access at <a href="https://myaccount.google.com/permissions" className="underline break-all" style={{color:GOLD}}>myaccount.google.com/permissions</a>. Revoking access stops future authorized API access but does not delete videos already on YouTube. To request deletion of stored Google user data, email <a href={`mailto:${email}`} className="underline" style={{color:GOLD}}>{email}</a>. We handle deletion requests within 30 days, subject to any legal retention requirements, as described in this policy.</p>
+            <p>See <a href="https://policies.google.com/privacy" className="underline" style={{color:GOLD}}>Google's Privacy Policy</a> for Google's handling of data. YouTube controls live eligibility, streaming and recording availability.</p>
+          </Section>
+
 
         </div>
 
