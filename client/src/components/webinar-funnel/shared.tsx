@@ -21,6 +21,8 @@ export type PublicWebinar = {
   offerPrice?: string | null;
   offerExpiresAt?: string | null;
   durationMinutes?: number;
+  /** Host has WhatsApp reminders set up → the form offers an (unticked) opt-in */
+  whatsappReminders?: boolean;
 };
 
 // ── Attendee identity (localStorage; every access guarded) ─────────────────

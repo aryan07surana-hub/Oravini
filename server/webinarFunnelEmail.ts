@@ -10,11 +10,12 @@
  * SMTP_PASS (as the LiveKit webinar scheduler does). With neither configured,
  * sends are skipped and logged — registration itself never fails because of email.
  *
- * WhatsApp (BYOK): after each successful email, if the funnel owner has connected and
- * enabled their own WhatsApp Cloud API credentials and the registrant gave a phone, the
- * same moment also goes out as a WhatsApp template message. It rides the email's claim
- * (reminder_1h_sent_at / one confirmation per new registration), so it is sent at most
- * once per registrant per funnel per message type. WhatsApp failures never affect email.
+ * WhatsApp (BYOK): after each successful email, the same moment is also offered to
+ * sendWebinarWhatsApp(registrationId). It only sends when the registrant explicitly opted in
+ * to WhatsApp on the form, and the funnel owner connected + enabled their own credentials and
+ * acknowledged Meta's per-message billing. It rides the email's claim (reminder_1h_sent_at /
+ * one confirmation per new registration), so at most once per registrant per funnel per
+ * message type. WhatsApp never throws and never affects email.
  */
 import nodemailer from "nodemailer";
 import { pool } from "./storage";
@@ -111,7 +112,7 @@ function shell(inner: string) {
 }
 
 type FunnelRow = {
-  id: string; user_id: string | null; slug: string; title: string; description: string | null; host_name: string | null;
+  id: string; slug: string; title: string; description: string | null; host_name: string | null;
   scheduled_at: Date; duration_minutes: number | null;
 };
 
@@ -120,8 +121,8 @@ function liveLink(slug: string, registrationId?: string) {
 }
 
 export async function sendWebinarConfirmation(
-  w: { id: string; userId?: string | null; slug: string; title: string; description: string | null; hostName: string | null; scheduledAt: Date; durationMinutes: number | null },
-  reg: { id: string; name: string; email: string; phone?: string | null },
+  w: { id: string; slug: string; title: string; description: string | null; hostName: string | null; scheduledAt: Date; durationMinutes: number | null },
+  reg: { id: string; name: string; email: string },
 ): Promise<boolean> {
   const transport = getTransport();
   if (!transport) {
@@ -146,7 +147,7 @@ export async function sendWebinarConfirmation(
       text: `You're registered for ${w.title}\n${when}\n\nJoin here: ${link}`,
       attachments: [{ filename: "webinar.ics", content: buildWebinarIcs(w, link), contentType: "text/calendar; charset=utf-8; method=PUBLISH" }],
     });
-    if (reg.phone) void sendWebinarWhatsApp(w.userId, reg.phone, "confirmation");
+    void sendWebinarWhatsApp(reg.id, "confirmation"); // only if the registrant opted in (see whatsappByok.ts)
     return true;
   } catch (e: any) {
     console.error("[webinar-email] confirmation failed:", e.message);
@@ -154,7 +155,7 @@ export async function sendWebinarConfirmation(
   }
 }
 
-async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email: string; phone: string | null }) {
+async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email: string }) {
   const transport = getTransport();
   if (!transport) return false;
   const link = liveLink(w.slug, reg.id);
@@ -172,7 +173,7 @@ async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email
       text: `${w.title} starts in 1 hour (${formatIST(w.scheduled_at)}).\nJoin here: ${link}`,
     });
     // Awaited (never throws) so a large reminder batch is paced instead of fanning out at once.
-    if (reg.phone) await sendWebinarWhatsApp(w.user_id, reg.phone, "reminder_1h");
+    await sendWebinarWhatsApp(reg.id, "reminder_1h");
     return true;
   } catch (e: any) {
     console.error("[webinar-email] reminder failed:", e.message);
@@ -199,13 +200,13 @@ export async function runWebinarFunnelReminders(): Promise<number> {
        AND f.scheduled_at > NOW()
        AND f.scheduled_at <= NOW() + INTERVAL '60 minutes'
        AND r.created_at < f.scheduled_at - INTERVAL '70 minutes'
-    RETURNING r.id, r.name, r.email, r.phone, f.id AS f_id, f.user_id, f.slug, f.title, f.description, f.host_name, f.scheduled_at, f.duration_minutes
+    RETURNING r.id, r.name, r.email, f.id AS f_id, f.slug, f.title, f.description, f.host_name, f.scheduled_at, f.duration_minutes
   `);
   let sent = 0;
   for (const row of rows) {
     const ok = await sendReminder(
-      { id: row.f_id, user_id: row.user_id, slug: row.slug, title: row.title, description: row.description, host_name: row.host_name, scheduled_at: row.scheduled_at, duration_minutes: row.duration_minutes },
-      { id: row.id, name: row.name, email: row.email, phone: row.phone },
+      { id: row.f_id, slug: row.slug, title: row.title, description: row.description, host_name: row.host_name, scheduled_at: row.scheduled_at, duration_minutes: row.duration_minutes },
+      { id: row.id, name: row.name, email: row.email },
     );
     if (ok) sent++;
   }
