@@ -4,6 +4,11 @@ on:
     branches: [main]
     paths:
       - 'shared/pricingV2.ts'
+      - 'shared/pricingFeaturesV2.ts'
+      - 'client/src/components/pricing/**'
+      - 'client/src/pages/LegacyPricingPreview.tsx'
+      - 'client/src/App.tsx'
+      - 'tests/pricingFeaturesV2.test.ts'
       - 'server/pricingV2Proposal.ts'
       - 'client/src/components/video-marketing/TermPricingPreview.tsx'
       - 'client/src/pages/SelectPlan.tsx'
@@ -23,5 +28,5 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --legacy-peer-deps
-      - run: npx tsx --test tests/pricingV2.test.ts tests/termPricingPreview.test.ts tests/planConfirmation.test.ts tests/creditPeriodsV2.test.ts
+      - run: npx tsx --test tests/pricingV2.test.ts tests/pricingFeaturesV2.test.ts tests/termPricingPreview.test.ts tests/planConfirmation.test.ts tests/creditPeriodsV2.test.ts
       - run: node script/build.mjs

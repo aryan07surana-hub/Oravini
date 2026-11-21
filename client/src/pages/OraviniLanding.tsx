@@ -1,3 +1,4 @@
+import LegacyPricingCards from "@/components/pricing/LegacyPricingCards";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -1483,6 +1484,7 @@ export default function OraviniLanding() {
             <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>Start free.<br /><span style={{ color: GOLD }}>Scale when ready.</span></h2>
           </Anim>
 
+          {import.meta.env.VITE_PRICING_V2_PREVIEW === "true" ? <LegacyPricingCards/> : <>
           {/* 4 standard tiers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginBottom: 24 }}>
             {PRICING_TIERS.map((t, i) => (
@@ -1609,6 +1611,7 @@ export default function OraviniLanding() {
               </div>
             </div>
           </Anim>
+          </>}
         </div>
       </section>
 

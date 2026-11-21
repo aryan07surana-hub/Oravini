@@ -1,4 +1,4 @@
-import TermPricingPreview from "@/components/video-marketing/TermPricingPreview";
+import LegacyPricingPreview from "@/pages/LegacyPricingPreview";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -1111,4 +1111,4 @@ function LegacySelectPlan() {
   );
 }
 
-export default function SelectPlan(){return import.meta.env.VITE_PRICING_V2_PREVIEW === "true" ? <TermPricingPreview/> : <LegacySelectPlan/>;}
+export default function SelectPlan(){return import.meta.env.VITE_PRICING_V2_PREVIEW === "true" ? <LegacyPricingPreview/> : <LegacySelectPlan/>;}
