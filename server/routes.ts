@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
 import { registerSchedulingRoutes, isRetiredClientBookingPage } from "./schedulingRoutes";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerWebinarWhatsappRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -11333,7 +11333,7 @@ Rules:
           registrationId = created.id;
           // Confirmation + .ics (fire-and-forget; never blocks or fails registration)
           if (funnel.remindersEnabled !== false) {
-            sendWebinarConfirmation(funnel, { id: created.id, name, email }).catch(() => {});
+            sendWebinarConfirmation(funnel, { id: created.id, name, email, phone: phone || null }).catch(() => {});
           }
         }
         // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
@@ -15555,6 +15555,7 @@ Return JSON only:
   registerWebinarCaptionRoutes(app, requireAuth);
   registerWebinarBackstageRoutes(app, requireAuth);
   registerWebinarAdvancedRoutes(app, requireAuth);
+  registerWebinarWhatsappRoutes(app, requireAuth);
 
   // ── CRM (GoHighLevel bridge) ──────────────────────────────────────────────
   // Public lead-capture endpoint used by the Brandverse landing page.

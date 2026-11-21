@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
 import YoutubeConnectionCard from "@/components/YoutubeConnectionCard";
+import WhatsappSettingsCard from "@/components/WhatsappSettingsCard";
 import PaymentConnections from "@/components/payments/PaymentConnections";
 import { CreditCard } from "lucide-react";
 import { Link } from "wouter";
@@ -677,6 +678,7 @@ export default function PlanSettings() {
 
         {/* ── CONNECTIONS ── */}
         <YoutubeConnectionCard />
+        <WhatsappSettingsCard />
 
         {/* ── TIMEZONE & LANGUAGE ── */}
         <div className="mt-4">
