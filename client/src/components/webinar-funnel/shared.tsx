@@ -22,6 +22,7 @@ export type PublicWebinar = {
   offerPrice?: string | null;
   offerExpiresAt?: string | null;
   durationMinutes?: number;
+  communityLinks?: import("@shared/webinarCommunity").CommunityLink[];
 };
 
 // ── Attendee identity (localStorage; every access guarded) ─────────────────

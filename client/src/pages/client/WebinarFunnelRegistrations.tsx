@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import ClientLayout from "@/components/layout/ClientLayout";
+import ClientLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { formatIST } from "@shared/webinarFunnel";
 import { Download, Users, Search } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";

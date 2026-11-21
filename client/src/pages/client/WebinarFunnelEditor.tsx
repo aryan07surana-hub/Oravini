@@ -1,7 +1,10 @@
+import WebinarAssistant from "@/components/webinar-funnel/WebinarAssistant";
+import CommunityLinksEditor from "@/components/webinar-funnel/CommunityLinksEditor";
+import {communityLinksSchema,type CommunityLink} from "@shared/webinarCommunity";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import ClientLayout from "@/components/layout/ClientLayout";
+import ClientLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -89,6 +92,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const [offerPrice, setOfferPrice] = useState("");
   const [offerExpiresLocal, setOfferExpiresLocal] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(60);
+  const [communityLinks,setCommunityLinks]=useState<CommunityLink[]>([]);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const hydratedId = useRef<string | null>(null);
@@ -114,6 +118,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
     if (!existing || hydratedId.current === existing.id) return;
     hydratedId.current = existing.id;
     setTitle(existing.title);
+    setCommunityLinks(existing.communityLinks||[]);
     setDescription(existing.description || "");
     setHostName(existing.hostName || "");
     setScheduledLocal(toISTInput(existing.scheduledAt));
@@ -143,6 +148,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      const validCommunityLinks=communityLinksSchema.parse(communityLinks);
       const body: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
@@ -159,6 +165,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
         offerExpiresAt: offerExpiresIso,
         durationMinutes,
         remindersEnabled,
+        communityLinks:validCommunityLinks,
       };
       if (slug.trim()) body.slug = slug.trim();
       return isNew
@@ -412,6 +419,8 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           </Field>
         </div>
 
+        <details className="mt-6 rounded-xl border border-[#d4b461]/20"><summary className="p-4 text-sm text-[#d4b461] cursor-pointer">Draft with Webinar Assistant</summary><WebinarAssistant onApply={d=>{setTitle(d.title);setDescription([d.description,d.pageCopy].filter(Boolean).join("\n\n"));setOfferText(d.offerText);setCommunityLinks(old=>old.map((link,i)=>i===0?{...link,label:d.groupCtaText||link.label}:link));}}/></details>
+        <div className="mt-6"><CommunityLinksEditor links={communityLinks} onChange={setCommunityLinks}/></div>
         <div className="rounded-xl p-5 sm:p-6 space-y-5 mt-6 bg-[#111115] border border-white/[0.08]">
           <div>
             <h2 className="text-[15px] font-semibold text-white">Live room &amp; offer</h2>
@@ -472,10 +481,10 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
               <Bell className="w-4 h-4 mt-0.5 text-zinc-400" aria-hidden />
               <div>
                 <p className="text-[13px] font-medium text-white">Email reminders</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Confirmation with calendar invite on registration, plus a reminder 1 hour before.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Inactive. Use the post-registration group links instead.</p>
               </div>
             </div>
-            <Switch data-testid="switch-reminders" checked={remindersEnabled} onCheckedChange={setRemindersEnabled} aria-label="Email reminders" />
+            <Switch data-testid="switch-reminders" checked={false} disabled aria-label="Email reminders inactive" />
           </div>
         </div>
 

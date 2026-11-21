@@ -50,6 +50,7 @@ export type WebinarFunnelFull = WebinarFunnelRow & {
   offerExpiresAt: string | null;
   durationMinutes: number | null;
   remindersEnabled: boolean;
+  communityLinks?: import("@shared/webinarCommunity").CommunityLink[];
   // Set when the stream was created on the host's connected YouTube channel
   youtubeBroadcastId?: string | null;
   youtubeStreamId?: string | null;

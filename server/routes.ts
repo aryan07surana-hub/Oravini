@@ -1,3 +1,6 @@
+import {requireYoutubeChannel} from "./youtubeConnectionValidation";
+import {registerWebinarAssistant} from "./webinarAssistant";
+import {communityLinksSchema} from "@shared/webinarCommunity";
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -9355,7 +9358,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
 
       const yt = google.youtube({ version: "v3", auth: oauth2Client });
       const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
-      const channel = channelRes.data.items?.[0];
+      const channel = requireYoutubeChannel(channelRes.data.items?.[0]);
 
       const prevToken = await storage.getYoutubeToken(userId);
       await storage.upsertYoutubeToken(userId, {
@@ -9379,7 +9382,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     const token = await storage.getYoutubeToken((req.user as any).id);
     if (!token) return res.json({ connected: false, configured: youtubeConfigured() });
     return res.json({
-      connected: true,
+      connected: !!token.channelId,
       configured: youtubeConfigured(),
       channelId: token.channelId,
       channelTitle: token.channelTitle,
@@ -11130,6 +11133,7 @@ Rules:
       z.string().trim().max(2000).refine(v => v === "" || isValidCtaUrl(v), "CTA URL must start with http:// or https:// (or be a booking page path like /book/…)"),
       z.null(),
     ]).optional().transform(v => (v === undefined ? undefined : v ? v : null));
+    registerWebinarAssistant(app,requireAuth);
     const funnelBody = z.object({
       title: z.string().trim().min(1, "Title is required").max(200),
       description: optStr(5000),
@@ -11152,6 +11156,7 @@ Rules:
         .transform(v => (v === undefined ? undefined : v ? new Date(v) : null)),
       durationMinutes: z.number().int().min(5).max(600).optional(),
       remindersEnabled: z.boolean().optional(),
+      communityLinks: communityLinksSchema.optional(),
     });
 
     const YT_INVALID_MSG = "Couldn't find a YouTube video ID in that link. Use a youtube.com/watch?v=..., youtube.com/live/..., or youtu.be/... link, or the 11-character video ID.";
@@ -11245,6 +11250,7 @@ Rules:
           offerExpiresAt: body.offerExpiresAt ?? null,
           durationMinutes: body.durationMinutes ?? 60,
           remindersEnabled: body.remindersEnabled ?? true,
+          communityLinks: body.communityLinks ?? [],
         }).returning();
         res.status(201).json({ ...ownerView(row), registrationCount: 0 });
       } catch (e: any) {
@@ -11293,6 +11299,7 @@ Rules:
         if (body.offerExpiresAt !== undefined) updates.offerExpiresAt = body.offerExpiresAt;
         if (body.durationMinutes !== undefined) updates.durationMinutes = body.durationMinutes;
         if (body.remindersEnabled !== undefined) updates.remindersEnabled = body.remindersEnabled;
+        if (body.communityLinks !== undefined) updates.communityLinks = body.communityLinks;
         if (Object.keys(updates).length === 0) return res.json(ownerView(existing));
         const [row] = await db.update(webinarFunnels).set(updates)
           .where(and(eq(webinarFunnels.id, existing.id), eq(webinarFunnels.userId, userId)))
@@ -11398,6 +11405,7 @@ Rules:
         status: f.status,
         deckUrl: f.deckUrl,
         replayVideoId: f.replayUrl,
+        communityLinks: f.communityLinks ?? [],
         offerText: f.offerText,
         offerPrice: f.offerPrice,
         offerExpiresAt: f.offerExpiresAt,

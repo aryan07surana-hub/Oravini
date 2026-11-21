@@ -3297,6 +3297,7 @@ export const webinarFunnels = pgTable("webinar_funnels", {
   offerExpiresAt: timestamp("offer_expires_at"),
   durationMinutes: integer("duration_minutes").default(60),
   remindersEnabled: boolean("reminders_enabled").notNull().default(true),
+  communityLinks: jsonb("community_links").$type<{label:string;url:string}[]>().notNull().default([]),
   // YouTube Live created via the host's connected channel (added idempotently in runMigrations)
   youtubeBroadcastId: text("youtube_broadcast_id"),
   youtubeStreamId: text("youtube_stream_id"),

@@ -1,3 +1,5 @@
+import {useSearch} from "wouter";
+import {studioView} from "@shared/videoMarketingNavigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -5233,9 +5235,13 @@ const HOSTING_NAV: NavItem[] = [
 
 export type PlatformSection = "webinars" | "video-hosting";
 
-export default function PlatformView({ initialSection = "webinars" }: { initialSection?: PlatformSection } = {}) {
+export default function PlatformView({ initialSection = "webinars",embedded=false }: { initialSection?: PlatformSection;embedded?:boolean } = {}) {
   const [section, setSection] = useState<PlatformSection>(initialSection);
-  const [activeId, setActiveId] = useState<string>(initialSection);
+  const query=useSearch();
+  const [,navigateStudio]=useLocation();
+  const [activeId, setActiveId] = useState<string>(()=>studioView(initialSection,query));
+  useEffect(()=>{setSection(initialSection);setActiveId(studioView(initialSection,query));},[initialSection,query]);
+  const openView=(view:string)=>{setActiveId(view);if(embedded)navigateStudio(`${initialSection==='video-hosting'?'/video-hosting':'/video-marketing'}?view=${view}`);};
 
   const switchSection = (s: "webinars" | "video-hosting") => {
     setSection(s);
@@ -5252,7 +5258,7 @@ export default function PlatformView({ initialSection = "webinars" }: { initialS
       </svg>
 
       {/* ── SIDEBAR ── */}
-      <aside
+      {!embedded&&<aside
         className="w-60 flex-shrink-0 flex flex-col relative z-10"
         style={{ background: "#040406", borderRight: `1px solid ${GOLD}15`, minHeight: "100vh" }}
       >
@@ -5322,10 +5328,10 @@ export default function PlatformView({ initialSection = "webinars" }: { initialS
             );
           })}
         </nav>
-      </aside>
+      </aside>}
 
       {/* ── MAIN CONTENT ── */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto">
         {/* Top bar */}
         <div
           className="sticky top-0 z-20 px-6 py-3 flex items-center gap-3"
@@ -5355,12 +5361,12 @@ export default function PlatformView({ initialSection = "webinars" }: { initialS
           {activeId === "landing-pages"     && <LandingPagesTab />}
           {activeId === "crm"               && <CRMTab />}
           {activeId === "recordings"        && <RecordingsTab />}
-          {activeId === "email-sequences"   && <EmailSequencesTab />}
-          {activeId === "sms-marketing"     && <SmsMarketingTab />}
+          {activeId === "email-sequences"   && <div className="p-6 text-zinc-400">Email sending is inactive. Set post-registration community links in Webinar setup.</div>}
+          {activeId === "sms-marketing"     && <div className="p-6 text-zinc-400">SMS sending is inactive. Set post-registration community links in Webinar setup.</div>}
           {activeId === "analytics"         && <AnalyticsTab />}
           {activeId === "settings"          && <SettingsTab />}
           {/* Video hosting section */}
-          {activeId === "video-hosting"     && <VideoHosting onNavigate={setActiveId} />}
+          {activeId === "video-hosting"     && <VideoHosting onNavigate={openView} />}
           {activeId === "vsl-studio"        && <VSLStudioTab />}
           {activeId === "video-editor"      && <VideoEditorTab />}
           {activeId === "collections"       && <VideoCollectionsTab />}

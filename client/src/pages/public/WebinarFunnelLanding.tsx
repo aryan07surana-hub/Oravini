@@ -1,3 +1,4 @@
+import {safeCommunityLinks,communityProvider} from "@shared/webinarCommunity";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import { ArrowRight, CalendarClock, CalendarPlus, CheckCircle2, Globe2, Mic, PlayCircle } from "lucide-react";
@@ -47,6 +48,7 @@ export default function WebinarFunnelLanding() {
     durationMinutes: webinar.durationMinutes,
     details: pageUrl ? `Join here: ${pageUrl}` : undefined,
   });
+  const groups=safeCommunityLinks(webinar.communityLinks);
   const started = msLeft === 0;
   const ended = webinar.status === "ended";
   const canRegister = webinar.status === "published";
@@ -143,8 +145,8 @@ export default function WebinarFunnelLanding() {
         </header>
 
         {/* ── Registration card (2nd on mobile, right column on desktop) ── */}
-        <aside className="md:col-start-2 md:row-start-1 md:row-span-2 md:sticky md:top-8">
-          <div className="rounded-xl border border-white/[0.1] bg-[#111115] p-5 sm:p-6 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)]">
+        <aside className="min-w-0 md:col-start-2 md:row-start-1 md:row-span-2 md:sticky md:top-8">
+          <div className="min-w-0 rounded-xl border border-white/[0.1] bg-[#111115] p-5 sm:p-6 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)]">
             {registered && ended ? (
               <div className="text-center py-2" data-testid="webinar-ended-replay">
                 <PlayCircle className="w-9 h-9 mx-auto mb-3 text-[#d4b461]" />
@@ -163,12 +165,13 @@ export default function WebinarFunnelLanding() {
                 <p className="text-sm text-zinc-400 leading-relaxed">
                   Save the date: <span className="text-zinc-200">{formatIST(webinar.scheduledAt)}</span>. Come back to this link when it's time.
                 </p>
+                {groups.length>0&&<div className="mt-5 space-y-3" data-testid="post-registration-groups"><p className="text-base font-semibold text-white">Next: join the webinar community</p><p className="text-sm text-zinc-400">Join the host's group for webinar updates and discussion. You choose whether to join. No automated email or SMS reminders are sent.</p>{groups.map((group,i)=><a key={group.url+i} href={group.url} target="_blank" rel="noopener noreferrer" data-testid={`join-community-${i}`} className={`${btn(i===0?"primary":"secondary","lg")} w-full h-auto min-h-11 whitespace-normal text-center flex-wrap break-words`}><span className="min-w-0 break-words">{group.label}</span> <span className="text-xs opacity-70">{communityProvider(group.url)}</span><ArrowRight className="w-4 h-4"/></a>)}</div>}
                 <ol className="mt-4 space-y-2 text-[13px] text-zinc-400">
                   <li className="flex gap-2"><span className="text-zinc-600 tabular-nums">1.</span> Add it to your calendar so you don't miss it.</li>
                   <li className="flex gap-2"><span className="text-zinc-600 tabular-nums">2.</span> Open the webinar page a few minutes before the start.</li>
                 </ol>
                 <div className="mt-5 grid gap-2">
-                  <Link href={liveHref} data-testid="link-live-page" className={`${btn("primary", "lg")} w-full`}>
+                  <Link href={liveHref} data-testid="link-live-page" className={`${btn(groups.length?"secondary":"primary", "lg")} w-full`}>
                     Go to the live page <ArrowRight className="w-4 h-4" />
                   </Link>
                   {calendarHref && (

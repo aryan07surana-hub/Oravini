@@ -1,3 +1,4 @@
+import WebinarAssistantPage from "@/pages/client/WebinarAssistant";
 import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
@@ -411,6 +412,7 @@ function AppRoutes() {
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
+      <Route path="/tools/webinars/assistant">{() => <Guard component={WebinarAssistantPage}/>}</Route>
       <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
       <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>

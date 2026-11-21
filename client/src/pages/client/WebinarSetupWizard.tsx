@@ -1,7 +1,11 @@
+import {webinarAssistantDraft} from "@shared/webinarAssistant";
+import WebinarAssistant from "@/components/webinar-funnel/WebinarAssistant";
+import CommunityLinksEditor from "@/components/webinar-funnel/CommunityLinksEditor";
+import {communityLinksSchema} from "@shared/webinarCommunity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import ClientLayout from "@/components/layout/ClientLayout";
+import ClientLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -124,7 +128,11 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   const { toast } = useToast();
   const { data: existing, isLoading } = useQuery<WebinarFunnelFull | null>({ queryKey: [`/api/webinar-funnels/${editingId}`], enabled: !!editingId });
 
-  const [s, setS] = useState<WizardState>(() => loadState(editingId) || blank());
+  const [s, setS] = useState<WizardState>(() => {
+    const state=loadState(editingId)||blank();
+    if(!editingId){try{const raw=sessionStorage.getItem('oravini:webinar-ai-draft');if(raw){const parsed=webinarAssistantDraft.safeParse(JSON.parse(raw));sessionStorage.removeItem('oravini:webinar-ai-draft');if(parsed.success)return {...state,title:parsed.data.title,description:[parsed.data.description,parsed.data.pageCopy].filter(Boolean).join("\n\n"),offerText:parsed.data.offerText};}}catch{}}
+    return state;
+  });
   const hydrated = useRef(false);
   const set = <K extends keyof WizardState>(k: K, v: WizardState[K]) => setS(prev => ({ ...prev, [k]: v }));
 
@@ -148,6 +156,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
       scheduledLocal: prev.scheduledLocal || toISTInput(existing.scheduledAt),
       durationMinutes: existing.durationMinutes || prev.durationMinutes,
       remindersEnabled: existing.remindersEnabled ?? prev.remindersEnabled,
+      communityLinks: prev.communityLinks.length?prev.communityLinks:(existing.communityLinks||[]),
       publish: existing.status !== "draft" || prev.publish,
       createdId: existing.id,
       ytBroadcastId: prev.ytBroadcastId || existing.youtubeBroadcastId || null,
@@ -195,8 +204,8 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
     true, // Connect YouTube — recommended, never required
     true, // Stream details — optional guidance
     !youtubeInvalid,
-    !ctaUrlInvalid && !ctaIncomplete && !deckLinkInvalid,
-    !!s.title.trim() && !!scheduledIso,
+    !ctaUrlInvalid && !ctaIncomplete && !deckLinkInvalid && communityLinksSchema.safeParse(s.communityLinks).success,
+    !!s.title.trim() && !!scheduledIso && communityLinksSchema.safeParse(s.communityLinks).success,
   ][Math.min(s.step, 4)];
 
   const [saving, setSaving] = useState(false);
@@ -216,6 +225,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
     offerExpiresAt: offerExpiresIso,
     durationMinutes: s.durationMinutes,
     remindersEnabled: s.remindersEnabled,
+    communityLinks: s.communityLinks,
     status: s.publish ? "published" : "draft",
   });
 
@@ -250,6 +260,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   };
 
   const finish = async () => {
+    if(!communityLinksSchema.safeParse(s.communityLinks).success){toast({title:"Check your group links",description:"Each enabled group needs a label and valid HTTPS invite.",variant:"destructive"});return;}
     setSaving(true);
     try {
       const targetId = editingId || s.createdId;
@@ -365,7 +376,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
                 <h2 id="wizard-step-title" className="text-lg sm:text-xl font-semibold text-white tracking-tight">{STEPS[s.step].title}</h2>
               </div>
 
-              <div className="px-5 sm:px-7 py-6 space-y-4">
+              <div className="px-5 sm:px-7 py-6 space-y-4"><details className="rounded-xl border border-[#d4b461]/20"><summary className="p-4 text-sm text-[#d4b461] cursor-pointer">Draft with Webinar Assistant</summary><WebinarAssistant onApply={d=>{setS(prev=>({...prev,title:d.title,description:[d.description,d.pageCopy].filter(Boolean).join("\n\n"),offerText:d.offerText,communityLinks:prev.communityLinks.map((link,i)=>i===0?{...link,label:d.groupCtaText||link.label}:link)}));}}/></details>
                 {s.step === 0 && (
                   <StepConnect s={s} set={set} yt={yt.data} ytLoading={yt.isLoading} ytInfo={ytInfo} creating={creatingStream}
                     onCreate={createYoutubeStream} scheduledIso={scheduledIso} onUseLink={() => set("step", LINK_STEP)} />
@@ -373,6 +384,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
                 {s.step === 1 && <StepStreamDetails s={s} set={set} ytInfo={ytInfo} />}
                 {s.step === 2 && <Step3 s={s} set={set} videoId={videoId} invalid={youtubeInvalid} check={videoCheck} />}
                 {s.step === 3 && <Step4 s={s} set={set} ctaUrlInvalid={ctaUrlInvalid} ctaIncomplete={ctaIncomplete} deckLinkInvalid={deckLinkInvalid} />}
+                {s.step === 3 && <CommunityLinksEditor links={s.communityLinks} onChange={v=>set("communityLinks",v)}/>}
                 {s.step === 4 && <Step5 s={s} set={set} scheduledIso={scheduledIso} existingStatus={existing?.status} />}
               </div>
 
@@ -739,9 +751,9 @@ function Step5({ s, set, scheduledIso, existingStatus }: StepProps & { scheduled
         <label className="flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.14] transition-colors">
           <span className="flex items-start gap-3">
             <Bell className="w-4 h-4 mt-0.5 text-zinc-400" />
-            <span><span className="block text-[13px] font-medium text-white">Email reminders</span><span className="block text-xs text-zinc-500">Confirmation + calendar invite, and a reminder 1 hour before.</span></span>
+            <span><span className="block text-[13px] font-medium text-white">Email reminders</span><span className="block text-xs text-zinc-500">Inactive. Use the post-registration group links instead.</span></span>
           </span>
-          <Switch checked={s.remindersEnabled} onCheckedChange={v => set("remindersEnabled", v)} data-testid="switch-reminders" />
+          <Switch checked={false} disabled data-testid="switch-reminders" />
         </label>
         <label className={`flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer transition-colors border ${s.publish ? "bg-emerald-500/[0.06] border-emerald-500/25" : "bg-white/[0.02] border-white/[0.08] hover:border-white/[0.14]"}`}>
           <span className="flex items-start gap-3">
@@ -783,7 +795,7 @@ function FinishedRecap({ row, onEdit, onAll }: { row: WebinarFunnelFull; onEdit:
   const published = row.status !== "draft";
   const copy = (u: string) => navigator.clipboard.writeText(u).then(() => toast({ title: "Link copied", description: u })).catch(() => toast({ title: "Copy this link", description: u }));
   const steps = useMemo(() => [
-    { t: "Up to the start", d: "Share the registration link everywhere. Registrants get a confirmation email with a calendar invite" + (row.remindersEnabled ? ", then a reminder 1 hour before." : ".") },
+    { t: "Up to the start", d: "Share the registration page. After signup, attendees join your group using the links you set. No automated email or SMS is sent." },
     { t: "10 minutes before", d: "Open YouTube Studio → Content → Live, open your scheduled stream, and connect your encoder or webcam so the preview is running." },
     { t: `At ${formatIST(row.scheduledAt).replace(/^\w+, /, "")}`, d: "Your Oravini live page switches from the countdown to LIVE automatically — no button to press here. Click “Go live” in YouTube Studio." },
     { t: "During the webinar", d: "Keep this webinar's Live room tab open to read chat, answer Q&A, and see how many are watching." },

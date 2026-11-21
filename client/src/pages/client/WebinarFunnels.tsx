@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import ClientLayout from "@/components/layout/ClientLayout";
+import { useLocation,useSearch } from "wouter";
+import ClientLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatIST } from "@shared/webinarFunnel";
@@ -33,6 +33,7 @@ export const STATUS_STYLES: Record<string, { label: string; className: string }>
 
 export default function WebinarFunnels() {
   const [, navigate] = useLocation();
+  const scope=new URLSearchParams(useSearch()).get("section");
   const { toast } = useToast();
 
   const { data, isLoading, isError, refetch } = useQuery<WebinarFunnelRow[] | null>({ queryKey: ["/api/webinar-funnels"] });
@@ -68,14 +69,15 @@ export default function WebinarFunnels() {
 
   const now = Date.now();
   const newWebinar = () => navigate("/tools/webinars/new");
+  const openWebinar=(id:string)=>navigate(scope==="registration"?`/tools/webinars/${id}/registrations`:scope==="groups"?`/tools/webinars/${id}#community`:`/tools/webinars/${id}`);
 
   return (
     <ClientLayout>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <PageHeader
           eyebrow="Tools"
-          title="Webinar Funnels"
-          description="YouTube Live webinars with a registration page, countdown and offer."
+          title={scope==="registration"?"Registration pages":scope==="groups"?"Funnel & optional groups":"Webinar Funnels"}
+          description={scope==="registration"?"Manage each webinar's signup page and registrations.":scope==="groups"?"Choose the optional community step after signup for each webinar. No automatic email or SMS.":"YouTube Live webinars with a registration page, countdown and offer."}
           actions={
             <button data-testid="btn-new-webinar" onClick={newWebinar} className={btn("primary", "md")}>
               <Plus className="w-4 h-4" /> New webinar
@@ -115,7 +117,7 @@ export default function WebinarFunnels() {
               return (
                 <li key={w.id} data-testid={`webinar-card-${w.id}`} className="rounded-xl border border-white/[0.08] bg-[#111115] hover:border-white/[0.14] transition-colors">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 sm:p-5">
-                    <button type="button" onClick={() => navigate(`/tools/webinars/${w.id}`)} data-testid={`btn-open-${w.id}`}
+                    <button type="button" onClick={() => openWebinar(w.id)} data-testid={`btn-open-${w.id}`}
                       className={`flex-1 min-w-0 text-left rounded-lg -m-1 p-1 group ${focusRing}`} aria-label={`Manage ${w.title}`}>
                       <div className="flex items-center gap-2 mb-1.5 min-w-0">
                         <StatusBadge status={ds} testid={`status-${w.id}`} />
@@ -153,8 +155,8 @@ export default function WebinarFunnels() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                       <span className="flex-1 sm:hidden" />
-                      <button onClick={() => navigate(`/tools/webinars/${w.id}`)} title="Edit" data-testid={`btn-edit-${w.id}`} className={btn("secondary", "sm")}>
-                        Manage <ChevronRight className="w-3.5 h-3.5" />
+                      <button onClick={() => openWebinar(w.id)} title="Edit" data-testid={`btn-edit-${w.id}`} className={btn("secondary", "sm")}>
+                        {scope==="registration"?"Registrations":scope==="groups"?"Configure flow":"Manage"} <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

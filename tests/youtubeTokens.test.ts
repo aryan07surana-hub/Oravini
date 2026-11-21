@@ -39,3 +39,5 @@ describe("YouTube OAuth state", () => {
     assert.ok(YOUTUBE_OAUTH_SCOPES.includes("https://www.googleapis.com/auth/youtube.upload"));
   });
 });
+
+ test("Google consent without a YouTube channel cannot be reported as connected",async()=>{const {requireYoutubeChannel}=await import("../server/youtubeConnectionValidation");for(const channel of [undefined,null,{}, {id:null},{id:""}])assert.throws(()=>requireYoutubeChannel(channel),/No YouTube channel/);const valid={id:"channel-test",snippet:{title:"Test"}};assert.equal(requireYoutubeChannel(valid),valid);});

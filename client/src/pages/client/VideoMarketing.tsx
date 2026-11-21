@@ -1,3 +1,4 @@
+import WorkspaceLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import PlatformViewWrapper from "@/components/video-marketing/PlatformViewWrapper";
@@ -30,5 +31,5 @@ export default function VideoMarketing({ section }: { section?: "webinars" | "vi
         return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketing={(user as any).hasVideoMarketing} />;
     }
 
-    return <PlatformViewWrapper initialSection={section} />;
+    return <WorkspaceLayout section={section||"webinars"}><PlatformViewWrapper initialSection={section} embedded /></WorkspaceLayout>;
 }
