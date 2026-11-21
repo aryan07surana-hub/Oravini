@@ -33,7 +33,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
-import OraviniLanding from "@/pages/OraviniLanding";
+import OraviniLanding from "@/pages/PricingV2Landing";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
@@ -491,4 +491,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-}
+      }
