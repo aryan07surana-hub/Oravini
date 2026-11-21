@@ -724,13 +724,15 @@ function Step5({ s, set, scheduledIso, existingStatus }: StepProps & { scheduled
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 pt-1">
-        <label className="flex items-center justify-between gap-3 p-4 rounded-xl cursor-pointer" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        {/* Delivery is switched off platform-wide: control kept and the saved
+            preference preserved, but it is not editable and promises nothing. */}
+        <div className="flex items-center justify-between gap-3 p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="reminders-inactive">
           <span className="flex items-start gap-3">
-            <Bell className="w-4 h-4 mt-0.5" style={{ color: GOLD }} />
-            <span><span className="block text-[13px] font-bold text-white">Email reminders</span><span className="block text-[11px] text-zinc-500">Confirmation + calendar invite, and a reminder 1 hour before.</span></span>
+            <Bell className="w-4 h-4 mt-0.5 text-zinc-500" />
+            <span><span className="block text-[13px] font-bold text-zinc-400">Email reminders</span><span className="block text-[11px] text-zinc-500">Inactive — no webinar email or SMS is sent. Your saved setting is kept.</span></span>
           </span>
-          <Switch checked={s.remindersEnabled} onCheckedChange={v => set("remindersEnabled", v)} data-testid="switch-reminders" />
-        </label>
+          <Switch checked={s.remindersEnabled} disabled onCheckedChange={v => set("remindersEnabled", v)} data-testid="switch-reminders" aria-label="Email reminders (inactive)" />
+        </div>
         <label className="flex items-center justify-between gap-3 p-4 rounded-xl cursor-pointer" style={{ background: s.publish ? "rgba(52,211,153,0.05)" : "rgba(255,255,255,0.02)", border: `1px solid ${s.publish ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.07)"}` }}>
           <span className="flex items-start gap-3">
             <Sparkles className="w-4 h-4 mt-0.5 text-emerald-400" />
@@ -771,7 +773,7 @@ function FinishedRecap({ row, onEdit, onAll }: { row: WebinarFunnelFull; onEdit:
   const published = row.status !== "draft";
   const copy = (u: string) => navigator.clipboard.writeText(u).then(() => toast({ title: "Link copied", description: u })).catch(() => toast({ title: "Copy this link", description: u }));
   const steps = useMemo(() => [
-    { t: "Up to the start", d: "Share the registration link everywhere. Registrants get a confirmation email with a calendar invite" + (row.remindersEnabled ? ", then a reminder 1 hour before." : ".") },
+    { t: "Up to the start", d: "Share the registration link everywhere. Oravini does not send webinar emails or SMS right now, so tell registrants to save the link themselves — the page offers an \u201cAdd to calendar\u201d button." },
     { t: "10 minutes before", d: "Open YouTube Studio → Content → Live, open your scheduled stream, and connect your encoder or webcam so the preview is running." },
     { t: `At ${formatIST(row.scheduledAt).replace(/^\w+, /, "")}`, d: "Your Oravini live page switches from the countdown to LIVE automatically — no button to press here. Click “Go live” in YouTube Studio." },
     { t: "During the webinar", d: "Keep this webinar's Live room tab open to read chat, answer Q&A, and see how many are watching." },

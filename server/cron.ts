@@ -4,6 +4,7 @@ import { log } from "./index";
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 import { aiChatJson } from "./aiService";
+import { WEBINAR_OUTBOUND_DISABLED, noteWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 import { newApifyMeter, meterSummary, fetchProfile, normalizeHandle, getDormantHandles, isUnchangedSnapshot, postsPerWeekFromTimestamps, generateWeeklyBrief } from "./competitorIntel";
 
 async function apifyInstagram(payload: object): Promise<any[]> {
@@ -500,6 +501,12 @@ export async function processEmailSequences() {
 }
 
 export async function processSmsSequences() {
+  // Before getPendingSmsEnrollments(): fetching would lead to advanceSmsEnrollment()
+  // consuming steps for messages that are never delivered.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("SMS sequence processing");
+    return;
+  }
   try {
     const pending = await storage.getPendingSmsEnrollments();
     if (pending.length === 0) return;

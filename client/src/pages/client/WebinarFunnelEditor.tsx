@@ -454,15 +454,17 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
                 onChange={e => setDurationMinutes(Math.min(600, Math.max(5, Number(e.target.value) || 60)))} className={inputCls} style={inputStyle} />
             </Field>
           </div>
-          <div className="flex items-center justify-between gap-4 pt-1">
+          {/* Delivery is switched off platform-wide: the control stays (and the saved
+              preference is preserved) but can't be changed and promises nothing. */}
+          <div className="flex items-center justify-between gap-4 pt-1" data-testid="reminders-inactive">
             <div className="flex items-start gap-2.5">
-              <Bell className="w-4 h-4 mt-0.5" style={{ color: GOLD }} />
+              <Bell className="w-4 h-4 mt-0.5 text-zinc-500" />
               <div>
-                <p className="text-sm font-bold text-white">Email reminders</p>
-                <p className="text-xs text-zinc-500">Confirmation with calendar invite on registration, plus a reminder 1 hour before.</p>
+                <p className="text-sm font-bold text-zinc-400">Email reminders</p>
+                <p className="text-xs text-zinc-500">Inactive — Oravini does not send webinar emails or SMS right now. No confirmation or reminder goes out when someone registers. Your saved setting is kept.</p>
               </div>
             </div>
-            <Switch data-testid="switch-reminders" checked={remindersEnabled} onCheckedChange={setRemindersEnabled} aria-label="Email reminders" />
+            <Switch data-testid="switch-reminders" checked={remindersEnabled} disabled onCheckedChange={setRemindersEnabled} aria-label="Email reminders (inactive)" />
           </div>
         </div>
 
