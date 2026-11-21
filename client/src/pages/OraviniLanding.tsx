@@ -1123,8 +1123,8 @@ export default function OraviniLanding() {
               {
                 icon: "📡",
                 title: "Live Webinars",
-                desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
-                bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+                desc: "Host live or automated webinars. Registration pages are built automatically, and after signup attendees can join through your optional group links. No webinar email or SMS is sent.",
+                bullets: ["Auto-built registration pages", "Optional post-signup group links", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
                 accent: "#60a5fa",
               },
               {
