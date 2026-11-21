@@ -82,24 +82,25 @@ function TiltCard({ children, style = {} }: { children: React.ReactNode; style?:
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const FEATURES = [
-    { icon: "📡", title: "Live Webinars", desc: "Host live or automated webinars. Registration pages are built automatically, and after signup attendees can join through your optional community links. No webinar email or SMS is sent.", tag: "Core Feature" },
-    { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with a custom progress bar you fully control. Set precise timing to maximise watch-through and push conversion rates past 70%.", tag: "High Converting" },
-    { icon: "✂️", title: "AI Clip Finder", desc: "Feed in any long-form video — a webinar replay, podcast, or VSL. The AI scans the full timeline and extracts the highest-value clips ready to repurpose.", tag: "AI Powered" },
-    { icon: "🗂️", title: "Video Library", desc: "One organised library for all your content — VSLs, webinar recordings, and standard videos. Import via URL, file upload, or Google Drive.", tag: "Organised" },
+    { icon: "📡", title: "Live Webinars", desc: "Run webinars on your own eligible YouTube live channel, streamed from YouTube Studio or an encoder such as OBS. Oravini builds the registration page, the countdown and the live room. No webinar email or SMS is sent.", tag: "Core Feature" },
+    { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with a custom progress bar you fully control. Set the timing yourself and see watch-through reported per video.", tag: "Pacing Control" },
+    { icon: "✂️", title: "AI Clip Finder", desc: "Bring in a long-form video — a webinar replay, podcast, or VSL — and review suggested clips before you use them. AI generation is currently preview-only while generation cost is approved.", tag: "Preview Only" },
+    { icon: "🗂️", title: "Video Library", desc: "One organised library for all your content — VSLs, linked recordings, and standard videos. Add them by URL (YouTube, Vimeo, Wistia, Loom or a direct file) or by uploading a file.", tag: "Organised" },
     { icon: "📊", title: "Webinar Analytics", desc: "See exactly how your webinar performed — attendee counts, drop-off points, watch-through rates, and engagement spikes — all in one real-time dashboard.", tag: "Data Driven" },
-    { icon: "📧", title: "Email Automation", desc: "Pre-load your entire email sequence once. Confirmations, reminders, follow-ups, and replay links — all sent automatically without touching anything.", tag: "Automated" },
-    { icon: "👥", title: "Attendee CRM", desc: "Every registration lands in a live CRM. Track who showed up, who converted, who dropped off — and follow up with precision on the hottest leads.", tag: "CRM Built-in" },
-    { icon: "🌐", title: "Registration Pages", desc: "High-converting registration pages built automatically for every webinar. Fully customisable headline, presenter info, CTA, and countdown timer.", tag: "Auto-Built" },
-    { icon: "🎬", title: "Webinar Recordings", desc: "Every session is automatically recorded and saved to your library. Add a replay link to your follow-up email in one click.", tag: "Auto-Saved" },
+    { icon: "🔗", title: "Community Links", desc: "Point registrants at your own group after signup. Add optional community links once and they appear to attendees on the confirmation and live pages.", tag: "Optional" },
+    { icon: "👥", title: "Attendee CRM", desc: "Every registration lands in your CRM. See who showed up, how long they watched, who clicked your offer and who dropped off, then follow up yourself.", tag: "CRM Built-in" },
+    { icon: "🌐", title: "Registration Pages", desc: "A registration page is built automatically for every webinar. Customise the headline, presenter info, CTA and countdown timer.", tag: "Auto-Built" },
+    { icon: "🎬", title: "Webinar Replays", desc: "Your session is recorded by YouTube, not by Oravini. Once YouTube finishes processing the archive, link it as the replay on your webinar page in one click.", tag: "Link Replay" },
     { icon: "🔗", title: "Embed Anywhere", desc: "Embed your VSL or hosted video on any external page via a simple iframe or link. White-label player with no Oravini branding on Pro.", tag: "Flexible" },
     { icon: "⏱️", title: "Timed Email Gates", desc: "Lock your VSL behind an email opt-in that triggers at any timestamp. Capture leads exactly when they're most engaged — right at peak interest.", tag: "Lead Capture" },
-    { icon: "📱", title: "Webinar Series", desc: "Build a multi-session webinar series with shared attendee lists, consistent branding, and automatic cross-session email sequences.", tag: "Multi-Session" },
+    { icon: "📱", title: "Webinar Series", desc: "Build a multi-session webinar series with shared attendee lists and consistent branding across every session.", tag: "Multi-Session" },
 ];
 
+// Counts only — each is sourced from this page's own data, never a performance claim.
 const STATS = [
-    { val: 70, suffix: "%+", label: "Avg. VSL Watch-Through Rate", prefix: "" },
-    { val: 3, suffix: "×", label: "Higher Conversion vs Static Pages", prefix: "" },
-    { val: 12, suffix: "", label: "Powerful Video Tools", prefix: "" },
+    { val: FEATURES.length, suffix: "", label: "Tools In The Suite", prefix: "" },
+    { val: 3, suffix: "", label: "Plans With Video Access", prefix: "" },
+    { val: 4, suffix: "", label: "Steps To Set Up A Webinar", prefix: "" },
 ];
 
 const PRICING_TIERS = [
@@ -107,7 +108,7 @@ const PRICING_TIERS = [
         name: "Growth + Add-on", price: "+$20", period: "/mo", accent: GOLD,
         bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: false,
         tag: "Add-on",
-        features: ["3 live webinars per month", "VSL pages + progress bar", "Email reminders & sequences", "Registration pages auto-built", "Basic attendee analytics", "Video hosting — 5 videos"],
+        features: ["3 live webinars per month", "VSL pages + progress bar", "Optional community links", "Registration pages auto-built", "Basic attendee analytics", "Video hosting — 5 videos"],
         cta: "Add Video Marketing",
         route: "/video-marketing-addon",
     },
@@ -219,19 +220,19 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                 </Anim>
                 <Anim delay={100}>
                     <h2 style={{ fontSize: "clamp(32px, 5vw, 58px)", fontWeight: 900, lineHeight: 1.1, marginBottom: 24, letterSpacing: "-0.025em" }}>
-                        Your entire video funnel,<br /><span style={{ color: GOLD }}>run by AI.</span>
+                        Your whole video funnel,<br /><span style={{ color: GOLD }}>in one dashboard.</span>
                     </h2>
                 </Anim>
                 <Anim delay={200}>
                     <p style={{ fontSize: 17, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, maxWidth: 680, margin: "0 auto 56px" }}>
-                        Oravini Video Marketing is a complete video sales machine built inside your existing dashboard — webinars, VSLs, video hosting, AI clip extraction, and automated email follow-ups. No extra logins. No new tools. Everything in one place.
+                        Oravini Video Marketing lives inside your existing dashboard — webinar registration and live pages, VSLs, video hosting, an attendee CRM and optional community links. Webinars stream on your own YouTube live channel. No extra logins. Everything in one place.
                     </p>
                 </Anim>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20 }}>
                     {[
-                        { icon: "📡", title: "Webinars", desc: "Host live and automated webinars with built-in registration, reminders, and a full attendee CRM." },
-                        { icon: "🎯", title: "VSL Pages", desc: "Deploy high-converting video sales letters with progress bars you control and email gates at any timestamp." },
-                        { icon: "✂️", title: "AI Clip Finder", desc: "Repurpose any long-form video into viral short clips — automatically." },
+                        { icon: "📡", title: "Webinars", desc: "Run webinars on your own YouTube live channel with built-in registration, a live room and a full attendee CRM." },
+                        { icon: "🎯", title: "VSL Pages", desc: "Deploy video sales letters with progress bars you control and an email opt-in gate at any timestamp." },
+                        { icon: "✂️", title: "AI Clip Finder", desc: "Review suggested clips from any long-form video. AI generation is preview-only for now." },
                     ].map(({ icon, title, desc }) => (
                         <Anim key={title} delay={150}>
                             <TiltCard style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, padding: "32px 28px" }}>
@@ -263,7 +264,7 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                 <div style={{ maxWidth: 1200, margin: "0 auto" }}>
                     <Anim style={{ textAlign: "center", marginBottom: 64 }}>
                         <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Toolkit</div>
-                        <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>12 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite conversion leverage.</span></h2>
+                        <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>{FEATURES.length} tools. One dashboard.<br /><span style={{ color: GOLD }}>Built around your funnel.</span></h2>
                     </Anim>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 18 }}>
                         {FEATURES.map((f, i) => (
@@ -290,10 +291,10 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                     <Anim style={{ textAlign: "center", marginBottom: 80 }}>
                         <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>How It Works</div>
                         <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
-                            Launch a full video funnel<br /><span style={{ color: GOLD }}>in under 10 minutes.</span>
+                            Set up your video funnel<br /><span style={{ color: GOLD }}>in four steps.</span>
                         </h2>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "clamp(15px, 1.8vw, 17px)", maxWidth: 560, margin: "0 auto", lineHeight: 1.75 }}>
-                            From registration page to post-webinar follow-up — the entire funnel is built, automated, and tracked inside Oravini.
+                            Registration page, live room, attendee CRM and replay — set up and tracked inside Oravini, with the stream itself running on your YouTube channel.
                         </p>
                     </Anim>
 
@@ -302,8 +303,8 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                             {
                                 num: "01", icon: "🎬",
                                 title: "Create Your Event",
-                                body: "Set up a webinar or VSL in minutes. Title, date, cover image — Oravini auto-generates your registration page, reminder emails, and replay link before you even go live.",
-                                bullets: ["Webinar or VSL mode", "Auto registration page", "Email sequence pre-loaded"],
+                                body: "Set up a webinar or VSL. Add the title, date and cover image, connect an eligible YouTube live channel or paste a stream link, and Oravini builds your registration and live pages.",
+                                bullets: ["Webinar or VSL mode", "Auto registration page", "Optional community links"],
                             },
                             {
                                 num: "02", icon: "📣",
@@ -314,14 +315,14 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                             {
                                 num: "03", icon: "📡",
                                 title: "Go Live & Convert",
-                                body: "Run your live session directly inside the platform. Monitor attendance in real-time, see drop-off points, and trigger your follow-up emails automatically at the end.",
-                                bullets: ["Live attendance dashboard", "Auto post-webinar emails", "Instant replay delivery"],
+                                body: "Go live from YouTube Studio or your encoder. Your Oravini live page switches from countdown to live on its own, and you watch attendance, chat and drop-off as it happens.",
+                                bullets: ["Live attendance dashboard", "Live chat and Q&A", "Link the replay afterwards"],
                             },
                             {
                                 num: "04", icon: "✂️",
                                 title: "Repurpose With AI",
-                                body: "Upload your replay to AI Clip Finder. It scans the full video and extracts the highest-value moments — ready to post on Instagram, TikTok, YouTube Shorts, and LinkedIn.",
-                                bullets: ["AI clip extraction", "Multi-platform ready", "Batch export clips"],
+                                body: "Bring your replay into AI Clip Finder to review suggested moments for Instagram, TikTok, YouTube Shorts and LinkedIn. AI generation is preview-only while generation cost is approved.",
+                                bullets: ["Clip review workflow", "Multi-platform formats", "Preview-only for now"],
                             },
                         ].map((step, i) => (
                             <Anim key={step.num} delay={i * 100}>
@@ -354,7 +355,7 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.18)", borderRadius: 99, padding: "12px 28px" }}>
                             <span style={{ fontSize: 16 }}>🤖</span>
                             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>
-                                Email reminders, replay delivery, and CRM updates run automatically — you just show up and present.
+                                Registration, the live room and CRM updates run on their own. Oravini sends no webinar email or SMS — share your optional community links instead.
                             </span>
                         </div>
                     </Anim>
@@ -365,12 +366,12 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
             <section style={{ padding: "100px 24px", background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(212,180,97,0.05) 0%, transparent 70%)" }}>
                 <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }} className="vm-outcomes-grid">
                     <Anim from="translateX(-40px)">
-                        <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Real Outcomes</div>
+                        <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>What You Can Track</div>
                         <h2 style={{ fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 24 }}>
-                            Stop guessing.<br />Start <span style={{ color: GOLD }}>converting.</span>
+                            Stop guessing.<br />Start <span style={{ color: GOLD }}>measuring.</span>
                         </h2>
                         <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, marginBottom: 32 }}>
-                            Every video funnel in Oravini is tracked end-to-end — from registration to replay to closed sale. Know exactly what works and double down on it.
+                            Every video funnel in Oravini is tracked end-to-end — registration, attendance, watch time, offer clicks and replay views. The numbers below are the metrics your dashboard reports; Oravini does not publish benchmark results.
                         </p>
                         <button
                             onClick={handleUpgrade}
@@ -382,25 +383,15 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
                     <Anim from="translateX(40px)">
                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                             {[
-                                { label: "VSL Watch-Through Rate", val: 70 },
-                                { label: "Webinar Show-Up Rate", val: 58 },
-                                { label: "Email Open Rate (Reminders)", val: 82 },
-                                { label: "Registrant-to-Buyer Rate", val: 23 },
-                            ].map(({ label, val }) => (
+                                { label: "VSL watch-through", note: "Per video" },
+                                { label: "Webinar attendance & drop-off", note: "Per session" },
+                                { label: "Offer clicks from the live room", note: "Per attendee" },
+                                { label: "Registrations and show-ups", note: "Per webinar" },
+                            ].map(({ label, note }) => (
                                 <div key={label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "18px 20px" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                                         <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{label}</span>
-                                        <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{val}%</span>
-                                    </div>
-                                    <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
-                                        <div data-anim="1" style={{ height: "100%", width: 0, background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 99, transition: `width 1.2s ease`, opacity: 0 }}
-                                            ref={el => {
-                                                if (!el) return;
-                                                const obs = new IntersectionObserver(([e]) => {
-                                                    if (e.isIntersecting) { el.style.width = val + "%"; el.style.opacity = "1"; }
-                                                }, { threshold: 0.5 });
-                                                obs.observe(el);
-                                            }} />
+                                        <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{note}</span>
                                     </div>
                                 </div>
                             ))}

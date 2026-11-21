@@ -85,6 +85,73 @@ test("tier gate Live Webinars card promises no email or SMS reminders", () => {
 test("tier gate Live Webinars card describes what actually happens", () => {
   const all = tierGateWebinarBlocks().join("\n");
   assert.match(all, /registration page/i, "registration pages should still be described");
-  assert.match(all, /community links/i, "optional post-signup community links should be described");
   assert.match(all, /No webinar email or SMS is sent/i, "card should state that no webinar email or SMS is sent");
+  assert.match(all, /YouTube/i, "card should name the YouTube live channel requirement");
+  // Community links are their own card on this page, so check at page level.
+  assert.match(tierGateSrc, /community links/i, "optional community links should be described somewhere on the page");
+});
+
+// ── Video Marketing tier gate: whole-page sales-copy honesty ───────────────
+// Delivery is off and AI generation is preview-only, so the whole page (not
+// just the webinar card) must avoid promising sends, automatic recording,
+// browser-camera broadcasting, or performance/outcome figures we cannot source.
+test("tier gate page promises no automated webinar delivery anywhere", () => {
+  for (const claim of [
+    /reminder emails/i,
+    /email sequence/i,
+    /follow-up emails?/i,
+    /replay delivery/i,
+    /cross-session email/i,
+    /email reminders? (&|and) sequences/i,
+    /sent automatically/i,
+  ]) {
+    assert.doesNotMatch(tierGateSrc, claim, `tier gate still promises delivery: ${claim}`);
+  }
+});
+
+test("tier gate makes no automatic-recording or in-browser broadcast claim", () => {
+  for (const claim of [
+    /automatically recorded/i,
+    /auto-saved/i,
+    /every session is automatically/i,
+    /run your live session directly inside the platform/i,
+  ]) {
+    assert.doesNotMatch(tierGateSrc, claim, `tier gate still claims: ${claim}`);
+  }
+  // It should instead be explicit about where the stream and archive live.
+  assert.match(tierGateSrc, /YouTube Studio|encoder/i, "should say the stream runs via YouTube Studio or an encoder");
+  assert.match(tierGateSrc, /recorded by YouTube/i, "should attribute recording to YouTube");
+  assert.match(tierGateSrc, /processing/i, "should note archive processing affects availability");
+});
+
+test("tier gate publishes no unsourced performance or outcome figures", () => {
+  for (const claim of [
+    /avg\.? vsl watch-through/i,
+    /watch-through rate["',]/i,
+    /push conversion rates?/i,
+    /conversion rates? past/i,
+    /higher conversion/i,
+    /show-up rate/i,
+    /open rate/i,
+    /registrant-to-buyer/i,
+    /Higher Conversion vs Static Pages/i,
+    /Powerful Video Tools/i,
+    /high-converting/i,
+    /in under \d+ minutes/i,
+    /infinite conversion/i,
+  ]) {
+    assert.doesNotMatch(tierGateSrc, claim, `tier gate still asserts: ${claim}`);
+  }
+});
+
+test("tier gate presents AI generation as preview-only, not guaranteed extraction", () => {
+  assert.match(tierGateSrc, /preview-only/i, "AI should be described as preview-only");
+  assert.doesNotMatch(tierGateSrc, /extracts the highest-value/i, "guaranteed AI extraction claim returned");
+  assert.doesNotMatch(tierGateSrc, /viral short clips/i, "viral clip guarantee returned");
+});
+
+test("tier gate prices and entitlement numbers are untouched", () => {
+  for (const kept of ['"+$20"', '"$59"', '"$99"', "3 live webinars per month", "500 AI credits / month", "Video hosting — 5 videos"]) {
+    assert.ok(tierGateSrc.includes(kept), `pricing/entitlement text must be preserved: ${kept}`);
+  }
 });
