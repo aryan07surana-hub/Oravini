@@ -76,3 +76,11 @@ package-lock.json
 free-claude-code/
 *.py
 .gstack/
+
+# ── Machine-local Claude session data & stray nested repos ────
+# These were accidentally committed as gitlinks (mode 160000) with no
+# .gitmodules, which breaks the GitHub Pages build.
+.claude/
+/Oravini/
+/projects/Oravini/
+/projects/tier5-project-tracker/
