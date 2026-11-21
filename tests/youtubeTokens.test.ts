@@ -41,3 +41,17 @@ describe("YouTube OAuth state", () => {
 });
 
  test("Google consent without a YouTube channel cannot be reported as connected",async()=>{const {requireYoutubeChannel}=await import("../server/youtubeConnectionValidation");for(const channel of [undefined,null,{}, {id:null},{id:""}])assert.throws(()=>requireYoutubeChannel(channel),/No YouTube channel/);const valid={id:"channel-test",snippet:{title:"Test"}};assert.equal(requireYoutubeChannel(valid),valid);});
+
+
+test('Google disclosures explain access, limits, and user choices', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const privacy = await readFile('client/src/pages/Privacy.tsx', 'utf8');
+  const terms = await readFile('client/src/pages/Terms.tsx', 'utf8');
+  const disclosure = await readFile('client/src/components/webinar-funnel/YoutubeAccessDisclosure.tsx', 'utf8');
+  assert.match(privacy, /youtube\.force-ssl/);
+  assert.match(privacy, /Limited Use/);
+  assert.match(privacy, /30 days/);
+  assert.match(terms, /youtube\.com\/t\/terms/);
+  assert.match(disclosure, /privacy/);
+  assert.match(disclosure, /terms/);
+});

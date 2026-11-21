@@ -1,3 +1,4 @@
+import YoutubeAccessDisclosure from "@/components/webinar-funnel/YoutubeAccessDisclosure";
 import {webinarAssistantDraft} from "@shared/webinarAssistant";
 import WebinarAssistant from "@/components/webinar-funnel/WebinarAssistant";
 import CommunityLinksEditor from "@/components/webinar-funnel/CommunityLinksEditor";
@@ -441,6 +442,7 @@ function StepConnect({ s, set, yt, ytLoading, ytInfo, creating, onCreate, schedu
             {connected && created && <span className="text-xs font-medium text-emerald-400 flex items-center gap-1" data-testid="yt-stream-created"><CheckCircle2 className="w-3.5 h-3.5" /> Stream created</span>}
           </div>
 
+          {!connected && <YoutubeAccessDisclosure/>}
           {!connected ? (
             <button type="button" onClick={() => startYoutubeConnect()} data-testid="btn-connect-youtube" className={btn("primary", "md")}>
               <Youtube className="w-4 h-4" /> Connect YouTube

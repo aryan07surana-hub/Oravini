@@ -17,7 +17,7 @@ export default function Terms() {
 
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Terms of Service</h1>
-          <p className="text-zinc-400 text-sm">Last updated: June 1, 2026</p>
+          <p className="text-zinc-400 text-sm">Last updated: November 21, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
             By accessing or using Oravini, you agree to these Terms. If you do not agree, do not use the platform.
             Questions? Email <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>
@@ -34,7 +34,7 @@ export default function Terms() {
               ["7","AI-Generated Content"],["8","Intellectual Property"],["9","Credits & Billing"],
               ["10","Refund Policy"],["11","Service Availability"],["12","Limitation of Liability"],
               ["13","Indemnification"],["14","Termination"],["15","Dispute Resolution"],
-              ["16","Governing Law"],["17","Changes to Terms"],["18","Contact"],
+              ["16","Governing Law"],["17","Changes to Terms"],["18","Contact"],["19","YouTube API Services"],
             ].map(([n, t]) => (
               <li key={n}><a href={`#section-${n}`} className="hover:underline">{n}. {t}</a></li>
             ))}
@@ -247,6 +247,11 @@ export default function Terms() {
               <p className="text-zinc-500 text-sm">Response time: within 48 hours.</p>
             </div>
           </Section>
+
+          <Section num="19" title="YouTube API Services">
+            <p>Oravini uses YouTube API Services for channel connection, webinar broadcasts, stream status, replay links and uploads you request. By using these features, you also agree to the <a href="https://www.youtube.com/t/terms" className="underline" style={{color:GOLD}}>YouTube Terms of Service</a>. Our <a href="/privacy#section-25" className="underline" style={{color:GOLD}}>YouTube and Google user data policy</a> explains the single force-ssl permission, Limited Use, revocation and deletion requests. Connecting YouTube is optional. You remain responsible for your content and channel eligibility; Google controls service access, live streaming and recording availability. Oravini does not guarantee a recording or replace your encoder.</p>
+          </Section>
+
 
         </div>
 
