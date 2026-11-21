@@ -9,10 +9,18 @@
  * (`fireFunnelAutomation` in routes.ts) use; falls back to SMTP_HOST/SMTP_USER/
  * SMTP_PASS (as the LiveKit webinar scheduler does). With neither configured,
  * sends are skipped and logged — registration itself never fails because of email.
+ *
+ * WhatsApp (BYOK): after each successful email, the same moment is also offered to
+ * sendWebinarWhatsApp(registrationId). It only sends when the registrant explicitly opted in
+ * to WhatsApp on the form, and the funnel owner connected + enabled their own credentials and
+ * acknowledged Meta's per-message billing. It rides the email's claim (reminder_1h_sent_at /
+ * one confirmation per new registration), so at most once per registrant per funnel per
+ * message type. WhatsApp never throws and never affects email.
  */
 import nodemailer from "nodemailer";
 import { pool } from "./storage";
 import { formatIST } from "@shared/webinarFunnel";
+import { sendWebinarWhatsApp } from "./routes/webinar-whatsapp";
 
 const GOLD = "#d4b461";
 
@@ -139,6 +147,7 @@ export async function sendWebinarConfirmation(
       text: `You're registered for ${w.title}\n${when}\n\nJoin here: ${link}`,
       attachments: [{ filename: "webinar.ics", content: buildWebinarIcs(w, link), contentType: "text/calendar; charset=utf-8; method=PUBLISH" }],
     });
+    void sendWebinarWhatsApp(reg.id, "confirmation"); // only if the registrant opted in (see whatsappByok.ts)
     return true;
   } catch (e: any) {
     console.error("[webinar-email] confirmation failed:", e.message);
@@ -163,6 +172,8 @@ async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email
       html,
       text: `${w.title} starts in 1 hour (${formatIST(w.scheduled_at)}).\nJoin here: ${link}`,
     });
+    // Awaited (never throws) so a large reminder batch is paced instead of fanning out at once.
+    await sendWebinarWhatsApp(reg.id, "reminder_1h");
     return true;
   } catch (e: any) {
     console.error("[webinar-email] reminder failed:", e.message);

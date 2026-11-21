@@ -17,3 +17,4 @@ export { registerPlatformChatRoutes } from "./platform-chat";
 export { registerAdminOverviewRoutes } from "./admin-overview";
 export { registerSuperAdminDocumentRoutes } from "./super-admin-documents";
 export { registerActivityRoutes } from "./activity";
+export { registerWebinarWhatsappRoutes } from "./webinar-whatsapp";

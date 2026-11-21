@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
 import { registerSchedulingRoutes, isRetiredClientBookingPage } from "./schedulingRoutes";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerWebinarWhatsappRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -47,6 +47,7 @@ import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVision
 import { handleMetaWebhookEvent } from "./metaWebhookHandler";
 import { signYoutubeState, verifyYoutubeState, safeReturnPath, withQuery, DEFAULT_YOUTUBE_RETURN, YOUTUBE_OAUTH_SCOPES } from "./youtubeOAuthState";
 import { registerWebinarYoutubeRoutes } from "./webinarYoutube";
+import { recordWhatsappOptIn, isWhatsappActiveForOwner } from "./routes/webinar-whatsapp";
 import { encryptToken as encryptSecret, decryptToken as decryptSecret } from "./security/tokenEncryption";
 
 const uploadsDir = path.resolve("uploads");
@@ -11329,6 +11330,8 @@ Rules:
       name: z.string().trim().min(1, "Name is required").max(120),
       email: z.string().trim().toLowerCase().max(254).email("Enter a valid email"),
       phone: z.string().trim().max(32).regex(/^[0-9+()\-.\s]*$/, "Enter a valid phone number").optional().nullable(),
+      // Explicit, unticked-by-default WhatsApp reminder opt-in. Anything but literal `true` = not opted in.
+      whatsappOptIn: z.boolean().optional(),
     });
 
     // Public: register for a published webinar
@@ -11340,6 +11343,7 @@ Rules:
         const parsed = registerBody.safeParse(req.body ?? {});
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
         const { name, email, phone } = parsed.data;
+        const whatsappOptIn = parsed.data.whatsappOptIn === true && !!phone;
         // Idempotent per email: re-registering returns success without a duplicate row
         const [already] = await db.select({ id: webinarFunnelRegistrations.id }).from(webinarFunnelRegistrations)
           .where(and(eq(webinarFunnelRegistrations.webinarId, funnel.id), eq(webinarFunnelRegistrations.email, email)));
@@ -11349,10 +11353,15 @@ Rules:
             .values({ webinarId: funnel.id, name, email, phone: phone || null })
             .returning({ id: webinarFunnelRegistrations.id });
           registrationId = created.id;
+          // Persist the WhatsApp choice BEFORE the confirmation goes out (the send path requires it).
+          if (whatsappOptIn) await recordWhatsappOptIn(created.id, true).catch((e) => console.error("[webinar-funnels] opt-in save failed:", e.message));
           // Confirmation + .ics (fire-and-forget; never blocks or fails registration)
           if (funnel.remindersEnabled !== false) {
             sendWebinarConfirmation(funnel, { id: created.id, name, email }).catch(() => {});
           }
+        } else {
+          // Re-registering records the latest explicit choice (an unticked box withdraws WhatsApp consent).
+          recordWhatsappOptIn(already.id, whatsappOptIn).catch((e) => console.error("[webinar-funnels] opt-in save failed:", e.message));
         }
         // CRM: attach the registrant to the webinar owner's contacts (fire-and-forget)
         captureLeadToCrmInBackground({
@@ -11402,6 +11411,8 @@ Rules:
         offerPrice: f.offerPrice,
         offerExpiresAt: f.offerExpiresAt,
         durationMinutes: f.durationMinutes ?? 60,
+        // Show the WhatsApp opt-in only when the host has WhatsApp reminders fully set up
+        whatsappReminders: f.status === "published" && f.remindersEnabled !== false ? await isWhatsappActiveForOwner(f.userId) : false,
       });
     });
 
@@ -15582,6 +15593,7 @@ Return JSON only:
   registerWebinarCaptionRoutes(app, requireAuth);
   registerWebinarBackstageRoutes(app, requireAuth);
   registerWebinarAdvancedRoutes(app, requireAuth);
+  registerWebinarWhatsappRoutes(app, requireAuth);
 
   // ── CRM (GoHighLevel bridge) ──────────────────────────────────────────────
   // Public lead-capture endpoint used by the Brandverse landing page.

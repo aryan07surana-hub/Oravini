@@ -1322,6 +1322,9 @@ async function runMigrations() {
         CONSTRAINT webinar_funnel_registrations_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS idx_webinar_funnel_regs_webinar ON webinar_funnel_registrations(webinar_id);
+      -- WhatsApp reminders need an explicit opt-in; existing rows default to NOT opted in
+      ALTER TABLE webinar_funnel_registrations ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE webinar_funnel_registrations ADD COLUMN IF NOT EXISTS whatsapp_opt_in_at TIMESTAMPTZ;
     `);
     console.log("[migration] webinar_funnels tables ensured");
   } catch (e: any) {

@@ -17,6 +17,7 @@ export default function WebinarFunnelLanding() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false); // explicit opt-in, never pre-ticked
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registered, setRegistered] = useState(false);
@@ -54,7 +55,7 @@ export default function WebinarFunnelLanding() {
       const res = await fetch(`/api/webinar-funnels/${encodeURIComponent(webinar.slug)}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, ...getUtmParams() }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, whatsappOptIn: !!(webinar.whatsappReminders && phone.trim() && whatsappOptIn), ...getUtmParams() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Registration failed. Please try again.");
@@ -155,6 +156,16 @@ export default function WebinarFunnelLanding() {
                 className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600" style={inputStyle} />
               <input data-testid="input-reg-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone (optional)" autoComplete="tel" maxLength={32}
                 className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600" style={inputStyle} />
+              {webinar.whatsappReminders && phone.trim() && (
+                <label className="flex items-start gap-2.5 text-left cursor-pointer" data-testid="label-reg-whatsapp-optin">
+                  <input data-testid="input-reg-whatsapp-optin" type="checkbox" checked={whatsappOptIn} onChange={e => setWhatsappOptIn(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 shrink-0 accent-[#d4b461]" />
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Yes, send this webinar's registration confirmation and 1-hour reminder to this number on WhatsApp.
+                    <span className="text-zinc-600"> Optional — leave unticked for email only. We won't use your number for anything else on WhatsApp.</span>
+                  </span>
+                </label>
+              )}
               {error && <p className="text-xs text-red-400" role="alert">{error}</p>}
               <button data-testid="btn-register" type="submit" disabled={submitting}
                 className="w-full py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50"

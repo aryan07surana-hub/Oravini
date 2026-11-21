@@ -94,3 +94,39 @@ export function isEncrypted(value: string): boolean {
   // Check if parts look like hex
   return /^[0-9a-f]{32}$/.test(parts[0]) && /^[0-9a-f]{32}$/.test(parts[1]);
 }
+
+// ── Strict (fail-closed) API ────────────────────────────────────────────────
+// Additive: the legacy encryptToken/decryptToken above keep their graceful
+// plaintext fallback for existing integrations. New integrations that must never
+// store a secret in plaintext (e.g. BYOK WhatsApp) use these instead.
+
+/** True only when TOKEN_ENCRYPTION_KEY is exactly 64 hex characters (32 bytes). */
+export function isTokenEncryptionConfigured(): boolean {
+  return /^[0-9a-fA-F]{64}$/.test(process.env.TOKEN_ENCRYPTION_KEY || "");
+}
+
+export class TokenEncryptionUnavailableError extends Error {
+  constructor() {
+    super("Token encryption is not configured (TOKEN_ENCRYPTION_KEY must be 64 hex characters)");
+    this.name = "TokenEncryptionUnavailableError";
+  }
+}
+
+/**
+ * Encrypts or throws — never returns plaintext. Verifies the result is in the
+ * iv:authTag:ciphertext format and decrypts back to the input before returning it.
+ */
+export function encryptTokenStrict(plaintext: string): string {
+  if (!isTokenEncryptionConfigured()) throw new TokenEncryptionUnavailableError();
+  const out = encryptToken(plaintext);
+  if (out === plaintext || !isEncrypted(out) || decryptToken(out) !== plaintext) throw new TokenEncryptionUnavailableError();
+  return out;
+}
+
+/** Decrypts or throws — refuses plaintext/legacy values and undecryptable data. */
+export function decryptTokenStrict(stored: string): string {
+  if (!isTokenEncryptionConfigured() || !isEncrypted(stored)) throw new TokenEncryptionUnavailableError();
+  const out = decryptToken(stored);
+  if (out === stored) throw new TokenEncryptionUnavailableError(); // decryptToken returns input on auth-tag failure
+  return out;
+}
