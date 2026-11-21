@@ -28,6 +28,7 @@ import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
 import { startWebinarEmailScheduler } from "./jobs/webinar-email-scheduler";
 import { startWebinarFunnelReminderJob } from "./webinarFunnelEmail";
+import { startWebinarFunnelFollowupJob } from "./webinarFunnelFollowup";
 import { startSchedulingCronJobs } from "./schedulingCron";
 import { startRtmpServer } from "./rtmp";
 import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
@@ -1379,6 +1380,19 @@ async function runMigrations() {
         CONSTRAINT webinar_cta_clicks_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS idx_webinar_cta_clicks_webinar ON webinar_cta_clicks(webinar_id);
+      CREATE TABLE IF NOT EXISTS webinar_funnel_followup_log (
+        id SERIAL PRIMARY KEY,
+        webinar_id VARCHAR NOT NULL,
+        registration_id VARCHAR NOT NULL,
+        email_norm TEXT NOT NULL,
+        segment TEXT NOT NULL,
+        claimed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMP,
+        error TEXT,
+        CONSTRAINT webinar_funnel_followup_log_webinar_id_webinar_funnels_id_fk FOREIGN KEY (webinar_id) REFERENCES webinar_funnels(id) ON DELETE CASCADE,
+        CONSTRAINT uq_webinar_followup_registration UNIQUE (webinar_id, registration_id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_webinar_followup_email ON webinar_funnel_followup_log(webinar_id, email_norm);
     `);
     console.log("[migration] webinar live-experience tables ensured");
   } catch (e: any) {
@@ -1461,6 +1475,7 @@ async function runMigrations() {
     startCronJobs();
     startWebinarEmailScheduler();
     startWebinarFunnelReminderJob();
+    startWebinarFunnelFollowupJob();
     startSchedulingCronJobs();
   });
 })();
