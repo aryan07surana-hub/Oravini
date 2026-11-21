@@ -11,6 +11,7 @@ import fs from "fs";
 import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
 import { storage, pool, db } from "./storage";
 import { captureLeadToCrmInBackground, pickUtm } from "./crmLeadCapture";
+import { onWebinarRegisteredInBackground } from "./webinarCrmPipeline";
 import { ensurePageDomainsSchema, backfillSubdomains, ensureSubdomain, registerPageDomainRoutes } from "./pageDomains";
 import { ensurePageStudioSchema, registerPageStudioRoutes } from "./pageStudio";
 import { normalizeTheme } from "@shared/pageEngine";
@@ -11347,6 +11348,15 @@ Rules:
           context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
           utm: pickUtm(req.body),
         });
+        // CRM pipeline: open/reuse a "New Lead" deal for this registrant (fire-and-forget)
+        try {
+          onWebinarRegisteredInBackground({
+            funnel: { id: funnel.id, userId: funnel.userId, slug: funnel.slug, title: funnel.title },
+            registrationId, name, email, phone, reRegistration: !!already,
+          });
+        } catch (err: any) {
+          console.error("[webinar-crm] registration hook error:", err?.message || err);
+        }
         res.status(already ? 200 : 201).json({ success: true, registrationId });
       } catch (e: any) {
         console.error("[webinar-funnels] register error:", e.message);
