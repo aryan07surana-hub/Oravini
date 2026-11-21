@@ -404,6 +404,8 @@ function AppRoutes() {
       <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
+      {/* Top-level "Video Hosting" sidebar entry: same studio, opened on its hosting section. */}
+      <Route path="/video-hosting">{() => <Guard component={ClientVideoMarketing} section="video-hosting" />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>

@@ -87,13 +87,13 @@ class VideoMarketingErrorBoundary extends ErrorBoundary {
   }
 }
 
-export default function PlatformViewWrapper() {
+export default function PlatformViewWrapper({ initialSection }: { initialSection?: "webinars" | "video-hosting" } = {}) {
   return (
     <>
       <ApiHealthBanner />
       <VideoMarketingErrorBoundary>
         <Suspense fallback={<LoadingFallback />}>
-          <PlatformView />
+          <PlatformView initialSection={initialSection} />
         </Suspense>
       </VideoMarketingErrorBoundary>
     </>

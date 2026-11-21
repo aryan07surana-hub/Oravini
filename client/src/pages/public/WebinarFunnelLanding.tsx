@@ -1,24 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
-import { CalendarClock, CheckCircle2, Mic, PlayCircle, Radio } from "lucide-react";
+import { ArrowRight, CalendarClock, CalendarPlus, CheckCircle2, Globe2, Mic, PlayCircle } from "lucide-react";
 import { formatIST, googleCalendarUrl } from "@shared/webinarFunnel";
 import {
-  GOLD, Countdown, PublicLoading, PublicShell, WebinarNotFound, useCountdown, usePublicWebinar, readRegistration, saveRegistration,
+  Countdown, PublicLoading, PublicShell, WebinarLoadError, WebinarNotFound, useCountdown, usePublicWebinar, readRegistration, saveRegistration,
 } from "@/components/webinar-funnel/shared";
+import { formatInZone, HOST_TIME_ZONE, viewerLocalStart, viewerTimeZone } from "@/components/webinar-funnel/eventTime";
+import { btn, focusRing } from "@/components/webinar-funnel/ui";
 import { getUtmParams } from "@/lib/utm";
 
-const inputStyle = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", outline: "none" };
+const fieldCls = `w-full h-11 px-3.5 rounded-lg text-sm text-white placeholder:text-zinc-600 bg-white/[0.03] border transition-colors focus:border-[#d4b461]/70 ${focusRing}`;
+
+type Errors = { name?: string; email?: string; form?: string };
 
 export default function WebinarFunnelLanding() {
   const { slug } = useParams<{ slug: string }>();
-  const { data: webinar, isLoading, isError } = usePublicWebinar(slug);
+  const { data: webinar, isLoading, isError, refetch } = usePublicWebinar(slug);
   const msLeft = useCountdown(webinar?.scheduledAt);
+  const tz = useMemo(() => viewerTimeZone(), []);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Errors>({});
   const [registered, setRegistered] = useState(false);
 
   useEffect(() => {
@@ -31,7 +36,8 @@ export default function WebinarFunnelLanding() {
   }, [webinar?.title]);
 
   if (isLoading) return <PublicLoading />;
-  if (isError || !webinar) return <WebinarNotFound />;
+  if (isError) return <WebinarLoadError onRetry={() => refetch()} />;
+  if (!webinar) return <WebinarNotFound />;
 
   const liveHref = `/w/${webinar.slug}/live`;
   const pageUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "";
@@ -42,13 +48,21 @@ export default function WebinarFunnelLanding() {
     details: pageUrl ? `Join here: ${pageUrl}` : undefined,
   });
   const started = msLeft === 0;
+  const ended = webinar.status === "ended";
   const canRegister = webinar.status === "published";
+  const ist = formatInZone(webinar.scheduledAt, HOST_TIME_ZONE);
+  const local = viewerLocalStart(webinar.scheduledAt, tz);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    if (!name.trim()) return setError("Please enter your name");
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Please enter a valid email");
+    const next: Errors = {};
+    if (!name.trim()) next.name = "Please enter your name";
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) next.email = "Please enter a valid email";
+    setErrors(next);
+    if (next.name || next.email) {
+      document.getElementById(next.name ? "reg-name" : "reg-email")?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch(`/api/webinar-funnels/${encodeURIComponent(webinar.slug)}/register`, {
@@ -61,109 +75,158 @@ export default function WebinarFunnelLanding() {
       saveRegistration(webinar.slug, { registrationId: data.registrationId, name: name.trim(), email: email.trim().toLowerCase() });
       setRegistered(true);
     } catch (err: any) {
-      setError(err.message);
+      setErrors({ form: err.message });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const eyebrow = ended ? "Webinar replay" : started && canRegister ? "Live now" : "Free live webinar";
+
   return (
     <PublicShell>
-      {/* Header */}
-      <div className="text-center mb-8">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-5"
-          style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}30`, color: GOLD }}>
-          <Radio className="w-3 h-3" /> {webinar.status === "ended" ? "Webinar replay" : "Free live webinar"}
-        </span>
-        <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4" data-testid="webinar-title">{webinar.title}</h1>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-5 text-sm text-zinc-400">
-          {webinar.hostName && (
-            <span className="flex items-center gap-1.5" data-testid="webinar-host"><Mic className="w-4 h-4" style={{ color: GOLD }} /> Hosted by <b className="text-white">{webinar.hostName}</b></span>
-          )}
-          <span className="flex items-center gap-1.5" data-testid="webinar-datetime"><CalendarClock className="w-4 h-4" style={{ color: GOLD }} /> {formatIST(webinar.scheduledAt)}</span>
-        </div>
-      </div>
+      <div className="grid gap-6 md:gap-x-10 md:gap-y-8 md:grid-cols-[minmax(0,1fr)_380px] md:items-start">
+        {/* ── Invitation header ── */}
+        <header className="md:col-start-1">
+          <p className="inline-flex items-center gap-2 text-xs font-medium text-zinc-400 mb-4">
+            {started && canRegister
+              ? <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" aria-hidden />
+              : <span className="w-1.5 h-1.5 rounded-full bg-[#d4b461]" aria-hidden />}
+            {eyebrow}
+          </p>
+          <h1 className="text-[28px] leading-[1.15] sm:text-4xl sm:leading-[1.1] font-semibold text-white tracking-tight break-words" data-testid="webinar-title">{webinar.title}</h1>
 
-      {/* Countdown */}
-      <div className="mb-8">
-        {started ? (
-          <div className="rounded-2xl p-5 text-center" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-            <p className="text-sm font-bold text-red-300">{webinar.status === "ended" ? "This webinar has ended — the replay may be available." : "The webinar has started!"}</p>
-            <Link href={liveHref} className="inline-flex items-center gap-2 mt-3 text-sm font-bold" style={{ color: GOLD }}>
-              <PlayCircle className="w-4 h-4" /> Watch now
-            </Link>
+          <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="flex items-start gap-3" data-testid="webinar-datetime">
+              <dt className="sr-only">Date and time</dt>
+              <span className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0"><CalendarClock className="w-4 h-4 text-[#d4b461]" /></span>
+              <dd className="min-w-0">
+                <span className="block text-sm font-medium text-white">{ist ? ist.date : formatIST(webinar.scheduledAt)}</span>
+                <span className="block text-sm text-zinc-400">{ist ? `${ist.time} IST` : ""}{webinar.durationMinutes ? ` · ${webinar.durationMinutes} min` : ""}</span>
+                {local && (
+                  <span className="mt-1 flex items-center gap-1 text-xs text-zinc-500" data-testid="webinar-local-time">
+                    <Globe2 className="w-3 h-3" /> {local.date}, {local.time} {local.zone} your time
+                  </span>
+                )}
+              </dd>
+            </div>
+            {webinar.hostName && (
+              <div className="flex items-start gap-3" data-testid="webinar-host">
+                <dt className="sr-only">Host</dt>
+                <span className="w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center flex-shrink-0"><Mic className="w-4 h-4 text-[#d4b461]" /></span>
+                <dd className="min-w-0">
+                  <span className="block text-xs text-zinc-500">Hosted by</span>
+                  <span className="block text-sm font-medium text-white break-words">{webinar.hostName}</span>
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {/* Countdown / started */}
+          <div className="mt-8">
+            {started ? (
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                <p className="text-sm text-zinc-200">
+                  {ended ? "This webinar has ended — the replay may be available." : "The webinar has started."}
+                </p>
+                <Link href={liveHref} className={btn("secondary", "sm")}>
+                  <PlayCircle className="w-4 h-4" /> Watch now
+                </Link>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs font-medium text-zinc-500 mb-2.5">Starts in</p>
+                <Countdown msLeft={msLeft} />
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <p className="text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">Starts in</p>
-            <Countdown msLeft={msLeft} />
-          </>
-        )}
-      </div>
+        </header>
 
-      <div className="grid gap-6 md:grid-cols-5">
-        {/* Description */}
-        <div className="md:col-span-3 rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <h2 className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: GOLD }}>About this webinar</h2>
-          <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line" data-testid="webinar-description">
+        {/* ── Registration card (2nd on mobile, right column on desktop) ── */}
+        <aside className="md:col-start-2 md:row-start-1 md:row-span-2 md:sticky md:top-8">
+          <div className="rounded-xl border border-white/[0.1] bg-[#111115] p-5 sm:p-6 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)]">
+            {registered && ended ? (
+              <div className="text-center py-2" data-testid="webinar-ended-replay">
+                <PlayCircle className="w-9 h-9 mx-auto mb-3 text-[#d4b461]" />
+                <p className="text-lg font-semibold text-white mb-1">This webinar has ended - watch the replay</p>
+                <p className="text-sm text-zinc-500 mb-5">The recording is on the webinar page.</p>
+                <Link href={liveHref} data-testid="link-replay-page" className={`${btn("primary", "lg")} w-full`}>
+                  <PlayCircle className="w-4 h-4" /> Watch the replay
+                </Link>
+              </div>
+            ) : registered ? (
+              <div data-testid="webinar-registered">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                  <p className="text-lg font-semibold text-white">You're in!</p>
+                </div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Save the date: <span className="text-zinc-200">{formatIST(webinar.scheduledAt)}</span>. Come back to this link when it's time.
+                </p>
+                <ol className="mt-4 space-y-2 text-[13px] text-zinc-400">
+                  <li className="flex gap-2"><span className="text-zinc-600 tabular-nums">1.</span> Add it to your calendar so you don't miss it.</li>
+                  <li className="flex gap-2"><span className="text-zinc-600 tabular-nums">2.</span> Open the webinar page a few minutes before the start.</li>
+                </ol>
+                <div className="mt-5 grid gap-2">
+                  <Link href={liveHref} data-testid="link-live-page" className={`${btn("primary", "lg")} w-full`}>
+                    Go to the live page <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  {calendarHref && (
+                    <a href={calendarHref} target="_blank" rel="noopener noreferrer" data-testid="link-add-to-google-calendar" className={`${btn("secondary", "md")} w-full`}>
+                      <CalendarPlus className="w-4 h-4" /> Add to Google Calendar
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : !canRegister ? (
+              <div className="text-center py-2">
+                <p className="text-base font-semibold text-white mb-1">Registration is closed.</p>
+                <p className="text-sm text-zinc-500 mb-5">You can still open the webinar page.</p>
+                <Link href={liveHref} className={`${btn("secondary", "md")} w-full`}>
+                  <PlayCircle className="w-4 h-4" /> Go to the webinar page
+                </Link>
+              </div>
+            ) : (
+              <form onSubmit={submit} className="space-y-4" data-testid="webinar-register-form" noValidate aria-describedby={errors.form ? "reg-form-error" : undefined}>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Reserve your free spot</h2>
+                  <p className="text-[13px] text-zinc-500 mt-1">Free to attend. You'll get the link to the live page as soon as you sign up.</p>
+                </div>
+                <div>
+                  <label htmlFor="reg-name" className="block text-[13px] font-medium text-zinc-300 mb-1.5">Name</label>
+                  <input id="reg-name" data-testid="input-reg-name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" maxLength={120}
+                    aria-invalid={!!errors.name} aria-describedby={errors.name ? "reg-name-error" : undefined}
+                    className={`${fieldCls} ${errors.name ? "border-red-400/60" : "border-white/[0.1]"}`} />
+                  {errors.name && <p id="reg-name-error" className="text-xs text-red-400 mt-1.5" role="alert">{errors.name}</p>}
+                </div>
+                <div>
+                  <label htmlFor="reg-email" className="block text-[13px] font-medium text-zinc-300 mb-1.5">Email</label>
+                  <input id="reg-email" data-testid="input-reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" maxLength={254}
+                    aria-invalid={!!errors.email} aria-describedby={errors.email ? "reg-email-error" : undefined}
+                    className={`${fieldCls} ${errors.email ? "border-red-400/60" : "border-white/[0.1]"}`} />
+                  {errors.email && <p id="reg-email-error" className="text-xs text-red-400 mt-1.5" role="alert">{errors.email}</p>}
+                </div>
+                <div>
+                  <label htmlFor="reg-phone" className="flex items-center gap-2 text-[13px] font-medium text-zinc-300 mb-1.5">Phone <span className="text-xs font-normal text-zinc-600">Optional</span></label>
+                  <input id="reg-phone" data-testid="input-reg-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" autoComplete="tel" maxLength={32}
+                    className={`${fieldCls} border-white/[0.1]`} />
+                </div>
+                {errors.form && <p id="reg-form-error" className="text-[13px] text-red-300 rounded-lg bg-red-500/[0.06] border border-red-500/20 px-3 py-2" role="alert">{errors.form}</p>}
+                <button data-testid="btn-register" type="submit" disabled={submitting} className={`${btn("primary", "lg")} w-full`}>
+                  {submitting ? "Registering..." : "Register now"}
+                </button>
+              </form>
+            )}
+          </div>
+        </aside>
+
+        {/* ── About ── */}
+        <section className="md:col-start-1 border-t border-white/[0.06] pt-6 md:pt-8" aria-labelledby="about-heading">
+          <h2 id="about-heading" className="text-sm font-semibold text-white mb-3">About this webinar</h2>
+          <p className="text-[15px] text-zinc-400 leading-relaxed whitespace-pre-line break-words" data-testid="webinar-description">
             {webinar.description || "Join us live for this session."}
           </p>
-        </div>
-
-        {/* Registration */}
-        <div className="md:col-span-2 rounded-2xl p-6" style={{ background: "#0e0e10", border: `1px solid ${GOLD}30` }}>
-          {registered && webinar.status === "ended" ? (
-            <div className="text-center py-4" data-testid="webinar-ended-replay">
-              <PlayCircle className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-              <p className="text-xl font-black text-white mb-4">This webinar has ended - watch the replay</p>
-              <Link href={liveHref} data-testid="link-replay-page"
-                className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
-                style={{ background: GOLD, color: "#0a0910" }}>
-                <PlayCircle className="w-4 h-4" /> Watch the replay
-              </Link>
-            </div>
-          ) : registered ? (
-            <div className="text-center py-4" data-testid="webinar-registered">
-              <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
-              <p className="text-xl font-black text-white mb-1">You're in!</p>
-              <p className={`text-xs text-zinc-500 ${calendarHref ? "mb-2" : "mb-5"}`}>Save the date: {formatIST(webinar.scheduledAt)}. Come back to this link when it's time.</p>
-              {calendarHref && (
-                <a href={calendarHref} target="_blank" rel="noopener noreferrer" data-testid="link-add-to-google-calendar"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold mb-5 hover:underline" style={{ color: GOLD }}>
-                  <CalendarClock className="w-3.5 h-3.5" /> Add to Google Calendar
-                </a>
-              )}
-              <Link href={liveHref} data-testid="link-live-page"
-                className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
-                style={{ background: GOLD, color: "#0a0910" }}>
-                <PlayCircle className="w-4 h-4" /> Go to the live page
-              </Link>
-            </div>
-          ) : !canRegister ? (
-            <div className="text-center py-4">
-              <p className="text-sm text-zinc-400 mb-4">Registration is closed.</p>
-              <Link href={liveHref} className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: GOLD }}>
-                <PlayCircle className="w-4 h-4" /> Go to the webinar page
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={submit} className="space-y-3" data-testid="webinar-register-form" noValidate>
-              <p className="text-base font-black text-white mb-1">Reserve your free spot</p>
-              <input data-testid="input-reg-name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" maxLength={120}
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600" style={inputStyle} />
-              <input data-testid="input-reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" autoComplete="email" maxLength={254}
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600" style={inputStyle} />
-              <input data-testid="input-reg-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone (optional)" autoComplete="tel" maxLength={32}
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600" style={inputStyle} />
-              {error && <p className="text-xs text-red-400" role="alert">{error}</p>}
-              <button data-testid="btn-register" type="submit" disabled={submitting}
-                className="w-full py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50"
-                style={{ background: GOLD, color: "#0a0910" }}>
-                {submitting ? "Registering..." : "Register now"}
-              </button>
-            </form>
-          )}
-        </div>
+        </section>
       </div>
     </PublicShell>
   );

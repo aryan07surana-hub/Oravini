@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { formatIST } from "@shared/webinarFunnel";
-import { ArrowLeft, Download, Users, Mail, Phone, Search } from "lucide-react";
+import { Download, Users, Search } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";
-
-const GOLD = "#d4b461";
+import { funnelDisplayStatus } from "@/components/webinar-funnel/eventTime";
+import { BackLink, EmptyState, ErrorState, PageHeader, Skeleton, StatTile, StatusBadge, btn, focusRing } from "@/components/webinar-funnel/ui";
 
 type Registration = { id: string; name: string; email: string; phone: string | null; createdAt: string };
 
@@ -29,7 +29,7 @@ export default function WebinarFunnelRegistrations({ id }: { id: string }) {
   const [q, setQ] = useState("");
 
   const { data: webinar } = useQuery<WebinarFunnelRow | null>({ queryKey: [`/api/webinar-funnels/${id}`] });
-  const { data, isLoading } = useQuery<Registration[] | null>({ queryKey: [`/api/webinar-funnels/${id}/registrations`] });
+  const { data, isLoading, isError, refetch } = useQuery<Registration[] | null>({ queryKey: [`/api/webinar-funnels/${id}/registrations`] });
   const rows = data ?? [];
 
   const filtered = useMemo(() => {
@@ -54,91 +54,96 @@ export default function WebinarFunnelRegistrations({ id }: { id: string }) {
 
   return (
     <ClientLayout>
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <button onClick={() => navigate("/tools/webinars")} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300 mb-5">
-          <ArrowLeft className="w-3.5 h-3.5" /> All webinars
-        </button>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <PageHeader
+          back={<BackLink onClick={() => navigate("/tools/webinars")} />}
+          eyebrow={webinar ? (
+            <span className="flex items-center gap-2 min-w-0">
+              <StatusBadge status={funnelDisplayStatus(webinar.status, webinar.scheduledAt)} />
+              <span className="truncate min-w-0">{webinar.title} · {formatIST(webinar.scheduledAt)}</span>
+            </span>
+          ) : " "}
+          title="Registrations"
+          actions={
+            <button
+              data-testid="btn-export-csv"
+              onClick={exportCSV}
+              disabled={rows.length === 0}
+              className={btn("secondary", "md")}
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          }
+        />
 
-        <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(244,114,182,0.12)", border: "1px solid rgba(244,114,182,0.25)" }}>
-              <Users className="w-4 h-4 text-pink-400" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-black text-white truncate">Registrations</h1>
-              <p className="text-xs text-zinc-500 truncate">
-                {webinar ? <>{webinar.title} · {formatIST(webinar.scheduledAt)}</> : " "}
-              </p>
-            </div>
-          </div>
-          <button
-            data-testid="btn-export-csv"
-            onClick={exportCSV}
-            disabled={rows.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
-            style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {[
-            { label: "Registrations", value: rows.length, icon: Users, color: "#f472b6" },
-            { label: "With email", value: rows.filter(r => r.email).length, icon: Mail, color: GOLD },
-            { label: "With phone", value: rows.filter(r => r.phone).length, icon: Phone, color: "#34d399" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <Icon className="w-3.5 h-3.5" style={{ color }} />
-                <span className="text-xs text-zinc-500">{label}</span>
-              </div>
-              <p className="text-2xl font-black text-white">{value}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <StatTile label="Registrations" value={rows.length} />
+          <StatTile label="With email" value={rows.filter(r => r.email).length} />
+          <StatTile label="With phone" value={rows.filter(r => r.phone).length} />
         </div>
 
         {rows.length > 0 && (
           <div className="relative mb-4">
-            <Search className="w-4 h-4 text-zinc-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email or phone"
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm text-white placeholder:text-zinc-600"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", outline: "none" }} />
+            <label htmlFor="reg-search" className="sr-only">Search registrations</label>
+            <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden />
+            <input id="reg-search" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email or phone"
+              className={`w-full h-11 pl-10 pr-4 rounded-lg text-sm text-white placeholder:text-zinc-600 bg-white/[0.03] border border-white/[0.1] focus:border-[#d4b461]/60 ${focusRing}`} />
           </div>
         )}
 
         {isLoading ? (
-          <div className="h-48 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} />
+          <Skeleton className="h-48" />
+        ) : isError ? (
+          <ErrorState title="Couldn't load registrations" description="Check your connection and try again." onRetry={() => refetch()} />
         ) : rows.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-white font-bold mb-1">No registrations yet</p>
-            <p className="text-sm text-zinc-500">{webinar?.status === "draft" ? "Publish the webinar and share the link to start collecting leads." : "Share your registration link to start collecting leads."}</p>
-          </div>
+          <EmptyState
+            testid="registrations-empty"
+            icon={Users}
+            title="No registrations yet"
+            description={webinar?.status === "draft" ? "Publish the webinar and share the link to start collecting leads." : "Share your registration link to start collecting leads."}
+          />
         ) : (
-          <div className="rounded-2xl overflow-x-auto" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-            <table className="w-full text-sm" data-testid="registrations-table">
-              <thead>
-                <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                  {["Name", "Email", "Phone", "Registered (IST)"].map(h => (
-                    <th key={h} className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => (
-                  <tr key={r.id} style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                    <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{r.name}</td>
-                    <td className="px-4 py-3 text-zinc-300"><a href={`mailto:${r.email}`} className="hover:underline">{r.email}</a></td>
-                    <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{r.phone || <span className="text-zinc-700">—</span>}</td>
-                    <td className="px-4 py-3 text-zinc-500 whitespace-nowrap text-xs">{formatIST(r.createdAt)}</td>
+          <>
+            {/* Mobile: stacked cards */}
+            <ul className="sm:hidden space-y-2" aria-label="Registrations">
+              {filtered.map(r => (
+                <li key={r.id} className="rounded-xl border border-white/[0.08] bg-[#111115] p-4">
+                  <p className="text-sm font-semibold text-white break-words">{r.name}</p>
+                  <a href={`mailto:${r.email}`} className="block text-[13px] text-zinc-300 break-all mt-0.5 hover:underline">{r.email}</a>
+                  <div className="flex items-center justify-between gap-3 mt-2 text-xs text-zinc-500">
+                    <span>{r.phone || "No phone"}</span>
+                    <span className="text-right">{formatIST(r.createdAt)}</span>
+                  </div>
+                </li>
+              ))}
+              {filtered.length === 0 && <li className="py-8 text-center text-zinc-500 text-sm">No matches for “{q}”</li>}
+            </ul>
+            {/* sm+: table */}
+            <div className="hidden sm:block rounded-xl overflow-x-auto border border-white/[0.08] bg-[#111115]">
+              <table className="w-full text-sm" data-testid="registrations-table">
+                <thead>
+                  <tr className="border-b border-white/[0.08]">
+                    {["Name", "Email", "Phone", "Registered (IST)"].map(h => (
+                      <th key={h} scope="col" className="text-left text-xs font-medium text-zinc-500 px-4 py-3 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-sm">No matches for “{q}”</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map(r => (
+                    <tr key={r.id} className="border-t border-white/[0.05] first:border-t-0 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{r.name}</td>
+                      <td className="px-4 py-3 text-zinc-300"><a href={`mailto:${r.email}`} className="hover:underline">{r.email}</a></td>
+                      <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{r.phone || <span className="text-zinc-700">—</span>}</td>
+                      <td className="px-4 py-3 text-zinc-500 whitespace-nowrap text-xs">{formatIST(r.createdAt)}</td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-500 text-sm">No matches for “{q}”</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </ClientLayout>

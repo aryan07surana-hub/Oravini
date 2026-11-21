@@ -9,8 +9,9 @@ import { deckEmbed, formatIST, isValidCtaUrl, parseYouTubeVideoId } from "@share
 import { CtaLinkInput } from "@/components/webinar-funnel/CtaLinkInput";
 import {
   AlertCircle, ArrowLeft, ArrowRight, ArrowUpRight, Bell, CalendarClock, Check, CheckCircle2, ChevronRight, Copy,
-  FileUp, Link2, Loader2, PartyPopper, Radio, Sparkles, Upload, Wand2, X, Youtube, Zap,
+  FileUp, Link2, Loader2, Radio, Sparkles, Upload, X, Youtube,
 } from "lucide-react";
+import { BackLink, btn, focusRing } from "@/components/webinar-funnel/ui";
 import {
   Field, GOLD, fromISTInput, inputCls, inputErrStyle, inputStyle, toISTInput, uploadDeck, type WebinarFunnelFull,
 } from "@/components/webinar-funnel/hostUtils";
@@ -35,13 +36,16 @@ function clearState(id?: string) {
   try { localStorage.removeItem(storageKey(id)); } catch {}
 }
 
+// Step indexes are persisted (wizardState.ts), so the count stays 5. Steps 1–2 are optional:
+// hosts can connect YouTube (recommended) or skip straight to pasting a stream link.
 const STEPS = [
-  { title: "Enable live streaming", short: "Enable streaming", blurb: "One-time YouTube setup" },
-  { title: "Schedule your stream", short: "Schedule stream", blurb: "Create it in YouTube Studio" },
-  { title: "Paste your link", short: "Paste link", blurb: "Preview what viewers see" },
+  { title: "Connect YouTube", short: "Connect YouTube", blurb: "Recommended · optional" },
+  { title: "Stream details", short: "Stream details", blurb: "Encoder or manual setup" },
+  { title: "Your stream link", short: "Stream link", blurb: "Preview what viewers see" },
   { title: "Slides & offer", short: "Slides & offer", blurb: "Deck, CTA and pricing" },
   { title: "Schedule & publish", short: "Publish", blurb: "Go-live time and launch" },
 ];
+const LINK_STEP = 2;
 
 // ── Small building blocks ───────────────────────────────────────────────────
 function CheckItem({ checked, onChange, children, testid }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; testid?: string }) {
@@ -49,10 +53,9 @@ function CheckItem({ checked, onChange, children, testid }: { checked: boolean; 
     // div+role (not <button>) because items contain links, which can't nest inside buttons
     <div role="checkbox" aria-checked={checked} tabIndex={0} onClick={() => onChange(!checked)} data-testid={testid}
       onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onChange(!checked); } }}
-      className="w-full text-left flex items-start gap-3 p-3.5 rounded-xl transition-all cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[#d4b461]/50"
-      style={{ background: checked ? "rgba(52,211,153,0.06)" : "rgba(255,255,255,0.02)", border: `1px solid ${checked ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.06)"}` }}>
+      className={`w-full text-left flex items-start gap-3 p-3.5 rounded-lg transition-colors cursor-pointer select-none border ${checked ? "bg-white/[0.035] border-white/[0.12]" : "bg-white/[0.015] border-white/[0.07] hover:border-white/[0.12]"} ${focusRing}`}>
       <span className="mt-0.5 w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center transition-all"
-        style={checked ? { background: "#34d399", color: "#0a0910" } : { border: "1.5px solid rgba(255,255,255,0.2)" }}>
+        style={checked ? { background: GOLD, color: "#14110a" } : { border: "1.5px solid rgba(255,255,255,0.22)" }}>
         {checked && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
       </span>
       <span className="text-[13px] leading-relaxed text-zinc-300">{children}</span>
@@ -63,7 +66,7 @@ function CheckItem({ checked, onChange, children, testid }: { checked: boolean; 
 function ExtLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-      className="inline-flex items-center gap-0.5 font-semibold underline decoration-dotted underline-offset-2 hover:brightness-125" style={{ color: GOLD }}>
+      className={`inline-flex items-center gap-0.5 font-medium underline decoration-dotted underline-offset-2 hover:brightness-125 rounded ${focusRing}`} style={{ color: GOLD }}>
       {children}<ArrowUpRight className="w-3 h-3" />
     </a>
   );
@@ -83,9 +86,9 @@ function Path({ items }: { items: string[] }) {
 }
 
 function Callout({ tone = "gold", children }: { tone?: "gold" | "warn"; children: React.ReactNode }) {
-  const c = tone === "warn" ? { bg: "rgba(251,191,36,0.06)", bd: "rgba(251,191,36,0.22)", fg: "#fbbf24" } : { bg: `${GOLD}0d`, bd: `${GOLD}30`, fg: GOLD };
+  const c = tone === "warn" ? { bg: "rgba(251,191,36,0.05)", bd: "rgba(251,191,36,0.2)", fg: "#fbbf24" } : { bg: "rgba(255,255,255,0.025)", bd: "rgba(255,255,255,0.08)", fg: GOLD };
   return (
-    <div className="flex gap-2.5 p-3.5 rounded-xl text-[12.5px] leading-relaxed text-zinc-300" style={{ background: c.bg, border: `1px solid ${c.bd}` }}>
+    <div className="flex gap-2.5 p-3.5 rounded-lg text-[13px] leading-relaxed text-zinc-300" style={{ background: c.bg, border: `1px solid ${c.bd}` }}>
       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: c.fg }} />
       <div>{children}</div>
     </div>
@@ -189,8 +192,8 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   const offerExpiresIso = fromISTInput(s.offerExpiresLocal);
 
   const canContinue = [
-    s.channelReady,
-    s.streamScheduled || !!s.ytBroadcastId,
+    true, // Connect YouTube — recommended, never required
+    true, // Stream details — optional guidance
     !youtubeInvalid,
     !ctaUrlInvalid && !ctaIncomplete && !deckLinkInvalid,
     !!s.title.trim() && !!scheduledIso,
@@ -284,63 +287,69 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   const advancedHref = editingId ? `/tools/webinars/${editingId}` : "/tools/webinars/new?mode=advanced";
 
   if (editingId && isLoading) {
-    return <ClientLayout><div className="max-w-5xl mx-auto px-6 py-10"><div className="h-96 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} /></div></ClientLayout>;
+    return <ClientLayout><div className="max-w-5xl mx-auto px-4 sm:px-6 py-10"><div className="h-96 rounded-xl bg-white/[0.03] animate-pulse" aria-busy="true" aria-label="Loading webinar" /></div></ClientLayout>;
   }
+
+  const stepNum = s.step + 1;
+  const nextLabel = s.step === 4 ? (s.publish ? "Publish webinar" : "Save as draft")
+    : s.step === 0 && !s.ytBroadcastId ? "Continue without connecting"
+    : s.step === LINK_STEP && !s.youtube.trim() ? "Skip for now" : "Continue";
 
   return (
     <ClientLayout>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-          <button onClick={() => navigate("/tools/webinars")} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-300">
-            <ArrowLeft className="w-3.5 h-3.5" /> All webinars
-          </button>
+          <BackLink onClick={() => navigate("/tools/webinars")} />
           {!finished && (
-            <button onClick={() => navigate(advancedHref)} data-testid="link-advanced-form"
-              className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-200 px-3 py-1.5 rounded-lg transition-colors" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-              Advanced: plain form →
+            <button onClick={() => navigate(advancedHref)} data-testid="link-advanced-form" className={btn("ghost", "sm")}>
+              Advanced: plain form <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
         <div className="mb-8">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2 flex items-center gap-1.5" style={{ color: GOLD }}><Wand2 className="w-3 h-3" /> Guided setup</p>
-          <h1 className="text-2xl sm:text-[28px] font-black text-white tracking-tight leading-tight">
+          <p className="text-xs font-medium text-zinc-500 mb-1.5">Guided setup</p>
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-white tracking-tight leading-tight break-words">
             {finished ? "You're ready to go live." : editingId ? `Set up “${existing?.title || "your webinar"}”` : "Launch a YouTube Live webinar"}
           </h1>
-          {!finished && <p className="text-sm text-zinc-500 mt-1.5">Five short steps. Your progress saves automatically — close the tab and pick up where you left off.</p>}
+          {!finished && <p className="text-sm text-zinc-500 mt-1.5">Five short steps — the first two are optional. Progress saves automatically, so you can close the tab and pick up where you left off.</p>}
         </div>
 
         {finished ? (
           <FinishedRecap row={finished} onEdit={() => navigate(`/tools/webinars/${finished.id}`)} onAll={() => navigate("/tools/webinars")} />
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
+          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             {/* Step rail */}
             <nav aria-label="Setup steps" className="lg:sticky lg:top-6 self-start">
-              <div className="lg:hidden mb-1">
-                <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-2">
-                  <span>Step {s.step + 1} of 5 · <b className="text-zinc-300">{STEPS[s.step].short}</b></span>
-                  <span className="tabular-nums">{Math.round((s.step / 5) * 100)}%</span>
+              {/* Mobile: compact progress */}
+              <div className="lg:hidden" data-testid="wizard-progress-mobile">
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                  <span>Step {stepNum} of {STEPS.length} · <b className="font-medium text-zinc-200">{STEPS[s.step].short}</b></span>
+                  <span className="tabular-nums">{Math.round((s.step / STEPS.length) * 100)}%</span>
                 </div>
-                <div className="h-1 rounded-full bg-white/5 overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${((s.step + 1) / 5) * 100}%`, background: GOLD }} /></div>
+                <div className="flex gap-1" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={stepNum} aria-label="Setup progress">
+                  {STEPS.map((_, i) => <span key={i} className="h-1 flex-1 rounded-full" style={{ background: i <= s.step ? GOLD : "rgba(255,255,255,0.08)" }} />)}
+                </div>
               </div>
               <ol className="hidden lg:block relative">
                 {STEPS.map((st, i) => {
                   const done = i < s.step, active = i === s.step;
                   return (
-                    <li key={i} className="relative pb-6 last:pb-0">
-                      {i < STEPS.length - 1 && <span className="absolute left-[15px] top-8 bottom-0 w-px" style={{ background: done ? `${GOLD}70` : "rgba(255,255,255,0.08)" }} />}
+                    <li key={i} className="relative pb-5 last:pb-0">
+                      {i < STEPS.length - 1 && <span className="absolute left-[13px] top-8 bottom-0 w-px" style={{ background: done ? `${GOLD}66` : "rgba(255,255,255,0.08)" }} aria-hidden />}
                       <button type="button" onClick={() => i <= s.step && set("step", i)} disabled={i > s.step} data-testid={`rail-step-${i + 1}`}
-                        className="flex items-start gap-3 text-left disabled:cursor-default group">
-                        <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black transition-all"
-                          style={active ? { background: GOLD, color: "#0a0910", boxShadow: `0 0 0 4px ${GOLD}22` }
-                            : done ? { background: `${GOLD}22`, color: GOLD, border: `1px solid ${GOLD}55` }
-                            : { background: "rgba(255,255,255,0.03)", color: "#52525b", border: "1px solid rgba(255,255,255,0.08)" }}>
-                          {done ? <Check className="w-4 h-4" strokeWidth={3} /> : i + 1}
+                        aria-current={active ? "step" : undefined}
+                        className={`flex items-start gap-3 text-left disabled:cursor-default group rounded-lg w-full ${focusRing}`}>
+                        <span className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold transition-colors"
+                          style={active ? { background: GOLD, color: "#14110a" }
+                            : done ? { background: "rgba(255,255,255,0.06)", color: GOLD, border: `1px solid ${GOLD}55` }
+                            : { background: "transparent", color: "#71717a", border: "1px solid rgba(255,255,255,0.12)" }}>
+                          {done ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : i + 1}
                         </span>
-                        <span className="pt-1">
-                          <span className={`block text-[13px] font-bold ${active ? "text-white" : done ? "text-zinc-300 group-hover:text-white" : "text-zinc-600"}`}>{st.short}</span>
-                          <span className="block text-[11px] text-zinc-600">{st.blurb}</span>
+                        <span className="pt-0.5 min-w-0">
+                          <span className={`block text-[13px] font-medium ${active ? "text-white" : done ? "text-zinc-300 group-hover:text-white" : "text-zinc-500"}`}>{st.short}</span>
+                          <span className="block text-xs text-zinc-600">{st.blurb}</span>
                         </span>
                       </button>
                     </li>
@@ -350,40 +359,33 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
             </nav>
 
             {/* Step card */}
-            <section className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))", border: "1px solid rgba(255,255,255,0.07)" }} data-testid={`wizard-step-${s.step + 1}`}>
-              <div className="px-5 sm:px-7 pt-6 pb-5 border-b border-white/[0.05]">
-                <p className="text-[11px] font-bold tabular-nums mb-1" style={{ color: GOLD }}>STEP {String(s.step + 1).padStart(2, "0")}</p>
-                <h2 className="text-lg sm:text-xl font-black text-white">{STEPS[s.step].title}</h2>
+            <section className="rounded-xl overflow-hidden border border-white/[0.08] bg-[#111115]" data-testid={`wizard-step-${stepNum}`} aria-labelledby="wizard-step-title">
+              <div className="px-5 sm:px-7 pt-6 pb-5 border-b border-white/[0.06]">
+                <p className="text-xs font-medium text-zinc-500 mb-1 tabular-nums">Step {stepNum} of {STEPS.length}{s.step < LINK_STEP ? " · optional" : ""}</p>
+                <h2 id="wizard-step-title" className="text-lg sm:text-xl font-semibold text-white tracking-tight">{STEPS[s.step].title}</h2>
               </div>
 
               <div className="px-5 sm:px-7 py-6 space-y-4">
-                {s.step === 0 && <Step1 s={s} set={set} />}
-                {s.step === 1 && (
-                  <Step2 s={s} set={set} yt={yt.data} ytLoading={yt.isLoading} ytInfo={ytInfo} creating={creatingStream}
-                    onCreate={createYoutubeStream} scheduledIso={scheduledIso} />
+                {s.step === 0 && (
+                  <StepConnect s={s} set={set} yt={yt.data} ytLoading={yt.isLoading} ytInfo={ytInfo} creating={creatingStream}
+                    onCreate={createYoutubeStream} scheduledIso={scheduledIso} onUseLink={() => set("step", LINK_STEP)} />
                 )}
+                {s.step === 1 && <StepStreamDetails s={s} set={set} ytInfo={ytInfo} />}
                 {s.step === 2 && <Step3 s={s} set={set} videoId={videoId} invalid={youtubeInvalid} check={videoCheck} />}
                 {s.step === 3 && <Step4 s={s} set={set} ctaUrlInvalid={ctaUrlInvalid} ctaIncomplete={ctaIncomplete} deckLinkInvalid={deckLinkInvalid} />}
                 {s.step === 4 && <Step5 s={s} set={set} scheduledIso={scheduledIso} existingStatus={existing?.status} />}
               </div>
 
-              <div className="px-5 sm:px-7 py-4 flex items-center justify-between gap-3 border-t border-white/[0.05]" style={{ background: "rgba(0,0,0,0.15)" }}>
-                <button onClick={back} disabled={s.step === 0} data-testid="btn-wizard-back"
-                  className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-200 disabled:opacity-0 transition-colors">
+              <div className="px-5 sm:px-7 py-4 flex items-center justify-between gap-3 border-t border-white/[0.06] bg-black/20">
+                <button onClick={back} disabled={s.step === 0} data-testid="btn-wizard-back" className={`${btn("ghost", "sm")} disabled:invisible`}>
                   <ArrowLeft className="w-3.5 h-3.5" /> Back
                 </button>
-                <div className="flex items-center gap-3">
-                  {(s.step === 0 || s.step === 1) && !canContinue && (
-                    <span className="hidden sm:inline text-[11px] text-zinc-600">Tick the box above to continue</span>
-                  )}
-                  <button onClick={next} disabled={!canContinue || saving} data-testid="btn-wizard-next"
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-30 disabled:hover:translate-y-0"
-                    style={{ background: GOLD, color: "#0a0910", boxShadow: canContinue ? `0 8px 30px -10px ${GOLD}` : "none" }}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {s.step === 4 ? (s.publish ? "Publish webinar" : "Save as draft") : s.step === 2 && !s.youtube.trim() ? "Skip for now" : "Continue"}
-                    {!saving && <ArrowRight className="w-4 h-4" />}
-                  </button>
-                </div>
+                <button onClick={next} disabled={!canContinue || saving} data-testid="btn-wizard-next"
+                  className={btn(s.step === 0 && !s.ytBroadcastId ? "secondary" : "primary", "md")}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {nextLabel}
+                  {!saving && <ArrowRight className="w-4 h-4" />}
+                </button>
               </div>
             </section>
           </div>
@@ -395,139 +397,149 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
 
 type StepProps = { s: WizardState; set: <K extends keyof WizardState>(k: K, v: WizardState[K]) => void };
 
-function Step1({ s, set }: StepProps) {
-  const toggle = (i: number, v: boolean) => set("checks1", s.checks1.map((c, j) => (j === i ? v : c)));
-  return (
-    <>
-      <p className="text-sm text-zinc-400 leading-relaxed">YouTube makes every channel switch on live streaming once. If you've streamed before, tick the box at the bottom and move on.</p>
-      <div className="space-y-2">
-        <CheckItem checked={s.checks1[0]} onChange={v => toggle(0, v)} testid="check1-features">
-          Open <ExtLink href="https://www.youtube.com/features">youtube.com/features</ExtLink> while signed in to the channel you'll stream from.
-        </CheckItem>
-        <CheckItem checked={s.checks1[1]} onChange={v => toggle(1, v)} testid="check1-verify">
-          Verify your phone number if asked (<ExtLink href="https://www.youtube.com/verify">youtube.com/verify</ExtLink>) — YouTube texts you a code.
-        </CheckItem>
-        <CheckItem checked={s.checks1[2]} onChange={v => toggle(2, v)} testid="check1-enable">
-          Under <b className="text-zinc-200">Live streaming</b>, click <b className="text-zinc-200">Enable</b>.
-        </CheckItem>
-      </div>
-      <Callout tone="warn">
-        <b className="text-zinc-100">New to streaming? Plan for a 24-hour wait.</b> The first time a channel enables live streaming, YouTube can take up to 24 hours to activate it. Do this step at least a day before your webinar.
-      </Callout>
-      <div className="pt-2">
-        <CheckItem checked={s.channelReady} onChange={v => set("channelReady", v)} testid="check-step1-done">
-          <b className="text-white">I've done this</b> — live streaming is enabled on my channel.
-        </CheckItem>
-      </div>
-    </>
-  );
-}
-
-function Step2({ s, set, yt, ytLoading, ytInfo, creating, onCreate, scheduledIso }: StepProps & {
+function StepConnect({ s, set, yt, ytLoading, ytInfo, creating, onCreate, scheduledIso, onUseLink }: StepProps & {
   yt: YoutubeConnection | undefined; ytLoading: boolean; ytInfo: YoutubeBroadcastInfo | null; creating: boolean;
-  onCreate: () => void; scheduledIso: string | null;
+  onCreate: () => void; scheduledIso: string | null; onUseLink: () => void;
 }) {
-  const toggle = (i: number, v: boolean) => set("checks2", s.checks2.map((c, j) => (j === i ? v : c)));
+  const toggle = (i: number, v: boolean) => set("checks1", s.checks1.map((c, j) => (j === i ? v : c)));
   const configured = yt?.configured !== false;
   const connected = !!yt?.connected;
   const created = !!s.ytBroadcastId;
-  // Manual steps stay available as a fallback; collapsed once the one-click path is usable.
-  const [showManual, setShowManual] = useState(!configured);
-  const manualOpen = showManual || !configured;
+  const [showEnable, setShowEnable] = useState(false);
 
   return (
     <>
-      <p className="text-sm text-zinc-400 leading-relaxed">Scheduling the stream on YouTube first gives you a permanent link we can embed on your Oravini page — viewers never leave your site.</p>
+      <p className="text-sm text-zinc-400 leading-relaxed">
+        Connect your YouTube channel and Oravini schedules the stream and fills in the link for you. Prefer to do it yourself? Paste a stream link instead — attendees never need a YouTube account either way.
+      </p>
 
-      {configured && !ytLoading && (
-        <div className="rounded-xl p-4 sm:p-5 space-y-3.5" style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}30` }} data-testid="yt-oneclick-card">
+      {ytLoading ? (
+        <div className="h-28 rounded-lg bg-white/[0.03] animate-pulse" aria-busy="true" aria-label="Checking YouTube connection" />
+      ) : configured ? (
+        <div className="rounded-lg p-4 sm:p-5 space-y-4 border border-white/[0.1] bg-white/[0.02]" data-testid="yt-oneclick-card">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <p className="text-[13px] font-black text-white flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" style={{ color: GOLD }} /> Fastest: let Oravini create it for you</p>
-              <p className="text-[12px] text-zinc-400 mt-0.5">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white flex items-center gap-2"><Youtube className="w-4 h-4 text-red-500" /> Connect YouTube <span className="text-[11px] font-medium text-zinc-500">Recommended</span></p>
+              <p className="text-[13px] text-zinc-400 mt-1">
                 {connected
-                  ? <>Connected to <b className="text-zinc-200">{yt?.channelTitle || "your channel"}</b>. We'll schedule an unlisted stream and fill in your link.</>
-                  : "Connect your YouTube channel and we'll schedule the stream and grab the link — no copy-pasting."}
+                  ? <>Connected to <b className="font-medium text-zinc-200">{yt?.channelTitle || "your channel"}</b>. We'll schedule an unlisted stream and fill in your link.</>
+                  : "We'll schedule the stream on your channel and grab the link — no copy-pasting."}
               </p>
             </div>
-            {connected && created && <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Stream created</span>}
+            {connected && created && <span className="text-xs font-medium text-emerald-400 flex items-center gap-1" data-testid="yt-stream-created"><CheckCircle2 className="w-3.5 h-3.5" /> Stream created</span>}
           </div>
 
           {!connected ? (
-            <button type="button" onClick={() => startYoutubeConnect()} data-testid="btn-connect-youtube"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black text-white transition-all hover:brightness-110" style={{ background: "#dc2626" }}>
+            <button type="button" onClick={() => startYoutubeConnect()} data-testid="btn-connect-youtube" className={btn("primary", "md")}>
               <Youtube className="w-4 h-4" /> Connect YouTube
             </button>
           ) : !created ? (
             <>
               <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Webinar title">
-                  <input data-testid="input-yt-title" value={s.title} onChange={e => set("title", e.target.value)} maxLength={200}
+                <Field label="Webinar title" htmlFor="yt-title">
+                  <input id="yt-title" data-testid="input-yt-title" value={s.title} onChange={e => set("title", e.target.value)} maxLength={200}
                     placeholder="How to get your first 10 clients" className={inputCls} style={inputStyle} />
                 </Field>
-                <Field label="Go-live (IST)" hint={scheduledIso ? formatIST(scheduledIso) : undefined}>
-                  <input data-testid="input-yt-scheduled" type="datetime-local" value={s.scheduledLocal} onChange={e => set("scheduledLocal", e.target.value)} className={inputCls} style={inputStyle} />
+                <Field label="Go-live (IST)" htmlFor="yt-scheduled" hint={scheduledIso ? formatIST(scheduledIso) : undefined}>
+                  <input id="yt-scheduled" data-testid="input-yt-scheduled" type="datetime-local" value={s.scheduledLocal} onChange={e => set("scheduledLocal", e.target.value)} className={inputCls} style={inputStyle} />
                 </Field>
               </div>
-              <button type="button" onClick={onCreate} disabled={creating || !s.title.trim() || !scheduledIso} data-testid="btn-create-yt-stream"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
-                style={{ background: GOLD, color: "#0a0910" }}>
+              <button type="button" onClick={onCreate} disabled={creating || !s.title.trim() || !scheduledIso} data-testid="btn-create-yt-stream" className={btn("primary", "md")}>
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}
                 {creating ? "Creating your stream…" : "Create my stream on YouTube"}
               </button>
-              <p className="text-[11px] text-zinc-500">Saves this webinar as a draft so you can finish the rest. You'll publish in the last step.</p>
+              <p className="text-xs text-zinc-500">Saves this webinar as a draft so you can finish the rest. You'll publish in the last step.</p>
             </>
           ) : (
-            <div className="space-y-3" data-testid="yt-stream-created">
-              {ytInfo ? (
-                <>
-                  <p className="text-[12.5px] text-zinc-300 leading-relaxed">
-                    <b className="text-white">Going live from your webcam?</b> At go-live time, open <ExtLink href={ytInfo.studioUrl}>YouTube Studio</ExtLink> and click <b className="text-zinc-200">Go live</b>.
-                    {" "}<b className="text-white">Using OBS / Streamyard (custom RTMP)?</b> Paste these into <Path items={["Settings", "Stream", "Custom"]} />:
-                  </p>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <SecretField label="Server (ingestion URL)" value={ytInfo.ingestionAddress} masked={false} testid="yt-ingestion" />
-                    <SecretField label="Stream key — keep private" value={ytInfo.streamKey} testid="yt-stream-key" />
-                  </div>
-                </>
-              ) : (
-                <p className="text-[12px] text-zinc-500 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading stream details…</p>
-              )}
-            </div>
+            <p className="text-[13px] text-zinc-400">{ytInfo ? "Your stream link is filled in. Encoder details are on the next step." : <span className="inline-flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading stream details…</span>}</p>
           )}
         </div>
+      ) : (
+        <Callout>YouTube connect isn't available on this workspace yet, so paste your stream link instead — everything else works the same.</Callout>
       )}
 
-      {configured && (
-        <button type="button" onClick={() => setShowManual(v => !v)} data-testid="btn-toggle-manual"
-          className="flex items-center gap-1 text-[12px] font-semibold text-zinc-500 hover:text-zinc-300">
-          <ChevronRight className={`w-3.5 h-3.5 transition-transform ${manualOpen ? "rotate-90" : ""}`} />
-          {created ? "Prefer to set it up yourself? Manual steps" : "Or schedule it manually in YouTube Studio"}
-        </button>
-      )}
-
-      {manualOpen && (
-      <div className="space-y-2">
-        <CheckItem checked={s.checks2[0]} onChange={v => toggle(0, v)} testid="check2-studio">
-          Open <ExtLink href="https://studio.youtube.com">YouTube Studio</ExtLink> and go to <Path items={["Create", "Go live"]} />
-        </CheckItem>
-        <CheckItem checked={s.checks2[1]} onChange={v => toggle(1, v)} testid="check2-schedule">
-          Choose <Path items={["Manage", "Schedule stream"]} /> (or <b className="text-zinc-200">Schedule for later</b> on the setup screen). Add your title and the same date &amp; time you'll use here.
-        </CheckItem>
-        <CheckItem checked={s.checks2[2]} onChange={v => toggle(2, v)} testid="check2-visibility">
-          Set visibility to <b className="text-zinc-200">Public</b> or <b className="text-zinc-200">Unlisted</b> and keep <b className="text-zinc-200">Allow embedding</b> on. Private streams can't be shown on your page.
-        </CheckItem>
-        <CheckItem checked={s.checks2[3]} onChange={v => toggle(3, v)} testid="check2-copy">
-          Click <Path items={["Share", "Copy link"]} /> — it looks like <code className="text-[12px] text-zinc-200">youtube.com/live/AbC123…</code>
-        </CheckItem>
+      <div className="flex items-center gap-3 py-1" aria-hidden>
+        <span className="h-px flex-1 bg-white/[0.07]" /><span className="text-xs text-zinc-600">or</span><span className="h-px flex-1 bg-white/[0.07]" />
       </div>
-      )}
-      {!created && (
-        <div className="pt-2">
-          <CheckItem checked={s.streamScheduled} onChange={v => set("streamScheduled", v)} testid="check-step2-done">
-            <b className="text-white">Done</b> — my stream is scheduled and I've copied the link.
-          </CheckItem>
+      <button type="button" onClick={onUseLink} data-testid="btn-use-stream-link" className={`${btn("secondary", "md")} w-full`}>
+        <Link2 className="w-4 h-4" /> Paste a YouTube stream link instead
+      </button>
+
+      <div className="pt-2">
+        <button type="button" onClick={() => setShowEnable(v => !v)} aria-expanded={showEnable} data-testid="btn-toggle-enable-help"
+          className={`flex items-center gap-1 text-[13px] font-medium text-zinc-500 hover:text-zinc-300 rounded ${focusRing}`}>
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showEnable ? "rotate-90" : ""}`} />
+          First time going live on this channel? Enable live streaming
+        </button>
+        {showEnable && (
+          <div className="space-y-2 mt-3">
+            <CheckItem checked={s.checks1[0]} onChange={v => toggle(0, v)} testid="check1-features">
+              Open <ExtLink href="https://www.youtube.com/features">youtube.com/features</ExtLink> while signed in to the channel you'll stream from.
+            </CheckItem>
+            <CheckItem checked={s.checks1[1]} onChange={v => toggle(1, v)} testid="check1-verify">
+              Verify your phone number if asked (<ExtLink href="https://www.youtube.com/verify">youtube.com/verify</ExtLink>) — YouTube texts you a code.
+            </CheckItem>
+            <CheckItem checked={s.checks1[2]} onChange={v => toggle(2, v)} testid="check1-enable">
+              Under <b className="text-zinc-200">Live streaming</b>, click <b className="text-zinc-200">Enable</b>.
+            </CheckItem>
+            <Callout tone="warn">
+              <b className="text-zinc-100">Plan for a 24-hour wait.</b> The first time a channel enables live streaming, YouTube can take up to 24 hours to activate it. Do this at least a day before your webinar.
+            </Callout>
+            <CheckItem checked={s.channelReady} onChange={v => set("channelReady", v)} testid="check-step1-done">
+              <b className="text-white">Done</b> — live streaming is enabled on my channel.
+            </CheckItem>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function StepStreamDetails({ s, set, ytInfo }: StepProps & { ytInfo: YoutubeBroadcastInfo | null }) {
+  const toggle = (i: number, v: boolean) => set("checks2", s.checks2.map((c, j) => (j === i ? v : c)));
+  const created = !!s.ytBroadcastId;
+  return (
+    <>
+      {created ? (
+        <div className="space-y-3">
+          {ytInfo ? (
+            <>
+              <p className="text-[13px] text-zinc-300 leading-relaxed">
+                <b className="font-medium text-white">Going live from your webcam?</b> At go-live time, open <ExtLink href={ytInfo.studioUrl}>YouTube Studio</ExtLink> and click <b className="text-zinc-200">Go live</b>.
+                {" "}<b className="font-medium text-white">Using OBS / Streamyard (custom RTMP)?</b> Paste these into <Path items={["Settings", "Stream", "Custom"]} />:
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <SecretField label="Server (ingestion URL)" value={ytInfo.ingestionAddress} masked={false} testid="yt-ingestion" />
+                <SecretField label="Stream key — keep private" value={ytInfo.streamKey} testid="yt-stream-key" />
+              </div>
+            </>
+          ) : (
+            <p className="text-[13px] text-zinc-500 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading stream details…</p>
+          )}
         </div>
+      ) : (
+        <>
+          <p className="text-sm text-zinc-400 leading-relaxed">Setting it up yourself? Schedule the stream in YouTube Studio so you get a permanent link to embed on your Oravini page. Already have a link? Just continue.</p>
+          <div className="space-y-2">
+            <CheckItem checked={s.checks2[0]} onChange={v => toggle(0, v)} testid="check2-studio">
+              Open <ExtLink href="https://studio.youtube.com">YouTube Studio</ExtLink> and go to <Path items={["Create", "Go live"]} />
+            </CheckItem>
+            <CheckItem checked={s.checks2[1]} onChange={v => toggle(1, v)} testid="check2-schedule">
+              Choose <Path items={["Manage", "Schedule stream"]} /> (or <b className="text-zinc-200">Schedule for later</b> on the setup screen). Add your title and the same date &amp; time you'll use here.
+            </CheckItem>
+            <CheckItem checked={s.checks2[2]} onChange={v => toggle(2, v)} testid="check2-visibility">
+              Set visibility to <b className="text-zinc-200">Public</b> or <b className="text-zinc-200">Unlisted</b> and keep <b className="text-zinc-200">Allow embedding</b> on. Private streams can't be shown on your page.
+            </CheckItem>
+            <CheckItem checked={s.checks2[3]} onChange={v => toggle(3, v)} testid="check2-copy">
+              Click <Path items={["Share", "Copy link"]} /> — it looks like <code className="text-[12px] text-zinc-200">youtube.com/live/AbC123…</code>
+            </CheckItem>
+          </div>
+          <div className="pt-2">
+            <CheckItem checked={s.streamScheduled} onChange={v => set("streamScheduled", v)} testid="check-step2-done">
+              <b className="text-white">Done</b> — my stream is scheduled and I've copied the link.
+            </CheckItem>
+          </div>
+        </>
       )}
     </>
   );
@@ -550,27 +562,27 @@ function Step3({ s, set, videoId, invalid, check }: StepProps & { videoId: strin
 
   return (
     <>
-      <Field label="YouTube Live link" hint={status}>
+      <Field label="YouTube Live link" htmlFor="wizard-youtube" hint={status}>
         <div className="relative">
           <Link2 className="w-4 h-4 text-zinc-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input data-testid="input-youtube" value={s.youtube} onChange={e => set("youtube", e.target.value)} autoFocus
+          <input id="wizard-youtube" data-testid="input-youtube" value={s.youtube} onChange={e => set("youtube", e.target.value)} autoFocus
             placeholder="https://youtube.com/live/…" className={`${inputCls} pl-10`} style={invalid || check.state === "bad" ? inputErrStyle : inputStyle} />
         </div>
       </Field>
 
       <div>
-        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-2">What your viewers will see</p>
-        <div className="relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9", background: "#050408", border: `1px solid ${videoId && check.state !== "bad" ? `${GOLD}35` : "rgba(255,255,255,0.07)"}` }} data-testid="embed-preview">
+        <p className="text-[13px] font-medium text-zinc-300 mb-2">What your viewers will see</p>
+        <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: "16 / 9", border: `1px solid ${videoId && check.state !== "bad" ? `${GOLD}40` : "rgba(255,255,255,0.08)"}` }} data-testid="embed-preview">
           {videoId ? (
             <iframe key={videoId} className="absolute inset-0 w-full h-full" src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?rel=0&modestbranding=1`}
               title="Stream preview" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen data-testid="embed-preview-frame" />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}25` }}>
-                <Radio className="w-5 h-5" style={{ color: GOLD }} />
+              <div className="w-11 h-11 rounded-lg flex items-center justify-center mb-3 bg-white/[0.04] border border-white/[0.08]">
+                <Radio className="w-5 h-5 text-zinc-400" />
               </div>
-              <p className="text-sm font-semibold text-zinc-300">Your stream preview appears here</p>
-              <p className="text-xs text-zinc-600 mt-1">A scheduled stream shows a “Live in …” waiting screen until you start it.</p>
+              <p className="text-sm font-medium text-zinc-200">Your stream preview appears here</p>
+              <p className="text-xs text-zinc-500 mt-1">A scheduled stream shows a “Live in …” waiting screen until you start it.</p>
             </div>
           )}
         </div>
@@ -607,11 +619,11 @@ function Step4({ s, set, ctaUrlInvalid, ctaIncomplete, deckLinkInvalid }: StepPr
       {/* Deck */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em]">Slides <span className="normal-case tracking-normal font-medium text-zinc-600">optional · shown in the Slides tab</span></p>
-          <div className="flex p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <p className="text-[13px] font-medium text-zinc-300">Slides <span className="text-xs font-normal text-zinc-600">Optional · shown in the Slides tab</span></p>
+          <div className="flex p-0.5 rounded-lg bg-white/[0.04]" role="group" aria-label="How to add slides">
             {(["upload", "link"] as const).map(m => (
-              <button key={m} type="button" onClick={() => set("deckMode", m)} data-testid={`deck-mode-${m}`}
-                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${s.deckMode === m ? "text-[#0a0910]" : "text-zinc-500 hover:text-zinc-300"}`}
+              <button key={m} type="button" onClick={() => set("deckMode", m)} data-testid={`deck-mode-${m}`} aria-pressed={s.deckMode === m}
+                className={`px-3 h-7 rounded-md text-xs font-medium transition-colors ${focusRing} ${s.deckMode === m ? "text-[#14110a]" : "text-zinc-400 hover:text-zinc-200"}`}
                 style={s.deckMode === m ? { background: GOLD } : undefined}>
                 {m === "upload" ? "Upload PDF" : "Paste link"}
               </button>
@@ -620,21 +632,21 @@ function Step4({ s, set, ctaUrlInvalid, ctaIncomplete, deckLinkInvalid }: StepPr
         </div>
         {s.deckMode === "upload" ? (
           embed && embed.kind === "pdf" ? (
-            <div className="flex items-center gap-3 p-3.5 rounded-xl" style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.2)" }}>
+            <div className="flex items-center gap-3 p-3.5 rounded-lg bg-white/[0.025] border border-white/[0.1]">
               <FileUp className="w-5 h-5 text-emerald-400" />
               <span className="text-[13px] text-zinc-300 flex-1 truncate">PDF deck ready</span>
-              <a href={embed.src} target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-zinc-400 hover:text-white">Preview</a>
-              <button type="button" onClick={() => set("deckUrl", "")} className="p-1 rounded text-zinc-500 hover:text-red-300" aria-label="Remove deck"><X className="w-3.5 h-3.5" /></button>
+              <a href={embed.src} target="_blank" rel="noopener noreferrer" className={`text-xs font-medium text-zinc-400 hover:text-white rounded ${focusRing}`}>Preview</a>
+              <button type="button" onClick={() => set("deckUrl", "")} className={`p-1.5 rounded-md text-zinc-500 hover:text-red-300 hover:bg-red-500/10 ${focusRing}`} aria-label="Remove deck"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
             <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="deck-dropzone"
               onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
               onDrop={e => { e.preventDefault(); setDrag(false); onFile(e.dataTransfer.files?.[0]); }}
-              className="w-full flex flex-col items-center justify-center gap-1.5 py-7 rounded-xl transition-all"
-              style={{ border: `1.5px dashed ${drag ? GOLD : "rgba(255,255,255,0.12)"}`, background: drag ? `${GOLD}08` : "rgba(255,255,255,0.015)" }}>
-              {uploading ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: GOLD }} /> : <Upload className="w-5 h-5" style={{ color: GOLD }} />}
-              <span className="text-[13px] font-semibold text-zinc-300">{uploading ? "Uploading…" : "Drop your PDF here or click to browse"}</span>
-              <span className="text-[11px] text-zinc-600">Up to 25 MB · export from Keynote, PowerPoint or Canva as PDF</span>
+              className={`w-full flex flex-col items-center justify-center gap-1.5 py-8 rounded-lg transition-colors ${focusRing}`}
+              style={{ border: `1.5px dashed ${drag ? GOLD : "rgba(255,255,255,0.14)"}`, background: drag ? `${GOLD}0a` : "rgba(255,255,255,0.015)" }}>
+              {uploading ? <Loader2 className="w-5 h-5 animate-spin text-zinc-300" /> : <Upload className="w-5 h-5 text-zinc-400" />}
+              <span className="text-[13px] font-medium text-zinc-200">{uploading ? "Uploading…" : "Drop your PDF here or click to browse"}</span>
+              <span className="text-xs text-zinc-500">Up to 25 MB · export from Keynote, PowerPoint or Canva as PDF</span>
               <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="hidden" data-testid="input-deck-file" onChange={e => onFile(e.target.files?.[0])} />
             </button>
           )
@@ -647,7 +659,7 @@ function Step4({ s, set, ctaUrlInvalid, ctaIncomplete, deckLinkInvalid }: StepPr
           </Field>
         )}
         {embed && embed.kind !== "pdf" && !deckLinkInvalid && s.deckMode === "link" && (
-          <div className="mt-3 relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9", background: "#050408", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="mt-3 relative w-full overflow-hidden rounded-lg bg-black border border-white/[0.08]" style={{ aspectRatio: "16 / 9" }}>
             <iframe src={embed.src} title="Slides preview" className="absolute inset-0 w-full h-full" allowFullScreen data-testid="deck-preview" />
           </div>
         )}
@@ -682,14 +694,14 @@ function Step4({ s, set, ctaUrlInvalid, ctaIncomplete, deckLinkInvalid }: StepPr
 
       {(s.ctaText || s.offerText || s.offerPrice) && (
         <div>
-          <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-2">Preview</p>
-          <div className="rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4" style={{ background: `linear-gradient(135deg, ${GOLD}12, transparent 60%)`, border: `1px solid ${GOLD}30` }}>
+          <p className="text-[13px] font-medium text-zinc-300 mb-2">Preview — how it appears under the video</p>
+          <div className="rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 bg-[#111115] border border-[#d4b461]/30">
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Today's offer</p>
-              {s.offerText && <p className="text-sm font-semibold text-white mt-1 whitespace-pre-line">{s.offerText}</p>}
-              {s.offerPrice && <p className="text-lg font-black text-white mt-1">{s.offerPrice}</p>}
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: GOLD }}>Today's offer</p>
+              {s.offerText && <p className="text-[15px] font-medium text-white mt-1.5 whitespace-pre-line break-words">{s.offerText}</p>}
+              {s.offerPrice && <p className="text-lg font-semibold text-white mt-1">{s.offerPrice}</p>}
             </div>
-            {s.ctaText && <span className="inline-flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl text-sm font-black" style={{ background: GOLD, color: "#0a0910" }}>{s.ctaText} <ArrowUpRight className="w-4 h-4" /></span>}
+            {s.ctaText && <span className={`${btn("primary", "lg")} flex-shrink-0 pointer-events-none`}>{s.ctaText} <ArrowUpRight className="w-4 h-4" /></span>}
           </div>
         </div>
       )}
@@ -701,61 +713,61 @@ function Step5({ s, set, scheduledIso, existingStatus }: StepProps & { scheduled
   const inPast = scheduledIso ? new Date(scheduledIso).getTime() < Date.now() : false;
   return (
     <>
-      <Field label="Webinar title *">
-        <input data-testid="input-title" value={s.title} onChange={e => set("title", e.target.value)} maxLength={200} autoFocus
+      <Field label="Webinar title *" htmlFor="w5-title">
+        <input id="w5-title" data-testid="input-title" value={s.title} onChange={e => set("title", e.target.value)} maxLength={200} autoFocus
           placeholder="How to get your first 10 coaching clients" className={inputCls} style={inputStyle} />
       </Field>
-      <Field label="What will they learn?" optional hint="Shown on the registration page.">
-        <textarea data-testid="input-description" value={s.description} onChange={e => set("description", e.target.value)} rows={3} maxLength={5000}
+      <Field label="What will they learn?" optional htmlFor="w5-description" hint="Shown on the registration page.">
+        <textarea id="w5-description" data-testid="input-description" value={s.description} onChange={e => set("description", e.target.value)} rows={3} maxLength={5000}
           placeholder="Three things you'll walk away with…" className={`${inputCls} resize-y`} style={inputStyle} />
       </Field>
       <div className="grid sm:grid-cols-[1fr_1.3fr_0.8fr] gap-4">
-        <Field label="Host name" optional>
-          <input data-testid="input-host" value={s.hostName} onChange={e => set("hostName", e.target.value)} maxLength={120} placeholder="Your name" className={inputCls} style={inputStyle} />
+        <Field label="Host name" optional htmlFor="w5-host">
+          <input id="w5-host" data-testid="input-host" value={s.hostName} onChange={e => set("hostName", e.target.value)} maxLength={120} placeholder="Your name" className={inputCls} style={inputStyle} />
         </Field>
-        <Field label="Date & time (IST) *" hint={scheduledIso ? <span className={inPast ? "text-amber-400" : ""}>{formatIST(scheduledIso)}{inPast ? " — this is in the past" : ""}</span> : "Use the same time as your YouTube stream."}>
-          <input data-testid="input-scheduled" type="datetime-local" value={s.scheduledLocal} onChange={e => set("scheduledLocal", e.target.value)} className={inputCls} style={inputStyle} />
+        <Field label="Date & time (IST) *" htmlFor="w5-scheduled" hint={scheduledIso ? <span className={inPast ? "text-amber-400" : ""}>{formatIST(scheduledIso)}{inPast ? " — this is in the past" : ""}</span> : "Use the same time as your YouTube stream."}>
+          <input id="w5-scheduled" data-testid="input-scheduled" type="datetime-local" value={s.scheduledLocal} onChange={e => set("scheduledLocal", e.target.value)} className={inputCls} style={inputStyle} />
         </Field>
-        <Field label="Length" hint="For watch-time stats.">
-          <select data-testid="input-duration" value={s.durationMinutes} onChange={e => set("durationMinutes", Number(e.target.value))} className={inputCls} style={inputStyle}>
+        <Field label="Length" htmlFor="w5-duration" hint="For watch-time stats.">
+          <select id="w5-duration" data-testid="input-duration" value={s.durationMinutes} onChange={e => set("durationMinutes", Number(e.target.value))} className={inputCls} style={inputStyle}>
             {[30, 45, 60, 75, 90, 120, 150, 180].map(m => <option key={m} value={m} style={{ background: "#111" }}>{m >= 60 ? `${m / 60 % 1 ? (m / 60).toFixed(1) : m / 60} hr` : `${m} min`}</option>)}
           </select>
         </Field>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 pt-1">
-        <label className="flex items-center justify-between gap-3 p-4 rounded-xl cursor-pointer" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <label className="flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.14] transition-colors">
           <span className="flex items-start gap-3">
-            <Bell className="w-4 h-4 mt-0.5" style={{ color: GOLD }} />
-            <span><span className="block text-[13px] font-bold text-white">Email reminders</span><span className="block text-[11px] text-zinc-500">Confirmation + calendar invite, and a reminder 1 hour before.</span></span>
+            <Bell className="w-4 h-4 mt-0.5 text-zinc-400" />
+            <span><span className="block text-[13px] font-medium text-white">Email reminders</span><span className="block text-xs text-zinc-500">Confirmation + calendar invite, and a reminder 1 hour before.</span></span>
           </span>
           <Switch checked={s.remindersEnabled} onCheckedChange={v => set("remindersEnabled", v)} data-testid="switch-reminders" />
         </label>
-        <label className="flex items-center justify-between gap-3 p-4 rounded-xl cursor-pointer" style={{ background: s.publish ? "rgba(52,211,153,0.05)" : "rgba(255,255,255,0.02)", border: `1px solid ${s.publish ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.07)"}` }}>
+        <label className={`flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer transition-colors border ${s.publish ? "bg-emerald-500/[0.06] border-emerald-500/25" : "bg-white/[0.02] border-white/[0.08] hover:border-white/[0.14]"}`}>
           <span className="flex items-start gap-3">
-            <Sparkles className="w-4 h-4 mt-0.5 text-emerald-400" />
-            <span><span className="block text-[13px] font-bold text-white">{existingStatus === "ended" ? "Keep live pages up" : "Publish now"}</span><span className="block text-[11px] text-zinc-500">{s.publish ? "Registration opens as soon as you finish." : "Saved as a draft — only you can see it."}</span></span>
+            <Sparkles className={`w-4 h-4 mt-0.5 ${s.publish ? "text-emerald-400" : "text-zinc-400"}`} />
+            <span><span className="block text-[13px] font-medium text-white">{existingStatus === "ended" ? "Keep live pages up" : "Publish now"}</span><span className="block text-xs text-zinc-500">{s.publish ? "Registration opens as soon as you finish." : "Saved as a draft — only you can see it."}</span></span>
           </span>
           <Switch checked={s.publish} onCheckedChange={v => set("publish", v)} data-testid="switch-publish" />
         </label>
       </div>
 
       {/* Recap */}
-      <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
-        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-3">Final check</p>
-        <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[12.5px]">
+      <div className="rounded-lg p-4 bg-black/20 border border-white/[0.06]">
+        <p className="text-[13px] font-medium text-zinc-300 mb-3">Final check</p>
+        <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
           {[
-            { ok: s.channelReady, label: "Live streaming enabled" },
-            { ok: s.streamScheduled, label: "Stream scheduled on YouTube" },
+            { ok: s.channelReady || !!s.ytBroadcastId, label: "Live streaming ready", soft: "Optional" },
+            { ok: s.streamScheduled || !!s.ytBroadcastId, label: "Stream scheduled on YouTube", soft: "Optional" },
             { ok: !!parseYouTubeVideoId(s.youtube), label: "YouTube link added", soft: "Add it before go-live" },
             { ok: !!s.deckUrl, label: "Slides added", soft: "Optional" },
             { ok: !!(s.ctaText && s.ctaUrl), label: "CTA button set", soft: "Optional" },
             { ok: !!s.title.trim() && !!scheduledIso, label: "Title & time set" },
           ].map(i => (
             <li key={i.label} className="flex items-center gap-2">
-              {i.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <span className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" />}
+              {i.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" aria-hidden /> : <span className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" aria-hidden />}
               <span className={i.ok ? "text-zinc-300" : "text-zinc-500"}>{i.label}</span>
-              {!i.ok && i.soft && <span className="text-[10px] text-zinc-600">· {i.soft}</span>}
+              {!i.ok && i.soft && <span className="text-xs text-zinc-600">· {i.soft}</span>}
             </li>
           ))}
         </ul>
@@ -780,38 +792,48 @@ function FinishedRecap({ row, onEdit, onAll }: { row: WebinarFunnelFull; onEdit:
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]" data-testid="wizard-finished">
-      <section className="rounded-2xl p-6 sm:p-7 relative overflow-hidden" style={{ background: `linear-gradient(160deg, ${GOLD}16, rgba(255,255,255,0.015) 50%)`, border: `1px solid ${GOLD}35` }}>
-        <PartyPopper className="w-7 h-7 mb-3" style={{ color: GOLD }} />
-        <h2 className="text-xl font-black text-white">{published ? "Your webinar is published" : "Saved as a draft"}</h2>
-        <p className="text-sm text-zinc-400 mt-1 mb-5">{row.title} · {formatIST(row.scheduledAt)}</p>
+      <section className="rounded-xl p-6 sm:p-7 border border-white/[0.1] bg-[#111115]">
+        <div className="flex items-center gap-2.5 mb-2">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <h2 className="text-xl font-semibold text-white tracking-tight">{published ? "Your webinar is published" : "Saved as a draft"}</h2>
+        </div>
+        <p className="text-sm text-zinc-400 mb-6 break-words">{row.title} · {formatIST(row.scheduledAt)}</p>
 
-        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-1.5">Registration link — share this</p>
-        <div className="flex items-center gap-2 mb-4">
-          <code className="flex-1 min-w-0 truncate px-3.5 py-3 rounded-xl text-[13px] text-white" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.08)" }} data-testid="text-reg-link">{regUrl}</code>
-          <button onClick={() => copy(regUrl)} data-testid="btn-copy-reg-link" className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm font-black flex-shrink-0" style={{ background: GOLD, color: "#0a0910" }}>
+        <label htmlFor="recap-reg-link" className="block text-[13px] font-medium text-zinc-300 mb-1.5">Registration link — share this</label>
+        <div className="flex items-center gap-2 mb-5">
+          <input id="recap-reg-link" readOnly value={regUrl} data-testid="text-reg-link"
+            onFocus={e => e.currentTarget.select()}
+            className={`flex-1 min-w-0 h-11 px-3.5 rounded-lg text-[13px] text-white bg-black/40 border border-white/[0.1] ${focusRing}`} />
+          <button onClick={() => copy(regUrl)} data-testid="btn-copy-reg-link" className={`${btn("primary", "md")} flex-shrink-0`}>
             <Copy className="w-4 h-4" /> Copy
           </button>
         </div>
-        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-1.5">Live room</p>
-        <button onClick={() => copy(liveUrl)} className="flex items-center gap-1.5 text-[13px] text-zinc-300 hover:text-white truncate max-w-full"><Copy className="w-3.5 h-3.5 flex-shrink-0" style={{ color: GOLD }} /> <span className="truncate">{liveUrl}</span></button>
-        {!published && <p className="text-xs text-amber-400 mt-4">Drafts show “not found” to visitors — publish from the editor when you're ready.</p>}
+        <p className="text-[13px] font-medium text-zinc-300 mb-1.5">Live room</p>
+        <button onClick={() => copy(liveUrl)} className={`flex items-center gap-1.5 text-[13px] text-zinc-400 hover:text-white max-w-full rounded ${focusRing}`}>
+          <Copy className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{liveUrl}</span>
+        </button>
+        {!published && (
+          <p className="text-[13px] text-amber-300 mt-5 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 px-3 py-2.5">
+            Drafts show “not found” to visitors — publish from the editor when you're ready.
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-2 mt-6">
-          <button onClick={onEdit} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}>Open editor &amp; live room</button>
-          {published && <a href={`/w/${row.slug}`} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 rounded-xl text-sm font-bold text-zinc-300 inline-flex items-center gap-1.5" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>View page <ArrowUpRight className="w-3.5 h-3.5" /></a>}
-          <button onClick={onAll} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-300">All webinars</button>
+          <button onClick={onEdit} className={btn("secondary", "md")}>Open editor &amp; live room</button>
+          {published && <a href={`/w/${row.slug}`} target="_blank" rel="noopener noreferrer" className={btn("secondary", "md")}>View page <ArrowUpRight className="w-3.5 h-3.5" /></a>}
+          <button onClick={onAll} className={btn("ghost", "md")}>All webinars</button>
         </div>
       </section>
 
-      <section className="rounded-2xl p-6 sm:p-7" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-        <h3 className="text-sm font-black text-white mb-4 flex items-center gap-2"><CalendarClock className="w-4 h-4" style={{ color: GOLD }} /> What happens at go-live</h3>
+      <section className="rounded-xl p-6 sm:p-7 border border-white/[0.08] bg-white/[0.015]">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2"><CalendarClock className="w-4 h-4 text-zinc-400" /> What happens at go-live</h3>
         <ol className="relative space-y-5">
           {steps.map((st, i) => (
             <li key={i} className="relative pl-8">
-              {i < steps.length - 1 && <span className="absolute left-[11px] top-6 -bottom-5 w-px bg-white/[0.08]" />}
-              <span className="absolute left-0 top-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}40` }}>{i + 1}</span>
-              <p className="text-[13px] font-bold text-white">{st.t}</p>
-              <p className="text-[12.5px] text-zinc-400 leading-relaxed mt-0.5">{st.d}</p>
+              {i < steps.length - 1 && <span className="absolute left-[11px] top-6 -bottom-5 w-px bg-white/[0.08]" aria-hidden />}
+              <span className="absolute left-0 top-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold bg-white/[0.06] text-zinc-300 border border-white/[0.1] tabular-nums" aria-hidden>{i + 1}</span>
+              <p className="text-[13px] font-medium text-white">{st.t}</p>
+              <p className="text-[13px] text-zinc-400 leading-relaxed mt-0.5">{st.d}</p>
             </li>
           ))}
         </ol>

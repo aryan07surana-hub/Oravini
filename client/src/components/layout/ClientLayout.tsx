@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, MonitorPlay, Workflow, Database, Globe
+  LogOut, ChevronRight, Menu, X, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, MonitorPlay, Workflow, Database, Globe, Radio, Video, CreditCard
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -188,6 +188,9 @@ const topNavItems = [
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
+  // Webinars + Video Hosting are top-level (also still reachable via Tools / Video Marketing).
+  { href: "/tools/webinars", label: "Webinars", icon: Radio },
+  { href: "/video-hosting", label: "Video Hosting", icon: Video },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-studio", label: "AI Video Studio", icon: Sparkles },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
@@ -231,7 +234,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
   const isAdmin = user?.role === "admin";
-  const toolsActive = location.startsWith("/tools");
+  // /tools/webinars has its own top-level entry, so it doesn't also light up Tools.
+  const toolsActive = location.startsWith("/tools") && !location.startsWith("/tools/webinars");
+  const paymentsActive = location === "/payments" || location.startsWith("/payments/");
 
   return (
     <>
@@ -282,7 +287,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     ? location.startsWith("/tracking/competitor")
                     : href === "/content-analyser"
                       ? location.startsWith("/content-analyser")
-                      : location === href;
+                      : href === "/tools/webinars"
+                        ? location.startsWith("/tools/webinars")
+                        : location === href;
                 const badge = href === "/community" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
                 return (
                   <Link
@@ -321,6 +328,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <Wrench className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">Tools</span>
                 {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+              </Link>
+
+              {/* Payments — global entry directly below Tools */}
+              <Link
+                href="/payments"
+                data-testid="nav-payments"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${paymentsActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+              >
+                <CreditCard className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">Payments</span>
+                {!paymentsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
 
             </div>

@@ -5231,9 +5231,11 @@ const HOSTING_NAV: NavItem[] = [
   { id: "player-settings",   label: "Player Settings",  icon: Settings2 },
 ];
 
-export default function PlatformView() {
-  const [section, setSection] = useState<"webinars" | "video-hosting">("webinars");
-  const [activeId, setActiveId] = useState("webinars");
+export type PlatformSection = "webinars" | "video-hosting";
+
+export default function PlatformView({ initialSection = "webinars" }: { initialSection?: PlatformSection } = {}) {
+  const [section, setSection] = useState<PlatformSection>(initialSection);
+  const [activeId, setActiveId] = useState<string>(initialSection);
 
   const switchSection = (s: "webinars" | "video-hosting") => {
     setSection(s);

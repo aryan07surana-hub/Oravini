@@ -5,18 +5,19 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { HostActions, MessageRow, useStickyScroll, type ChatMessage } from "./LiveChat";
 import { GOLD, fmtDuration, type WebinarFunnelFull } from "./hostUtils";
+import { Skeleton, btn, focusRing } from "./ui";
 
-const card = { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" };
+const card = { background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.08)" };
 
-function Stat({ icon: Icon, label, value, sub, tone = GOLD, testid }: { icon: typeof Users; label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: string; testid?: string }) {
+function Stat({ icon: Icon, label, value, sub, tone, testid }: { icon: typeof Users; label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: string; testid?: string }) {
   return (
-    <div className="rounded-2xl p-4" style={card} data-testid={testid}>
+    <div className="rounded-xl p-4" style={card} data-testid={testid}>
       <div className="flex items-center gap-1.5 mb-2">
-        <Icon className="w-3.5 h-3.5" style={{ color: tone }} />
-        <span className="text-[11px] text-zinc-500 font-medium">{label}</span>
+        <Icon className="w-3.5 h-3.5" style={{ color: tone || "#a1a1aa" }} aria-hidden />
+        <span className="text-xs text-zinc-500">{label}</span>
       </div>
-      <p className="text-2xl font-black text-white tabular-nums leading-none">{value}</p>
-      {sub && <p className="text-[11px] text-zinc-600 mt-1.5">{sub}</p>}
+      <p className="text-2xl font-semibold text-white tabular-nums leading-none">{value}</p>
+      {sub && <p className="text-[11px] text-zinc-600 mt-2 leading-relaxed">{sub}</p>}
     </div>
   );
 }
@@ -76,40 +77,41 @@ export function HostLiveRoom({ webinar }: { webinar: WebinarFunnelFull }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Chat */}
-        <section className="rounded-2xl flex flex-col h-[560px] overflow-hidden" style={{ ...card, background: "#0e0d13" }}>
+        <section className="rounded-xl flex flex-col h-[560px] overflow-hidden border border-white/[0.08] bg-[#111115]" aria-labelledby="host-chat-heading">
           <header className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-            <h3 className="text-[13px] font-bold text-white flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5" style={{ color: GOLD }} /> Live chat</h3>
-            <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 cursor-pointer">
+            <h3 id="host-chat-heading" className="text-[13px] font-semibold text-white flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5 text-zinc-400" aria-hidden /> Live chat</h3>
+            <label className={`flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer rounded px-1 focus-within:ring-2 focus-within:ring-[#d4b461]/70`}>
               <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} className="accent-[#d4b461]" /> Show removed
             </label>
           </header>
           <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5">
-            {isLoading ? <div className="h-full flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-zinc-600" /></div>
-              : chatList.length === 0 ? <p className="h-full flex items-center justify-center text-xs text-zinc-600">No messages yet. They'll appear here live.</p>
+            {isLoading ? <div className="h-full flex items-center justify-center" aria-busy="true"><Loader2 className="w-4 h-4 animate-spin text-zinc-600" /></div>
+              : chatList.length === 0 ? <p className="h-full flex items-center justify-center text-[13px] text-zinc-500 px-6 text-center">No messages yet. Viewer messages appear here as they come in.</p>
               : chatList.map(m => <MessageRow key={m.id} m={m} actions={actions(m)} />)}
           </div>
           <form className="p-2.5 border-t border-white/[0.06] flex gap-2" onSubmit={e => { e.preventDefault(); if (draft.trim()) post.mutate(draft.trim()); }}>
             <input value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000} placeholder={`Message everyone as ${webinar.hostName || "Host"}…`} data-testid="input-host-chat"
-              className="flex-1 px-3 py-2.5 rounded-xl text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/50 outline-none" />
-            <button type="submit" disabled={!draft.trim() || post.isPending} className="h-10 w-10 rounded-xl flex items-center justify-center disabled:opacity-30" style={{ background: GOLD, color: "#0a0910" }} aria-label="Send" data-testid="btn-host-send">
+              aria-label="Message all viewers"
+              className={`flex-1 h-10 px-3 rounded-lg text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/60 ${focusRing}`} />
+            <button type="submit" disabled={!draft.trim() || post.isPending} className={`h-10 w-10 rounded-lg flex items-center justify-center disabled:opacity-30 ${focusRing}`} style={{ background: GOLD, color: "#14110a" }} aria-label="Send message to all viewers" data-testid="btn-host-send">
               {post.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
             </button>
           </form>
         </section>
 
         {/* Q&A */}
-        <section className="rounded-2xl flex flex-col h-[560px] overflow-hidden" style={{ ...card, background: "#0e0d13" }}>
+        <section className="rounded-xl flex flex-col h-[560px] overflow-hidden border border-white/[0.08] bg-[#111115]" aria-labelledby="host-qa-heading">
           <header className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-            <h3 className="text-[13px] font-bold text-white flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5 text-sky-400" /> Q&amp;A</h3>
-            <span className="text-[11px] text-zinc-500">{openQs} open · {questions.length - openQs} answered</span>
+            <h3 id="host-qa-heading" className="text-[13px] font-semibold text-white flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5 text-sky-400" aria-hidden /> Q&amp;A</h3>
+            <span className="text-xs text-zinc-500 tabular-nums">{openQs} open · {questions.length - openQs} answered</span>
           </header>
           <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5" data-testid="host-qa">
-            {questions.length === 0 ? <p className="h-full flex items-center justify-center text-xs text-zinc-600 px-6 text-center">Questions from the Q&amp;A tab (or chat messages sent as a question) collect here.</p>
+            {questions.length === 0 ? <p className="h-full flex items-center justify-center text-[13px] text-zinc-500 px-6 text-center">Questions from the Q&amp;A tab (or chat messages sent as a question) collect here.</p>
               : questions.map(m => <MessageRow key={m.id} m={m} actions={actions(m)} />)}
           </div>
         </section>
       </div>
-      <p className="text-[11px] text-zinc-600">Removed messages disappear for viewers within a few seconds; nothing is permanently deleted — toggle “Show removed” to restore one.</p>
+      <p className="text-xs text-zinc-500">Removed messages disappear for viewers within a few seconds; nothing is permanently deleted — toggle “Show removed” to restore one.</p>
     </div>
   );
 }
@@ -127,7 +129,7 @@ type Analytics = {
 export function WebinarAnalyticsPanel({ webinar }: { webinar: WebinarFunnelFull }) {
   const { data, isLoading } = useQuery<Analytics>({ queryKey: [`/api/webinar-funnels/${webinar.id}/analytics`], refetchInterval: 15_000 });
   if (isLoading || !data) {
-    return <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} />)}</div>;
+    return <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" aria-busy="true" aria-label="Loading analytics">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[94px]" />)}</div>;
   }
   const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
   const showRate = data.showRate == null ? "—" : `${Math.round(data.showRate * 100)}%`;
@@ -149,24 +151,24 @@ export function WebinarAnalyticsPanel({ webinar }: { webinar: WebinarFunnelFull 
       </div>
 
       {/* Drop-off */}
-      <section className="rounded-2xl p-5" style={card}>
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-          <h3 className="text-sm font-bold text-white flex items-center gap-1.5"><TrendingDown className="w-4 h-4" style={{ color: GOLD }} /> Watch-through</h3>
-          <span className="text-[11px] text-zinc-500">Share of {data.attendees} viewers who watched at least… (of {data.durationMinutes} min)</span>
+      <section className="rounded-xl p-5" style={card} aria-labelledby="watch-through-heading">
+        <div className="flex items-start justify-between mb-4 gap-3 flex-wrap">
+          <h3 id="watch-through-heading" className="text-sm font-semibold text-white flex items-center gap-1.5"><TrendingDown className="w-4 h-4 text-zinc-400" aria-hidden /> Watch-through</h3>
+          <span className="text-xs text-zinc-500">Share of {data.attendees} viewers who watched at least… (of {data.durationMinutes} min)</span>
         </div>
         {noData ? (
-          <p className="text-xs text-zinc-600 py-4">No attendance yet. Viewers are tracked automatically from the moment the live page goes live.</p>
+          <p className="text-[13px] text-zinc-500 py-4">No attendance yet. Viewers are tracked automatically from the moment the live page goes live.</p>
         ) : (
           <div className="space-y-3">
             {data.dropoff.map(d => {
               const p = pct(d.viewers, data.attendees);
               return (
                 <div key={d.mark} className="grid grid-cols-[64px_1fr_72px] items-center gap-3" data-testid={`dropoff-${d.mark}`}>
-                  <span className="text-[12px] font-semibold text-zinc-400">{d.mark === 100 ? "Finished" : `${d.mark}%`}</span>
-                  <div className="h-2.5 rounded-full bg-white/[0.05] overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(p, d.viewers ? 2 : 0)}%`, background: `linear-gradient(90deg, ${GOLD}, ${GOLD}aa)` }} />
+                  <span className="text-[13px] text-zinc-400 tabular-nums">{d.mark === 100 ? "Finished" : `${d.mark}%`}</span>
+                  <div className="h-2 rounded-full bg-white/[0.05] overflow-hidden" role="img" aria-label={`${p}% of viewers (${d.viewers})`}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(p, d.viewers ? 2 : 0)}%`, background: GOLD }} />
                   </div>
-                  <span className="text-[12px] text-zinc-300 tabular-nums text-right"><b>{p}%</b> <span className="text-zinc-600">({d.viewers})</span></span>
+                  <span className="text-[13px] text-zinc-300 tabular-nums text-right"><b className="font-semibold">{p}%</b> <span className="text-zinc-600">({d.viewers})</span></span>
                 </div>
               );
             })}
@@ -175,12 +177,12 @@ export function WebinarAnalyticsPanel({ webinar }: { webinar: WebinarFunnelFull 
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl p-5" style={card}>
-          <h3 className="text-sm font-bold text-white mb-3">Attendees</h3>
-          {data.attendeesList.length === 0 ? <p className="text-xs text-zinc-600">Nobody yet.</p> : (
+        <section className="rounded-xl p-5" style={card}>
+          <h3 className="text-sm font-semibold text-white mb-3">Attendees</h3>
+          {data.attendeesList.length === 0 ? <p className="text-[13px] text-zinc-500">Nobody yet.</p> : (
             <div className="max-h-80 overflow-y-auto -mx-1">
               <table className="w-full text-[12px]">
-                <thead><tr className="text-left text-zinc-500"><th className="font-medium px-1 pb-2">Viewer</th><th className="font-medium px-1 pb-2">Watched</th><th className="font-medium px-1 pb-2 text-right">CTA</th></tr></thead>
+                <thead><tr className="text-left text-zinc-500"><th scope="col" className="font-medium px-1 pb-2">Viewer</th><th scope="col" className="font-medium px-1 pb-2">Watched</th><th scope="col" className="font-medium px-1 pb-2 text-right">CTA</th></tr></thead>
                 <tbody>
                   {data.attendeesList.map((a, i) => (
                     <tr key={i} className="border-t border-white/[0.04]">
@@ -197,9 +199,9 @@ export function WebinarAnalyticsPanel({ webinar }: { webinar: WebinarFunnelFull 
             </div>
           )}
         </section>
-        <section className="rounded-2xl p-5" style={card}>
-          <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-1.5">Registrants who clicked the CTA <ArrowUpRight className="w-3.5 h-3.5" style={{ color: GOLD }} /></h3>
-          {data.cta.registered.length === 0 ? <p className="text-xs text-zinc-600">{data.cta.clicks ? `${data.cta.clicks} click(s) from viewers we couldn't match to a registration.` : "No CTA clicks yet."}</p> : (
+        <section className="rounded-xl p-5" style={card}>
+          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-1.5">Registrants who clicked the CTA <ArrowUpRight className="w-3.5 h-3.5 text-zinc-400" aria-hidden /></h3>
+          {data.cta.registered.length === 0 ? <p className="text-[13px] text-zinc-500">{data.cta.clicks ? `${data.cta.clicks} click(s) from viewers we couldn't match to a registration.` : "No CTA clicks yet."}</p> : (
             <ul className="space-y-2 max-h-80 overflow-y-auto" data-testid="cta-clickers">
               {data.cta.registered.map(c => (
                 <li key={c.email} className="flex items-center justify-between gap-3 text-[12px]">
