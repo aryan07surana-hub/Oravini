@@ -22,7 +22,6 @@ import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCal
 import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES } from "@shared/schema";
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl } from "@shared/webinarFunnel";
 import { registerWebinarFunnelLiveRoutes } from "./webinarFunnelLive";
-import { registerEmailSenderRoutes } from "./routes/email-sender";
 import { sendWebinarConfirmation } from "./webinarFunnelEmail";
 import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
 import { z } from "zod";
@@ -11392,9 +11391,6 @@ Rules:
 
     // Live room: chat/Q&A, heartbeat attendance, CTA clicks, analytics, deck upload
     registerWebinarFunnelLiveRoutes(app, requireAuth, getOwnedFunnel);
-
-    // Email sending: per-account sender, test send, send logs, per-funnel follow-up templates
-    registerEmailSenderRoutes(app, requireAuth);
 
     // YouTube Live: create broadcast + stream on the host's own channel, status, replay
     registerWebinarYoutubeRoutes(app, requireAuth, {

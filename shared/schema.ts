@@ -3302,8 +3302,6 @@ export const webinarFunnels = pgTable("webinar_funnels", {
   youtubeStreamId: text("youtube_stream_id"),
   youtubeStreamKey: text("youtube_stream_key"),          // AES-256-GCM encrypted (security/tokenEncryption)
   youtubeIngestionAddress: text("youtube_ingestion_address"),
-  // Per-funnel follow-up email overrides { followup_attended?: { subject, bodyHtml }, … }; see shared/webinarEmailTemplates.ts
-  emailTemplates: jsonb("email_templates"),
 }, (t) => [index("idx_webinar_funnels_user").on(t.userId)]);
 export type WebinarFunnel = typeof webinarFunnels.$inferSelect;
 
@@ -3357,46 +3355,3 @@ export const webinarCtaClicks = pgTable("webinar_cta_clicks", {
   registrationId: varchar("registration_id"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [index("idx_webinar_cta_clicks_webinar").on(t.webinarId)]);
-
-// ── Per-account email sender for Webinar Funnel emails (free routes only) ────
-// One row per account. Provider "gmail_app_password" (smtp.gmail.com via a Google app
-// password) or "smtp" (any SMTP server the account already has). The password is stored
-// ONLY as AES-256-GCM ciphertext (server/security/tokenEncryption) and never returned.
-// Created idempotently at startup in server/index.ts (runMigrations).
-export const userEmailSenders = pgTable("user_email_senders", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),            // gmail_app_password | smtp
-  fromName: text("from_name"),
-  fromEmail: text("from_email").notNull(),
-  smtpHost: text("smtp_host"),                     // smtp only
-  smtpPort: integer("smtp_port"),                  // smtp only
-  smtpSecure: boolean("smtp_secure").notNull().default(false),
-  smtpUser: text("smtp_user").notNull(),           // Gmail address for gmail_app_password
-  smtpPassEncrypted: text("smtp_pass_encrypted").notNull(),
-  passLast4: text("pass_last4"),                   // never secret on its own; lets the UI say "ends in …abcd"
-  lastVerifiedAt: timestamp("last_verified_at"),
-  lastError: text("last_error"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-export type UserEmailSender = typeof userEmailSenders.$inferSelect;
-
-// Every Webinar Funnel email attempt (confirmation, reminder, follow-ups, test sends).
-export const webinarEmailSends = pgTable("webinar_email_sends", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull(),            // account that owns the funnel / ran the test
-  webinarId: varchar("webinar_id").references(() => webinarFunnels.id, { onDelete: "cascade" }), // null for test sends
-  registrationId: varchar("registration_id"),
-  type: text("type").notNull(),                    // confirmation | reminder | followup_attended | followup_no_show | followup_clicked | test
-  toEmail: text("to_email").notNull(),
-  subject: text("subject"),
-  status: text("status").notNull(),                // sent | failed | skipped
-  via: text("via"),                                // account | platform_gmail | platform_smtp | none
-  error: text("error"),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (t) => [
-  index("idx_webinar_email_sends_user").on(t.userId, t.createdAt),
-  index("idx_webinar_email_sends_webinar").on(t.webinarId, t.createdAt),
-]);
-export type WebinarEmailSend = typeof webinarEmailSends.$inferSelect;
