@@ -1,3 +1,4 @@
+import TermPricingPreview from "@/components/video-marketing/TermPricingPreview";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -119,7 +120,7 @@ const PLANS = [
   },
 ];
 
-export default function SelectPlan() {
+function LegacySelectPlan() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -1109,3 +1110,5 @@ export default function SelectPlan() {
     </div>
   );
 }
+
+export default function SelectPlan(){return import.meta.env.VITE_PRICING_V2_PREVIEW === "true" ? <TermPricingPreview/> : <LegacySelectPlan/>;}
