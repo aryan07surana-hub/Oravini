@@ -166,13 +166,8 @@ export function registerVideoHostingRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── Video Settings (protection, branding, player config) ──────────────────
-  app.patch("/api/video-events/:id/settings", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const updated = await storage.updateVideoEvent(p(req.params.id), req.body);
-      res.json(updated);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
+  // Video settings PATCH (/api/video-events/:id/settings) is registered once, owner-only,
+  // by registerVideoEventUpdateRoutes() in server/videoEventUpdate.ts.
 
   // ── Bring-your-own-key storage (per-account Cloudinary) ───────────────────
   // The API secret is write-only: it is encrypted at rest and never returned.

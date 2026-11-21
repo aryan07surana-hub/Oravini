@@ -36,6 +36,7 @@ import { startCompetitorAnalysisWorker, enqueueAnalysisJob, getAnalysisJob, list
 import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
 import { getUserCloudinaryConfig } from "./videoStorageConfig";
+import { registerVideoEventUpdateRoutes } from "./videoEventUpdate";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { FFMPEG_PATH, FFPROBE_PATH, ffmpegAvailable } from "./ffmpegPath";
@@ -13960,13 +13961,8 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // Alias: PATCH /api/video-events/:id/settings → same as PATCH /api/video-events/:id
-  app.patch("/api/video-events/:id/settings", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
-      res.json(video);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
+  // PATCH /api/video-events/:id and its /settings alias: owner-only, allowed fields only.
+  registerVideoEventUpdateRoutes(app, requireAuth, storage);
 
   // ── Video Marketing Settings ───────────────────────────────────────────────
   app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
@@ -14043,13 +14039,6 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       } else {
         res.json({ verified: false, hint: `Add TXT record: ${domain.verifyToken}` });
       }
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
-    try {
-      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
-      res.json(video);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
