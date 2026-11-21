@@ -123,6 +123,36 @@ export function isValidDeckUrl(input: string): boolean {
   return /^\/uploads\/[\w.\-]+$/i.test(v) || /^https?:\/\/[^\s]+$/i.test(v);
 }
 
+/**
+ * Validates a CTA link: an http(s) URL, or a same-site path such as
+ * "/book/strategy-call" (one of the owner's booking pages). Protocol-relative
+ * "//host" and backslashes are rejected so a path can never leave the site.
+ */
+export function isValidCtaUrl(input: string | null | undefined): boolean {
+  const v = (input || "").trim();
+  return /^https?:\/\/[^\s]+$/i.test(v) || /^\/(?![\/\\])[^\s\\]*$/.test(v);
+}
+
+/** Same-site booking page path for a meeting type slug. */
+export function bookingPagePath(slug: string): string {
+  return `/book/${slug}`;
+}
+
+/** "Add to Google Calendar" link for a webinar (dates in UTC, YYYYMMDDTHHMMSSZ). */
+export function googleCalendarUrl(opts: { title: string; start: string | Date; durationMinutes?: number | null; details?: string }): string | null {
+  const start = new Date(opts.start);
+  if (isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + (opts.durationMinutes && opts.durationMinutes > 0 ? opts.durationMinutes : 60) * 60_000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const params = [
+    "action=TEMPLATE",
+    `text=${encodeURIComponent(opts.title)}`,
+    `dates=${fmt(start)}/${fmt(end)}`,
+    ...(opts.details ? [`details=${encodeURIComponent(opts.details)}`] : []),
+  ];
+  return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+}
+
 /** Where the public live page is right now. */
 export type WebinarLivePhase = "waiting" | "live" | "replay";
 export function webinarLivePhase(status: string, scheduledAt: string | Date, now = Date.now()): WebinarLivePhase {

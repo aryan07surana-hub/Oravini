@@ -55,9 +55,89 @@ function splitName(name: string | null | undefined): { first: string | null; las
   return { first: first || null, last: rest.join(" ") || null };
 }
 
+type Queryable = { query: (text: string, params?: any[]) => Promise<{ rows: any[] }> };
+
+/** Take the per owner+email advisory lock (must be inside a transaction) and find the live contact. */
+async function lockAndFindContact(client: Queryable, ownerId: string, email: string): Promise<string | null> {
+  // Serialise concurrent captures for the same owner+email so we never create duplicates.
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`crm-lead:${ownerId}:${email}`]);
+  const { rows } = await client.query(
+    `SELECT id FROM crm_contacts
+      WHERE owner_id = $1 AND lower(email) = $2 AND deleted_at IS NULL
+      ORDER BY created_at ASC LIMIT 1`,
+    [ownerId, email],
+  );
+  return rows[0]?.id ?? null;
+}
+
+async function insertContact(
+  client: Queryable,
+  v: { ownerId: string; first: string | null; last: string | null; email: string; phone: string | null; source: string; tags: string[]; customFields: Record<string, unknown> },
+): Promise<string> {
+  const { rows } = await client.query(
+    `INSERT INTO crm_contacts
+       (owner_id, first_name, last_name, email, phone, status, source, lifecycle_stage, tags, custom_fields)
+     VALUES ($1, $2, $3, $4, $5, 'lead', $6, 'lead', $7::jsonb, $8::jsonb)
+     RETURNING id`,
+    [v.ownerId, v.first, v.last, v.email, v.phone, v.source, JSON.stringify(v.tags), JSON.stringify(v.customFields)],
+  );
+  return rows[0].id;
+}
+
+function normaliseEmail(raw: string | null | undefined): string | null {
+  const email = (raw || "").trim().toLowerCase();
+  return email && /^\S+@\S+\.\S+$/.test(email) ? email : null;
+}
+
+/**
+ * Resolve the owner's CRM contact id for an email, creating the contact if it is
+ * missing (same lock / lookup / insert path captureLeadToCrm uses). Does not
+ * modify an existing contact and does not log an activity.
+ */
+export async function getOrCreateCrmContactId(input: {
+  userId: string | null | undefined;
+  email: string | null | undefined;
+  name?: string | null;
+  phone?: string | null;
+  source?: string;
+  tags?: string[];
+}): Promise<{ contactId: string; created: boolean } | null> {
+  const email = normaliseEmail(input.email);
+  if (!input.userId || !email) return null;
+  const ownerId = input.userId;
+  const source = input.source || "webinar";
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    let contactId = await lockAndFindContact(client, ownerId, email);
+    let created = false;
+    if (!contactId) {
+      const { first, last } = splitName(input.name);
+      const tags = Array.from(new Set((input.tags || []).map(t => String(t).trim()).filter(Boolean)));
+      const capture = { source, capturedAt: new Date().toISOString() };
+      contactId = await insertContact(client, {
+        ownerId, first, last, email, phone: (input.phone || "").trim() || null, source, tags,
+        customFields: { lastCapture: capture, firstCapture: capture },
+      });
+      for (const t of tags) {
+        await client.query(`INSERT INTO crm_tags (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [t]);
+      }
+      created = true;
+    }
+    await client.query("COMMIT");
+    if (created) emitCrmEvent({ kind: "contact.created", id: contactId });
+    return { contactId, created };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function captureLeadToCrm(input: CaptureLeadInput): Promise<{ contactId: string; created: boolean } | null> {
-  const email = (input.email || "").trim().toLowerCase();
-  if (!input.userId || !email || !/^\S+@\S+\.\S+$/.test(email)) return null;
+  const email = normaliseEmail(input.email);
+  if (!input.userId || !email) return null;
 
   const ownerId = input.userId;
   const { first, last } = splitName(input.name);
@@ -75,17 +155,10 @@ export async function captureLeadToCrm(input: CaptureLeadInput): Promise<{ conta
   let created = false;
   try {
     await client.query("BEGIN");
-    // Serialise concurrent captures for the same owner+email so we never create duplicates.
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`crm-lead:${ownerId}:${email}`]);
-    const { rows: existing } = await client.query(
-      `SELECT id FROM crm_contacts
-        WHERE owner_id = $1 AND lower(email) = $2 AND deleted_at IS NULL
-        ORDER BY created_at ASC LIMIT 1`,
-      [ownerId, email],
-    );
+    const existingId = await lockAndFindContact(client, ownerId, email);
 
-    if (existing[0]) {
-      contactId = existing[0].id;
+    if (existingId) {
+      contactId = existingId;
       await client.query(
         `UPDATE crm_contacts SET
             first_name    = COALESCE(first_name, $1),
@@ -99,15 +172,10 @@ export async function captureLeadToCrm(input: CaptureLeadInput): Promise<{ conta
         [first, last, phone, input.source, JSON.stringify(tags), JSON.stringify(customFieldsPatch), contactId],
       );
     } else {
-      const { rows } = await client.query(
-        `INSERT INTO crm_contacts
-           (owner_id, first_name, last_name, email, phone, status, source, lifecycle_stage, tags, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, 'lead', $6, 'lead', $7::jsonb, $8::jsonb)
-         RETURNING id`,
-        [ownerId, first, last, email, phone, input.source, JSON.stringify(tags),
-          JSON.stringify({ ...customFieldsPatch, firstCapture: capture })],
-      );
-      contactId = rows[0].id;
+      contactId = await insertContact(client, {
+        ownerId, first, last, email, phone, source: input.source, tags,
+        customFields: { ...customFieldsPatch, firstCapture: capture },
+      });
       created = true;
     }
 

@@ -25,6 +25,7 @@ import path from "path";
 import { z } from "zod";
 import { pool } from "./storage";
 import { saveMedia } from "./mediaStorage";
+import { onWebinarAttendedInBackground, onWebinarCtaClickedInBackground } from "./webinarCrmPipeline";
 import type { WebinarFunnel } from "@shared/schema";
 
 type RequireAuth = (req: Request, res: Response, next: Function) => any;
@@ -272,6 +273,11 @@ export function registerWebinarFunnelLiveRoutes(app: Express, requireAuth: Requi
         [f.id, parsed.data.viewerKey, reg?.email ?? null, reg?.id ?? null, live ? "live" : "replay"],
       );
       viewerCache.delete(f.id);
+      // CRM: first attendance for this registrant → "Qualified" (deduped in-process + in SQL)
+      if (reg) {
+        try { onWebinarAttendedInBackground(f.id, reg.id); }
+        catch (err: any) { console.error("[webinar-crm] attendance hook error:", err?.message || err); }
+      }
       res.json({ counted: true, viewers: await getViewerCount(f.id) });
     } catch (e: any) {
       console.error("[webinar-live] heartbeat error:", e.message);
@@ -295,6 +301,11 @@ export function registerWebinarFunnelLiveRoutes(app: Express, requireAuth: Requi
         `INSERT INTO webinar_cta_clicks (webinar_id, viewer_key, email, registration_id) VALUES ($1, $2, $3, $4)`,
         [f.id, data.viewerKey ?? null, reg?.email ?? null, reg?.id ?? null],
       );
+      // CRM: hot-lead alarm → "Proposal" + urgent task + owner email (fire-and-forget)
+      if (reg) {
+        try { onWebinarCtaClickedInBackground(f.id, reg.id); }
+        catch (err: any) { console.error("[webinar-crm] CTA hook error:", err?.message || err); }
+      }
       res.status(204).end();
     } catch (e: any) {
       console.error("[webinar-live] cta click error:", e.message);

@@ -5,7 +5,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST, deckEmbed } from "@shared/webinarFunnel";
+import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, formatIST, deckEmbed, isValidCtaUrl } from "@shared/webinarFunnel";
+import { CtaLinkInput } from "@/components/webinar-funnel/CtaLinkInput";
 import { ArrowLeft, Radio, Save, CheckCircle2, AlertCircle, ExternalLink, Users, Copy, Loader2, Eye, Wand2, BarChart3, MessagesSquare, Settings2, Upload, X, Bell } from "lucide-react";
 import type { WebinarFunnelRow } from "./WebinarFunnels";
 import { uploadDeck, type WebinarFunnelFull } from "@/components/webinar-funnel/hostUtils";
@@ -129,7 +130,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
   const videoId = parseYouTubeVideoId(youtube);
   const youtubeInvalid = youtube.trim() !== "" && !videoId;
   const slugInvalid = slug.trim() !== "" && !WEBINAR_SLUG_RE.test(slug.trim());
-  const ctaUrlInvalid = ctaUrl.trim() !== "" && !/^https?:\/\/\S+$/i.test(ctaUrl.trim());
+  const ctaUrlInvalid = ctaUrl.trim() !== "" && !isValidCtaUrl(ctaUrl);
   const scheduledIso = scheduledLocal ? fromISTInput(scheduledLocal) : null;
   const replayId = parseYouTubeVideoId(replay);
   const replayInvalid = replay.trim() !== "" && !replayId;
@@ -386,7 +387,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
                 placeholder="e.g. Book a free strategy call" className={inputCls} style={inputStyle} />
             </Field>
             <Field label="CTA URL" hint={ctaUrlInvalid ? <span className="text-red-400">Must start with http:// or https://</span> : "Opens in a new tab."}>
-              <input data-testid="input-cta-url" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
+              <CtaLinkInput value={ctaUrl} onChange={setCtaUrl}
                 placeholder="https://..." className={inputCls} style={inputStyle} />
             </Field>
           </div>
