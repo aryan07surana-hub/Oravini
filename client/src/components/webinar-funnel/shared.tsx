@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Radio } from "lucide-react";
+import { isValidCtaUrl } from "@shared/webinarFunnel";
 
 export const GOLD = "#d4b461";
 
@@ -139,6 +140,7 @@ export function WebinarNotFound() {
   );
 }
 
+/** CTA links: http(s) URLs or same-site paths like /book/{slug} (never "//host"). */
 export function isSafeHttpUrl(url: string | null | undefined): url is string {
-  return !!url && /^https?:\/\//i.test(url);
+  return !!url && (/^https?:\/\//i.test(url) || isValidCtaUrl(url));
 }

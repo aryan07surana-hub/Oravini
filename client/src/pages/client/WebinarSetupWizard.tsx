@@ -5,7 +5,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { deckEmbed, formatIST, parseYouTubeVideoId } from "@shared/webinarFunnel";
+import { deckEmbed, formatIST, isValidCtaUrl, parseYouTubeVideoId } from "@shared/webinarFunnel";
+import { CtaLinkInput } from "@/components/webinar-funnel/CtaLinkInput";
 import {
   AlertCircle, ArrowLeft, ArrowRight, ArrowUpRight, Bell, CalendarClock, Check, CheckCircle2, ChevronRight, Copy,
   FileUp, Link2, Loader2, PartyPopper, Radio, Sparkles, Upload, Wand2, X, Youtube, Zap,
@@ -181,7 +182,7 @@ export default function WebinarSetupWizard({ id }: { id?: string }) {
   const videoId = parseYouTubeVideoId(s.youtube);
   const youtubeInvalid = s.youtube.trim() !== "" && !videoId;
   const videoCheck = useVideoCheck(videoId);
-  const ctaUrlInvalid = s.ctaUrl.trim() !== "" && !/^https?:\/\/\S+$/i.test(s.ctaUrl.trim());
+  const ctaUrlInvalid = s.ctaUrl.trim() !== "" && !isValidCtaUrl(s.ctaUrl);
   const ctaIncomplete = (!!s.ctaText.trim()) !== (!!s.ctaUrl.trim());
   const deckLinkInvalid = s.deckMode === "link" && s.deckUrl.trim() !== "" && !/^https?:\/\/\S+$/i.test(s.deckUrl.trim());
   const scheduledIso = fromISTInput(s.scheduledLocal);
@@ -661,7 +662,7 @@ function Step4({ s, set, ctaUrlInvalid, ctaIncomplete, deckLinkInvalid }: StepPr
             placeholder="Book your strategy call" className={inputCls} style={ctaIncomplete && !s.ctaText.trim() ? inputErrStyle : inputStyle} />
         </Field>
         <Field label="Button link" hint={ctaUrlInvalid ? <span className="text-red-400">Must start with https://</span> : ctaIncomplete ? <span className="text-amber-400">Add both the text and the link (or neither)</span> : "Opens in a new tab so the stream keeps playing."}>
-          <input data-testid="input-cta-url" value={s.ctaUrl} onChange={e => set("ctaUrl", e.target.value)}
+          <CtaLinkInput value={s.ctaUrl} onChange={v => set("ctaUrl", v)}
             placeholder="https://…" className={inputCls} style={ctaUrlInvalid || (ctaIncomplete && !s.ctaUrl.trim()) ? inputErrStyle : inputStyle} />
         </Field>
       </div>
