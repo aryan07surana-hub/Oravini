@@ -14,12 +14,19 @@
  * ticks can never double-send. A claimed send that fails is NOT retried (at most
  * once); the failure is recorded in the log's `error` column.
  *
- * Runs on the same 1-minute poll cadence as the 1h reminder job and reuses its
- * mail transport. Funnels with reminders_enabled = false and drafts are skipped.
+ * Runs on the same 1-minute poll cadence as the 1h reminder job and resolves the
+ * transport the same way (the funnel owner's own sender first, then the platform
+ * sender). Funnels with reminders_enabled = false and drafts are skipped. Only
+ * funnels that can actually send are claimed. Each funnel can override the three
+ * templates (webinar_funnels.email_templates); otherwise the defaults are used.
+ * Every attempt is also recorded in webinar_email_sends.
  */
 import { pool } from "./storage";
-import { getTransport, fromAddress, appBaseUrl } from "./webinarFunnelEmail";
-import { WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES } from "./routes/webinar-emails";
+import { sendWebinarMail, hasPlatformTransport, appBaseUrl } from "./webinarFunnelEmail";
+import { ensureWebinarEmailSchema } from "./webinarEmailSender";
+import { renderFollowupTemplate, resolveFollowupTemplate, type FollowupTemplateKey } from "@shared/webinarEmailTemplates";
+
+export { renderFollowupTemplate };
 
 export type FollowupSegment = "clicked" | "attended" | "no_show";
 
@@ -29,15 +36,7 @@ const LOOKBACK = "3 days";
 /** Max registrants claimed per tick (the next tick picks up the rest). */
 const BATCH = 200;
 
-const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const safeUrl = (u: string | null | undefined) => (u && /^https?:\/\//i.test(u.trim()) ? u.trim() : "");
-
-/** {{#if var}}…{{/if}} then {{var}} substitution; values are HTML-escaped. */
-export function renderFollowupTemplate(template: string, vars: Record<string, string>, html = true): string {
-  return template
-    .replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, k, content) => (vars[k] ? content : ""))
-    .replace(/\{\{(\w+)\}\}/g, (_, k) => (html ? esc(vars[k] ?? "") : (vars[k] ?? "")));
-}
 
 export function followupReplayUrl(f: { slug: string; replay_url: string | null }) {
   return safeUrl(f.replay_url) || `${appBaseUrl()}/w/${f.slug}`;
@@ -67,8 +66,10 @@ function ensureFollowupTable() {
 type ClaimedRow = {
   log_id: number; segment: FollowupSegment;
   name: string; email: string;
-  f_id: string; slug: string; title: string; host_name: string | null;
+  registration_id: string;
+  f_id: string; user_id: string; slug: string; title: string; host_name: string | null;
   cta_url: string | null; cta_text: string | null; replay_url: string | null;
+  email_templates: unknown;
 };
 
 /**
@@ -85,6 +86,7 @@ async function claimDueFollowups(): Promise<ClaimedRow[]> {
          AND f.reminders_enabled = TRUE
          AND f.scheduled_at + ((COALESCE(f.duration_minutes, 60) + 60) * INTERVAL '1 minute') <= NOW()
          AND f.scheduled_at + ((COALESCE(f.duration_minutes, 60) + 60) * INTERVAL '1 minute') > NOW() - INTERVAL '${LOOKBACK}'
+         AND ($1::boolean OR EXISTS (SELECT 1 FROM user_email_senders s WHERE s.user_id = f.user_id))
     ),
     candidates AS (
       SELECT DISTINCT ON (r.webinar_id, LOWER(TRIM(r.email)))
@@ -116,25 +118,24 @@ async function claimDueFollowups(): Promise<ClaimedRow[]> {
       ON CONFLICT DO NOTHING
       RETURNING id, webinar_id, registration_id, segment
     )
-    SELECT cl.id AS log_id, cl.segment, r.name, r.email,
-           f.id AS f_id, f.slug, f.title, f.host_name, f.cta_url, f.cta_text, f.replay_url
+    SELECT cl.id AS log_id, cl.segment, cl.registration_id, r.name, r.email,
+           f.id AS f_id, f.user_id, f.slug, f.title, f.host_name, f.cta_url, f.cta_text, f.replay_url, f.email_templates
       FROM claimed cl
       JOIN webinar_funnel_registrations r ON r.id = cl.registration_id
       JOIN webinar_funnels f ON f.id = cl.webinar_id
-  `);
+  `, [hasPlatformTransport()]);
   return rows;
 }
 
-const TEMPLATE_KEY: Record<FollowupSegment, keyof typeof WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES> = {
+const TEMPLATE_KEY: Record<FollowupSegment, FollowupTemplateKey> = {
   clicked: "followup_clicked",
   attended: "followup_attended",
   no_show: "followup_no_show",
 };
 
 async function sendFollowup(row: ClaimedRow): Promise<boolean> {
-  const transport = getTransport();
-  if (!transport) return false;
-  const tpl = WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES[TEMPLATE_KEY[row.segment]];
+  const templateKey = TEMPLATE_KEY[row.segment];
+  const tpl = resolveFollowupTemplate(templateKey, row.email_templates);
   const replayUrl = followupReplayUrl(row);
   const ctaUrl = safeUrl(row.cta_url);
   const vars = {
@@ -153,26 +154,25 @@ async function sendFollowup(row: ClaimedRow): Promise<boolean> {
     ...(row.segment !== "no_show" && ctaUrl ? [`${vars.ctaText}: ${ctaUrl}`] : []),
     ...(row.segment === "clicked" ? [`Replay: ${replayUrl}`] : []),
   ].join("\n");
-  try {
-    await transport.sendMail({
-      from: fromAddress(row.host_name),
-      to: row.email.trim(),
-      subject: renderFollowupTemplate(tpl.subject, vars, false),
-      html: renderFollowupTemplate(tpl.bodyHtml, vars),
-      text,
-    });
-    await pool.query(`UPDATE webinar_funnel_followup_log SET sent_at = NOW() WHERE id = $1`, [row.log_id]);
+  const out = await sendWebinarMail({
+    accountId: row.user_id, webinarId: row.f_id, registrationId: row.registration_id, type: templateKey,
+    to: row.email.trim(),
+    subject: renderFollowupTemplate(tpl.subject, vars, false),
+    hostName: row.host_name,
+    html: renderFollowupTemplate(tpl.bodyHtml, vars),
+    text,
+  });
+  if (out.status === "sent") {
+    await pool.query(`UPDATE webinar_funnel_followup_log SET sent_at = NOW() WHERE id = $1`, [row.log_id]).catch(() => {});
     return true;
-  } catch (e: any) {
-    console.error(`[webinar-followup] ${row.segment} send failed:`, e.message);
-    await pool.query(`UPDATE webinar_funnel_followup_log SET error = $2 WHERE id = $1`, [row.log_id, String(e.message || e).slice(0, 500)]).catch(() => {});
-    return false;
   }
+  await pool.query(`UPDATE webinar_funnel_followup_log SET error = $2 WHERE id = $1`, [row.log_id, String(out.error || out.status).slice(0, 500)]).catch(() => {});
+  return false;
 }
 
 export async function runWebinarFunnelFollowups(): Promise<number> {
-  // Without a transport nothing is claimed, so follow-ups go out once mail is configured.
-  if (!getTransport()) return 0;
+  // Funnels with no usable sender aren't claimed, so their follow-ups go out once mail is configured.
+  await ensureWebinarEmailSchema();
   await ensureFollowupTable();
   const rows = await claimDueFollowups();
   let sent = 0;

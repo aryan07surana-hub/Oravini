@@ -76,38 +76,9 @@ const DEFAULT_TEMPLATES: Record<string, { subject: string; bodyHtml: string }> =
  * so "init-defaults" for LiveKit webinars is unchanged.
  * Vars: {{name}} {{webinarTitle}} {{replayUrl}} {{ctaUrl}} {{ctaText}}; {{#if var}}…{{/if}}.
  */
-export const WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES: Record<"followup_clicked" | "followup_attended" | "followup_no_show", { subject: string; bodyHtml: string }> = {
-  followup_clicked: {
-    subject: "You grabbed the offer — last chance: {{webinarTitle}}",
-    bodyHtml: `<div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-      <h1 style="color: #d4b461;">You Grabbed the Offer — Last Chance ⏳</h1>
-      <p>Hi {{name}},</p>
-      <p>We saw you check out the offer during <strong>{{webinarTitle}}</strong>. It's closing soon, so this is your last chance to lock it in.</p>
-      {{#if ctaUrl}}<a href="{{ctaUrl}}" style="display: inline-block; background: #d4b461; color: #000; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">{{ctaText}} →</a>{{/if}}
-      <p>Want a refresher first? <a href="{{replayUrl}}" style="color: #d4b461;">Rewatch the replay</a>.</p>
-    </div>`,
-  },
-  followup_attended: {
-    subject: "Thanks for coming — here's your replay + the offer",
-    bodyHtml: `<div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-      <h1 style="color: #d4b461;">Thanks for Coming! 🙏</h1>
-      <p>Hi {{name}},</p>
-      <p>Thank you for showing up to <strong>{{webinarTitle}}</strong>. Here's the replay so you can revisit anything you missed.</p>
-      <a href="{{replayUrl}}" style="display: inline-block; background: #d4b461; color: #000; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">Watch Replay →</a>
-      {{#if ctaUrl}}<p>And if you're ready for the next step, the offer from the session is still open:</p>
-      <a href="{{ctaUrl}}" style="display: inline-block; background: #d4b461; color: #000; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">{{ctaText}} →</a>{{/if}}
-    </div>`,
-  },
-  followup_no_show: {
-    subject: "Sorry we missed you — watch the replay of {{webinarTitle}}",
-    bodyHtml: `<div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-      <h1 style="color: #d4b461;">Sorry We Missed You 👋</h1>
-      <p>Hi {{name}},</p>
-      <p>Life happens — we noticed you couldn't make it to <strong>{{webinarTitle}}</strong>. The good news: the replay is ready for you.</p>
-      <a href="{{replayUrl}}" style="display: inline-block; background: #d4b461; color: #000; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">Watch the Replay →</a>
-    </div>`,
-  },
-};
+// Defaults now live in shared/webinarEmailTemplates.ts (also used by the funnel editor preview);
+// re-exported here so existing imports keep working. Per-funnel overrides: webinar_funnels.email_templates.
+export { WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES } from "@shared/webinarEmailTemplates";
 
 export function registerWebinarEmailRoutes(app: Express, requireAuth: any) {
   // Get email configs for a webinar
