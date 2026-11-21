@@ -5,14 +5,13 @@ export const GOLD = "#d4b461";
 const IST_OFFSET_MIN = 330;
 
 export const inputCls =
-  "w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600 transition-colors focus:border-[#d4b461]/60";
+  "w-full h-11 px-3.5 rounded-lg text-sm text-white placeholder:text-zinc-600 transition-colors bg-white/[0.03] border border-white/[0.1] hover:border-white/[0.16] focus:border-[#d4b461]/70 focus-visible:ring-2 focus-visible:ring-[#d4b461]/25 outline-none [&:is(textarea)]:h-auto [&:is(textarea)]:py-2.5";
+// Colors live in inputCls; inputStyle only carries what classes can't (kept for API compatibility).
 export const inputStyle = {
-  background: "rgba(255,255,255,0.035)",
-  border: "1px solid rgba(255,255,255,0.1)",
   outline: "none",
   colorScheme: "dark" as const,
 };
-export const inputErrStyle = { ...inputStyle, border: "1px solid rgba(248,113,113,0.55)" };
+export const inputErrStyle = { ...inputStyle, borderColor: "rgba(248,113,113,0.6)" };
 
 /** UTC ISO → "YYYY-MM-DDTHH:mm" wall-clock in IST, for <input type="datetime-local">. */
 export function toISTInput(iso: string | null | undefined) {
@@ -28,15 +27,17 @@ export function fromISTInput(value: string) {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export function Field({ label, hint, children, optional }: { label: string; hint?: React.ReactNode; children: React.ReactNode; optional?: boolean }) {
+export function Field({ label, hint, children, optional, htmlFor }: { label: string; hint?: React.ReactNode; children: React.ReactNode; optional?: boolean; htmlFor?: string }) {
   return (
     <div>
-      <label className="flex items-center gap-2 text-[11px] font-semibold text-zinc-400 uppercase tracking-[0.12em] mb-1.5">
-        {label}
-        {optional && <span className="normal-case tracking-normal font-medium text-zinc-600">optional</span>}
-      </label>
+      {label && (
+        <label htmlFor={htmlFor} className="flex items-center gap-2 text-[13px] font-medium text-zinc-300 mb-1.5">
+          {label}
+          {optional && <span className="text-xs font-normal text-zinc-600">Optional</span>}
+        </label>
+      )}
       {children}
-      {hint && <div className="text-[11px] text-zinc-500 mt-1.5 leading-relaxed">{hint}</div>}
+      {hint && <div className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{hint}</div>}
     </div>
   );
 }
@@ -49,6 +50,7 @@ export type WebinarFunnelFull = WebinarFunnelRow & {
   offerExpiresAt: string | null;
   durationMinutes: number | null;
   remindersEnabled: boolean;
+  communityLinks?: import("@shared/webinarCommunity").CommunityLink[];
   // Set when the stream was created on the host's connected YouTube channel
   youtubeBroadcastId?: string | null;
   youtubeStreamId?: string | null;

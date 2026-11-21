@@ -1,3 +1,4 @@
+import WebinarAssistantPage from "@/pages/client/WebinarAssistant";
 import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
@@ -404,11 +405,14 @@ function AppRoutes() {
       <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
+      {/* Top-level "Video Hosting" sidebar entry: same studio, opened on its hosting section. */}
+      <Route path="/video-hosting">{() => <Guard component={ClientVideoMarketing} section="video-hosting" />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
+      <Route path="/tools/webinars/assistant">{() => <Guard component={WebinarAssistantPage}/>}</Route>
       <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
       <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, EyeOff, Eye, HelpCircle, Loader2, MessageCircle, SendHorizontal } from "lucide-react";
 import { GOLD } from "./shared";
+import { focusRing } from "./ui";
 
 export type ChatMessage = {
   id: number;
@@ -213,7 +214,7 @@ export function ViewerChatPanel({ mode, messages, loaded, closed, defaultName, r
           <div className="h-full flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-zinc-600" /></div>
         ) : shown.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-6">
-            <empty.icon className="w-6 h-6 mb-2" style={{ color: `${GOLD}80` }} />
+            <empty.icon className="w-6 h-6 mb-2 text-zinc-500" />
             <p className="text-sm font-semibold text-zinc-300">{empty.title}</p>
             <p className="text-xs text-zinc-600 mt-1 max-w-[220px]">{empty.text}</p>
           </div>
@@ -223,7 +224,7 @@ export function ViewerChatPanel({ mode, messages, loaded, closed, defaultName, r
       </div>
 
       {closed ? (
-        <div className="border-t border-white/5 px-4 py-3 text-center text-[11px] text-zinc-500">Chat is closed — this is the replay.</div>
+        <div className="border-t border-white/5 px-4 py-3 text-center text-xs text-zinc-500" data-testid="chat-closed">Chat is closed — this is the replay.</div>
       ) : (
         <form onSubmit={submit} className="border-t border-white/5 p-2.5 space-y-2" data-testid={`form-${mode}`}>
           {(editingName || needsName) ? (
@@ -233,11 +234,12 @@ export function ViewerChatPanel({ mode, messages, loaded, closed, defaultName, r
               onChange={e => setName(e.target.value)}
               maxLength={40}
               placeholder="Your name"
+              aria-label="Your name in chat"
               autoComplete="name"
-              className="w-full px-3 py-2 rounded-lg text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/50 outline-none"
+              className={`w-full h-9 px-3 rounded-lg text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/60 ${focusRing}`}
             />
           ) : (
-            <button type="button" onClick={() => setEditingName(true)} className="text-[11px] text-zinc-500 hover:text-zinc-300 px-1">
+            <button type="button" onClick={() => setEditingName(true)} className={`text-[11px] text-zinc-500 hover:text-zinc-300 px-1 rounded ${focusRing}`}>
               Chatting as <b className="text-zinc-300">{name || "registered attendee"}</b> · change
             </button>
           )}
@@ -250,14 +252,15 @@ export function ViewerChatPanel({ mode, messages, loaded, closed, defaultName, r
               rows={1}
               maxLength={500}
               placeholder={asQuestion ? "Ask the host a question…" : "Say something…"}
-              className="flex-1 resize-none max-h-28 px-3 py-2.5 rounded-xl text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/50 outline-none"
+              aria-label={asQuestion ? "Your question" : "Chat message"}
+              className={`flex-1 resize-none max-h-28 px-3 py-2.5 rounded-lg text-[13px] text-white placeholder:text-zinc-600 bg-white/[0.04] border border-white/10 focus:border-[#d4b461]/60 ${focusRing}`}
             />
             <button
               data-testid={`btn-send-${mode}`}
               type="submit"
               disabled={sending || !body.trim()}
-              aria-label="Send"
-              className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 hover:brightness-110"
+              aria-label={asQuestion ? "Send question" : "Send message"}
+              className={`h-10 w-10 flex-shrink-0 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 hover:brightness-110 ${focusRing}`}
               style={{ background: GOLD, color: "#0a0910" }}
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
@@ -283,16 +286,16 @@ export function HostActions({ m, onToggleHidden, onToggleAnswered, busy }: {
   onToggleHidden: () => void; onToggleAnswered: () => void;
 }) {
   return (
-    <div className="flex items-start gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+    <div className="flex items-start gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
       {m.isQuestion && !m.hidden && (
-        <button onClick={onToggleAnswered} disabled={busy} title={m.answered ? "Mark unanswered" : "Mark answered"}
+        <button onClick={onToggleAnswered} disabled={busy} title={m.answered ? "Mark unanswered" : "Mark answered"} aria-label={m.answered ? "Mark unanswered" : "Mark answered"} aria-pressed={m.answered}
           data-testid={`btn-answer-${m.id}`}
           className={`p-1.5 rounded-lg transition-colors ${m.answered ? "text-emerald-400 bg-emerald-500/10" : "text-zinc-500 hover:text-emerald-300 hover:bg-white/5"}`}>
           <CheckCircle2 className="w-3.5 h-3.5" />
         </button>
       )}
       {!m.isHost && (
-        <button onClick={onToggleHidden} disabled={busy} title={m.hidden ? "Restore message" : "Remove from chat"}
+        <button onClick={onToggleHidden} disabled={busy} title={m.hidden ? "Restore message" : "Remove from chat"} aria-label={m.hidden ? "Restore message" : "Remove from chat"}
           data-testid={`btn-hide-${m.id}`}
           className="p-1.5 rounded-lg text-zinc-500 hover:text-red-300 hover:bg-white/5 transition-colors">
           {m.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}

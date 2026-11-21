@@ -1332,6 +1332,7 @@ async function runMigrations() {
   // Additive only: new nullable/defaulted columns + new tables. Nothing is dropped or rewritten.
   try {
     await pool.query(`
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS community_links JSONB NOT NULL DEFAULT '[]'::jsonb;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS deck_url TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS replay_url TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_text TEXT;
