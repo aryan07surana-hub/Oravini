@@ -1,5 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
+import { verifyCloudinaryCredentials } from "../mediaStorage";
+import {
+  getVideoStorageStatus,
+  getUserCloudinaryConfig,
+  saveUserCloudinaryConfig,
+  deleteUserCloudinaryConfig,
+  isEncryptionAvailable,
+} from "../videoStorageConfig";
 
 function p(id: string | string[] | undefined): string {
   const s = Array.isArray(id) ? id[0] : id;
@@ -163,6 +171,53 @@ export function registerVideoHostingRoutes(app: Express, requireAuth: any) {
     try {
       const updated = await storage.updateVideoEvent(p(req.params.id), req.body);
       res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Bring-your-own-key storage (per-account Cloudinary) ───────────────────
+  // The API secret is write-only: it is encrypted at rest and never returned.
+  app.get("/api/video-hosting/storage-config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      res.json(await getVideoStorageStatus(user.id));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.put("/api/video-hosting/storage-config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      if (!isEncryptionAvailable()) {
+        return res.status(503).json({ message: "Credential encryption is not configured on this server (TOKEN_ENCRYPTION_KEY), so keys can't be stored safely yet." });
+      }
+      const cloudName = String(req.body?.cloudName ?? "").trim();
+      let apiKey = String(req.body?.apiKey ?? "").trim();
+      let apiSecret = String(req.body?.apiSecret ?? "").trim();
+
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(cloudName)) return res.status(400).json({ message: "Enter a valid Cloudinary cloud name." });
+      if (!apiKey || !apiSecret) {
+        // Blank fields keep this account's stored values (never another account's).
+        const existing = await getUserCloudinaryConfig(user.id);
+        if (!existing) return res.status(400).json({ message: "API key and API secret are required." });
+        apiKey = apiKey || existing.apiKey;
+        apiSecret = apiSecret || existing.apiSecret;
+      }
+      if (!/^[0-9a-zA-Z]{6,64}$/.test(apiKey)) return res.status(400).json({ message: "Enter a valid Cloudinary API key." });
+      if (!/^[0-9a-zA-Z_-]{8,128}$/.test(apiSecret)) return res.status(400).json({ message: "Enter a valid Cloudinary API secret." });
+
+      const cfg = { cloudName, apiKey, apiSecret };
+      const problem = await verifyCloudinaryCredentials(cfg);
+      if (problem) return res.status(400).json({ message: problem });
+
+      await saveUserCloudinaryConfig(user.id, cfg);
+      res.json(await getVideoStorageStatus(user.id));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-hosting/storage-config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      await deleteUserCloudinaryConfig(user.id);
+      res.json(await getVideoStorageStatus(user.id));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }

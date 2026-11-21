@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,33 @@ import {
   Share2, Subtitles, MonitorPlay,
 } from "lucide-react";
 
+import {
+  PRESET_CURVES,
+  parseProgressConfig,
+  normalizeCurve,
+  resolveCurve,
+  buildKnots,
+  segmentSpeeds,
+  describeCurve,
+  type ProgressSegment,
+} from "@shared/progressCurve";
+
 const GOLD = "#d4b461";
 
 // ── Progress presets — AI-friendly labels ────────────────────────────────────
 
 const PROGRESS_PRESETS = [
+  {
+    id: "hook-crawl-close",
+    name: "Hook-Crawl-Close",
+    subtitle: "Rocket start, slow middle, fast finish",
+    desc: "Bar jumps to 20% in the first ~10 seconds so viewers feel instantly invested, crawls through the pitch, then speeds up near the end so the close feels within reach.",
+    tag: "🔥 VSL favourite",
+    tagColor: "#f97316",
+    bars: [95, 30, 30, 85],
+    color: "#f97316",
+    segments: "0-20%: 10s, 20-80%: 0.6x, 80-100%: 2.5x",
+  },
   {
     id: "fast-start",
     name: "Fast Start",
@@ -104,31 +126,198 @@ function ProgressBarVisual({ bars, color, active }: { bars: number[]; color: str
 
 // ── Progress Section ─────────────────────────────────────────────────────────
 
+const CUSTOM_COLOR = "#f472b6";
+
+const DEFAULT_CUSTOM_CURVE: ProgressSegment[] = [
+  { untilPct: 25, seconds: 15 },
+  { untilPct: 75, speed: 0.7 },
+  { untilPct: 100, speed: 1.5 },
+];
+
+function fmtSec(sec: number) {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Mini visual for an arbitrary curve: bar width = share of the bar, height = speed. */
+function CurveVisual({ curve, color, refDuration }: { curve: ProgressSegment[]; color: string; refDuration: number }) {
+  const speeds = segmentSpeeds(curve, refDuration);
+  const max = Math.max(...speeds.map(x => x.speed), 1);
+  return (
+    <div className="flex items-end gap-0.5 h-8 mt-2.5">
+      {speeds.map((x, i) => (
+        <div
+          key={i}
+          className="rounded-t-sm"
+          title={`${x.speed.toFixed(2)}× average speed`}
+          style={{ width: `${x.widthPct}%`, height: `${Math.max(8, Math.min(100, (x.speed / max) * 100))}%`, background: color, transition: "height 0.2s, width 0.2s" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+type DraftSegment = { untilPct: string; mode: "speed" | "seconds"; value: string };
+
+function toDraft(curve: ProgressSegment[]): DraftSegment[] {
+  return curve.map(s => ({
+    untilPct: String(s.untilPct),
+    mode: s.seconds != null ? "seconds" : "speed",
+    value: String(s.seconds != null ? s.seconds : Number((s.speed ?? 1).toFixed(2))),
+  }));
+}
+
+function fromDraft(draft: DraftSegment[]): ProgressSegment[] | null {
+  return normalizeCurve(draft.map((d, i) => ({
+    untilPct: i === draft.length - 1 ? 100 : Number(d.untilPct),
+    ...(d.mode === "seconds" ? { seconds: Number(d.value) } : { speed: Number(d.value) }),
+  })));
+}
+
+function draftError(draft: DraftSegment[]): string | null {
+  let prev = 0;
+  for (let i = 0; i < draft.length; i++) {
+    const d = draft[i];
+    const until = i === draft.length - 1 ? 100 : Number(d.untilPct);
+    if (!Number.isFinite(until) || until <= prev || until > 100) return `Segment ${i + 1}: "% of bar" must be between ${prev + 1} and 100 and increase each row.`;
+    const v = Number(d.value);
+    if (!Number.isFinite(v) || v <= 0) return `Segment ${i + 1}: ${d.mode === "seconds" ? "seconds" : "speed"} must be greater than 0.`;
+    if (d.mode === "speed" && (v < 0.05 || v > 50)) return `Segment ${i + 1}: speed must be between 0.05× and 50×.`;
+    prev = until;
+  }
+  return null;
+}
+
+function CustomCurveEditor({ initial, refDuration, active, onSave }: {
+  initial: ProgressSegment[];
+  refDuration: number;
+  active: boolean;
+  onSave: (curve: ProgressSegment[]) => void;
+}) {
+  const [draft, setDraft] = useState<DraftSegment[]>(() => toDraft(initial));
+  const initialKey = JSON.stringify(initial);
+  useEffect(() => { setDraft(toDraft(JSON.parse(initialKey))); }, [initialKey]);
+
+  const error = draftError(draft);
+  const curve = error ? null : fromDraft(draft);
+  const knots = curve ? buildKnots(curve, refDuration) : null;
+
+  const update = (i: number, patch: Partial<DraftSegment>) =>
+    setDraft(d => d.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+  const remove = (i: number) => setDraft(d => (d.length <= 1 ? d : d.filter((_, j) => j !== i)));
+  const add = () => setDraft(d => {
+    if (d.length >= 8) return d;
+    // Split the last segment in half.
+    const prev = d.length > 1 ? Number(d[d.length - 2].untilPct) || 0 : 0;
+    const mid = Math.round((prev + 100) / 2);
+    if (mid <= prev || mid >= 100) return d;
+    const next = d.slice(0, -1);
+    next.push({ untilPct: String(mid), mode: "speed", value: "1" });
+    next.push({ ...d[d.length - 1], untilPct: "100" });
+    return next;
+  });
+
+  const inputCls = "h-7 px-1.5 rounded-md bg-black/40 border border-zinc-700 text-[11px] text-zinc-200 w-full focus:outline-none focus:border-zinc-500";
+
+  return (
+    <div className="space-y-2 mt-2" onClick={e => e.stopPropagation()}>
+      <div className="grid grid-cols-[1fr_1fr_1fr_20px] gap-1.5 text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+        <span>Bar up to %</span><span>Mode</span><span>Value</span><span />
+      </div>
+      {draft.map((row, i) => {
+        const last = i === draft.length - 1;
+        return (
+          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_20px] gap-1.5 items-center">
+            <input
+              className={inputCls}
+              type="number" min={1} max={100}
+              value={last ? "100" : row.untilPct}
+              disabled={last}
+              onChange={e => update(i, { untilPct: e.target.value })}
+              aria-label={`Segment ${i + 1} end percent`}
+            />
+            <select
+              className={inputCls}
+              value={row.mode}
+              onChange={e => update(i, { mode: e.target.value as DraftSegment["mode"] })}
+              aria-label={`Segment ${i + 1} mode`}
+            >
+              <option value="speed">Speed ×</option>
+              <option value="seconds">Seconds</option>
+            </select>
+            <input
+              className={inputCls}
+              type="number" step="0.1" min={0}
+              value={row.value}
+              onChange={e => update(i, { value: e.target.value })}
+              aria-label={`Segment ${i + 1} value`}
+            />
+            <button
+              onClick={() => remove(i)}
+              disabled={draft.length <= 1}
+              className="text-zinc-600 hover:text-red-400 disabled:opacity-30"
+              title="Remove segment"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        );
+      })}
+      <button onClick={add} disabled={draft.length >= 8} className="text-[10px] font-bold text-zinc-400 hover:text-zinc-200 flex items-center gap-1 disabled:opacity-40">
+        <Plus className="w-3 h-3" /> Add segment
+      </button>
+
+      {curve && <CurveVisual curve={curve} color={CUSTOM_COLOR} refDuration={refDuration} />}
+      {knots && (
+        <p className="text-[10px] text-zinc-500 leading-relaxed">
+          For a {fmtSec(refDuration)} video: {knots.slice(1, -1).map(k => `${Math.round(k.p * 100)}% at ${fmtSec(k.t)}`).join(" · ") || "even pace"}{knots.length > 2 ? " · 100% at the end" : ""}.
+        </p>
+      )}
+      <p className="text-[10px] text-zinc-600 leading-relaxed">
+        <b>Seconds</b> = fill that part of the bar in that many real seconds. <b>Speed ×</b> segments share the remaining time (2× moves twice as fast as 1×). The bar always reaches 100% exactly when the video ends.
+      </p>
+      {error && <p className="text-[10px] text-red-400">{error}</p>}
+      <Button
+        size="sm"
+        disabled={!curve}
+        onClick={() => curve && onSave(curve)}
+        className="h-7 text-[11px] font-bold w-full"
+        style={{ background: CUSTOM_COLOR, color: "#000" }}
+      >
+        {active ? "Save custom curve" : "Use custom curve"}
+      </Button>
+    </div>
+  );
+}
+
 function ProgressSection({ video, onUpdate }: { video: any; onUpdate: (data: any) => void }) {
-  let config: any = null;
-  try {
-    config = video.progressBarConfig
-      ? (typeof video.progressBarConfig === "string" ? JSON.parse(video.progressBarConfig) : video.progressBarConfig)
-      : null;
-  } catch {}
-
+  const config = parseProgressConfig(video.progressBarConfig);
   const activeId = config?.enabled ? (config.style || "steady") : null;
+  const [customOpen, setCustomOpen] = useState(activeId === "custom");
+  const refDuration = Number(video.duration) > 0 ? Number(video.duration) : 600;
 
-  const selectPreset = (id: string) => {
-    const preset = PROGRESS_PRESETS.find(p => p.id === id)!;
+  const save = (style: string, curve: ProgressSegment[]) => {
     onUpdate({
-      progressBarConfig: JSON.stringify({ enabled: true, style: id, segments: preset.segments }),
+      progressBarConfig: JSON.stringify({ enabled: true, style, version: 2, curve, segments: describeCurve(curve) }),
     });
   };
 
+  const selectPreset = (id: string) => {
+    setCustomOpen(false);
+    save(id, PRESET_CURVES[id] ?? PRESET_CURVES.steady);
+  };
+
   const disable = () => onUpdate({ progressBarConfig: null });
+
+  const customInitial = (activeId === "custom" && resolveCurve(config)) || DEFAULT_CUSTOM_CURVE;
+  const customActive = activeId === "custom";
 
   return (
     <div className="space-y-3">
       <div>
         <p className="text-xs font-bold text-zinc-300 mb-0.5">Progress Bar Manipulation</p>
         <p className="text-[11px] text-zinc-500 leading-relaxed">
-          Control how fast the progress bar moves, independent of actual video time. Top VSL creators use this to keep viewers watching longer.
+          Control how fast the progress bar moves, independent of actual video time. Top VSL creators use this to keep viewers watching longer. Seeking still jumps to the matching point in the real video, and the time counter is hidden while a curve is active.
         </p>
       </div>
 
@@ -176,6 +365,44 @@ function ProgressSection({ video, onUpdate }: { video: any; onUpdate: (data: any
             </div>
           );
         })}
+
+        {/* Custom curve */}
+        <div
+          onClick={() => setCustomOpen(o => !o)}
+          className="p-3 rounded-xl cursor-pointer transition-all"
+          style={{
+            background: customActive || customOpen ? `${CUSTOM_COLOR}10` : "rgba(255,255,255,0.025)",
+            border: `1px solid ${customActive ? CUSTOM_COLOR + "45" : "rgba(63,63,70,0.4)"}`,
+          }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <p className="text-xs font-bold" style={{ color: customActive ? CUSTOM_COLOR : "#e4e4e7" }}>Custom</p>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: `${CUSTOM_COLOR}18`, color: CUSTOM_COLOR, border: `1px solid ${CUSTOM_COLOR}30` }}>
+                  Build your own
+                </span>
+              </div>
+              <p className="text-[10px] text-zinc-500">Set each part of the bar's speed yourself</p>
+            </div>
+            <div
+              className="w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all"
+              style={{ background: customActive ? CUSTOM_COLOR : "transparent", borderColor: customActive ? CUSTOM_COLOR : "#52525b" }}
+            >
+              {customActive && <Check className="w-2.5 h-2.5 text-black" />}
+            </div>
+          </div>
+          {customOpen ? (
+            <CustomCurveEditor
+              initial={customInitial}
+              refDuration={refDuration}
+              active={customActive}
+              onSave={curve => save("custom", curve)}
+            />
+          ) : (
+            <CurveVisual curve={customInitial} color={customActive ? CUSTOM_COLOR : `${CUSTOM_COLOR}30`} refDuration={refDuration} />
+          )}
+        </div>
       </div>
 
       {activeId && (
@@ -1244,12 +1471,117 @@ function AddVideoDialog({
 
 // ── Main VideoHosting ─────────────────────────────────────────────────────────
 
+// ── Storage settings (bring your own Cloudinary key) ─────────────────────────
+
+type StorageStatus = {
+  configured: boolean;
+  cloudName: string | null;
+  apiKeyHint: string | null;
+  updatedAt: string | null;
+  encryptionAvailable: boolean;
+};
+
+function StorageSettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: status } = useQuery<StorageStatus>({ queryKey: ["/api/video-hosting/storage-config"], enabled: open });
+  const [cloudName, setCloudName] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [apiSecret, setApiSecret] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setCloudName(status?.cloudName ?? "");
+      setApiKey("");
+      setApiSecret("");
+    }
+  }, [open, status?.cloudName]);
+
+  const onSaved = (next: StorageStatus) => {
+    qc.setQueryData(["/api/video-hosting/storage-config"], next);
+    setApiKey("");
+    setApiSecret("");
+  };
+
+  const saveMut = useMutation({
+    mutationFn: () => apiRequest("PUT", "/api/video-hosting/storage-config", { cloudName, apiKey, apiSecret }),
+    onSuccess: (next: StorageStatus) => { onSaved(next); toast({ title: "Storage connected", description: "New uploads will go to your Cloudinary account." }); },
+    onError: (err: any) => toast({ title: "Couldn't save", description: err.message, variant: "destructive" }),
+  });
+  const removeMut = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/video-hosting/storage-config"),
+    onSuccess: (next: StorageStatus) => { onSaved(next); setCloudName(""); toast({ title: "Storage disconnected", description: "Uploads use the default Oravini storage again." }); },
+    onError: (err: any) => toast({ title: "Couldn't remove", description: err.message, variant: "destructive" }),
+  });
+
+  const configured = !!status?.configured;
+  // When already configured, blank key/secret fields keep the stored values.
+  const canSave = !!cloudName.trim() && (configured || (!!apiKey.trim() && !!apiSecret.trim())) && status?.encryptionAvailable !== false;
+
+  return (
+    <Dialog open={open} onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-md" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
+        <DialogHeader>
+          <DialogTitle className="text-white">Video storage</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-xl p-3 text-[11px] leading-relaxed" style={{ background: configured ? "#34d39910" : "rgba(255,255,255,0.03)", border: `1px solid ${configured ? "#34d39940" : "rgba(63,63,70,0.5)"}` }}>
+            {configured ? (
+              <span className="text-zinc-300">
+                Uploads go to your Cloudinary cloud <b className="text-white">{status?.cloudName}</b> (API key {status?.apiKeyHint}).
+              </span>
+            ) : (
+              <span className="text-zinc-400">
+                Using default Oravini storage. Connect your own Cloudinary account to store uploads on your plan instead.
+              </span>
+            )}
+          </div>
+
+          {status?.encryptionAvailable === false && (
+            <p className="text-[11px] text-amber-400">
+              Credential encryption isn't configured on this server yet, so keys can't be saved. Ask an admin to set TOKEN_ENCRYPTION_KEY.
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-400">Cloud name</Label>
+            <Input value={cloudName} onChange={e => setCloudName(e.target.value)} placeholder="my-cloud" autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-400">API key</Label>
+            <Input value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={configured ? `Leave blank to keep ${status?.apiKeyHint}` : "123456789012345"} autoComplete="off" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-400">API secret</Label>
+            <Input type="password" value={apiSecret} onChange={e => setApiSecret(e.target.value)} placeholder={configured ? "Leave blank to keep the saved secret" : "Your API secret"} autoComplete="new-password" />
+          </div>
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Find these in Cloudinary → Settings → API Keys. Keys are checked with Cloudinary, encrypted before they're stored, only used for your account's uploads, and the secret is never shown again. Existing videos stay where they are.
+          </p>
+        </div>
+        <DialogFooter className="gap-2">
+          {configured && (
+            <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 mr-auto" disabled={removeMut.isPending} onClick={() => removeMut.mutate()}>
+              Disconnect
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={onClose}>Close</Button>
+          <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold" disabled={!canSave || saveMut.isPending} onClick={() => saveMut.mutate()}>
+            {saveMut.isPending ? "Verifying…" : configured ? "Update" : "Connect"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string) => void } = {}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "vsl" | "standard">("all");
+  const [showStorage, setShowStorage] = useState(false);
 
   const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
   const videos = (_videos ?? []) as any[];
@@ -1325,6 +1657,9 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
               </button>
             ))}
           </div>
+          <Button size="sm" variant="outline" className="gap-1.5 text-zinc-300" style={{ borderColor: `${GOLD}25`, background: "#0c0c10" }} onClick={() => setShowStorage(true)} title="Video storage settings">
+            <Settings2 className="w-4 h-4" /> Storage
+          </Button>
           <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5" onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4" /> Add Video
           </Button>
@@ -1375,6 +1710,8 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
           ))}
         </div>
       )}
+
+      <StorageSettingsDialog open={showStorage} onClose={() => setShowStorage(false)} />
 
       {/* Add video dialog */}
       <AddVideoDialog
