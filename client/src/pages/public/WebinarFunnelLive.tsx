@@ -7,6 +7,7 @@ import {
   useCountdown, usePublicWebinar, type PublicWebinar,
 } from "@/components/webinar-funnel/shared";
 import { ViewerChatPanel, readChatName, useWebinarChat } from "@/components/webinar-funnel/LiveChat";
+import { ViewerPollCard, useActivePoll } from "@/components/webinar-funnel/Polls";
 
 const HEARTBEAT_MS = 15_000;
 type Tab = "chat" | "qa" | "slides";
@@ -197,6 +198,8 @@ export default function WebinarFunnelLive() {
   const beatViewers = useHeartbeat(webinar ? slug : undefined, phase, reg?.registrationId, reg?.email);
   const viewers = Math.max(beatViewers ?? 0, chat.viewers);
 
+  const poll = useActivePoll(webinar ? slug : undefined, reg?.registrationId);
+
   const defaultName = useMemo(() => readChatName() || reg?.name || "", [reg?.name]);
 
   if (isLoading) return <PublicLoading />;
@@ -245,7 +248,7 @@ export default function WebinarFunnelLive() {
 
           {/* Sidebar sits here on mobile (tabs under the video) */}
           <div className="lg:hidden">
-            <Sidebar tabs={tabs} tab={tab} setTab={setTab} chat={chat} webinar={webinar} phase={phase} defaultName={defaultName} registrationId={reg?.registrationId} mobile />
+            <Sidebar tabs={tabs} tab={tab} setTab={setTab} chat={chat} webinar={webinar} phase={phase} defaultName={defaultName} registrationId={reg?.registrationId} email={reg?.email} poll={poll} mobile />
           </div>
 
           <section className="rounded-2xl p-5 sm:p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -269,7 +272,7 @@ export default function WebinarFunnelLive() {
         {/* Desktop sidebar */}
         <aside className="hidden lg:block">
           <div className="sticky top-20 h-[calc(100vh-6.5rem)] max-h-[860px]">
-            <Sidebar tabs={tabs} tab={tab} setTab={setTab} chat={chat} webinar={webinar} phase={phase} defaultName={defaultName} registrationId={reg?.registrationId} />
+            <Sidebar tabs={tabs} tab={tab} setTab={setTab} chat={chat} webinar={webinar} phase={phase} defaultName={defaultName} registrationId={reg?.registrationId} email={reg?.email} poll={poll} />
           </div>
         </aside>
       </main>
@@ -281,15 +284,17 @@ export default function WebinarFunnelLive() {
   );
 }
 
-function Sidebar({ tabs, tab, setTab, chat, webinar, phase, defaultName, registrationId, mobile }: {
+function Sidebar({ tabs, tab, setTab, chat, webinar, phase, defaultName, registrationId, email, poll, mobile }: {
   tabs: { id: Tab; label: string; icon: typeof MessageCircle; count?: number }[];
   tab: Tab; setTab: (t: Tab) => void;
   chat: ReturnType<typeof useWebinarChat>;
-  webinar: PublicWebinar; phase: WebinarLivePhase; defaultName: string; registrationId?: string; mobile?: boolean;
+  webinar: PublicWebinar; phase: WebinarLivePhase; defaultName: string; registrationId?: string; email?: string;
+  poll: ReturnType<typeof useActivePoll>; mobile?: boolean;
 }) {
   return (
     <div className={`flex flex-col rounded-2xl overflow-hidden ${mobile ? "h-[70vh] min-h-[420px]" : "h-full"}`}
       style={{ background: "#0e0d13", border: "1px solid rgba(255,255,255,0.07)" }} data-testid={mobile ? "sidebar-mobile" : "sidebar"}>
+      <ViewerPollCard slug={webinar.slug} registrationId={registrationId} email={email} poll={poll} />
       <div role="tablist" className="flex p-1.5 gap-1 border-b border-white/[0.06]">
         {tabs.map(t => {
           const active = tab === t.id;

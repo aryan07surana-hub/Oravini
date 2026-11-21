@@ -8,12 +8,18 @@
  *     POST /api/public/webinars/:slug/heartbeat         15s attendance heartbeat
  *     POST /api/public/webinars/:slug/cta-click         CTA click tracking
  *     GET  /api/public/webinars/:slug/attendee?r=<id>   registrant's display name (for chat prefill)
+ *     GET  /api/public/webinars/:slug/poll?viewerKey=&r= active poll + this viewer's vote (+ results once voted)
+ *     POST /api/public/webinars/:slug/poll/:pollId/vote  { optionIndex, viewerKey, registrationId?, email? }
  *
  *   Owner (auth)
  *     GET   /api/webinar-funnels/:id/chat               full chat incl. hidden + live viewer count
  *     POST  /api/webinar-funnels/:id/chat               post as host
  *     PATCH /api/webinar-funnels/:id/chat/:msgId        { hidden?, answered? } (soft hide — never deleted)
  *     GET   /api/webinar-funnels/:id/analytics          show rate, watch time, drop-off, CTA clicks
+ *     GET   /api/webinar-funnels/:id/polls              polls with tallies
+ *     POST  /api/webinar-funnels/:id/polls              { question, options[2-4] }
+ *     POST  /api/webinar-funnels/:id/polls/:pollId/activate | /close
+ *     GET   /api/webinar-funnels/:id/revenue            registered → showed → clicked → CRM deals
  *     POST  /api/webinar-funnels/tools/upload-deck            PDF deck upload → { url }
  *
  * Polling, not websockets: at webinar scale (hundreds of viewers) a 4s poll that
@@ -25,6 +31,7 @@ import path from "path";
 import { z } from "zod";
 import { pool } from "./storage";
 import { saveMedia } from "./mediaStorage";
+import { tagCrmContactWithPollAnswer } from "./crmLeadCapture";
 import type { WebinarFunnel } from "@shared/schema";
 
 type RequireAuth = (req: Request, res: Response, next: Function) => any;
@@ -151,6 +158,53 @@ const toMsg = (r: any) => ({
   hidden: !!r.hidden_at,
   createdAt: r.created_at,
 });
+
+// ── Polls ───────────────────────────────────────────────────────────────────
+type PollRow = { id: string; question: string; options: string[]; active: boolean; createdAt: Date };
+const toPoll = (r: any): PollRow => ({
+  id: r.id, question: r.question, options: Array.isArray(r.options) ? r.options.map(String) : [], active: !!r.active, createdAt: r.created_at,
+});
+// Active poll per webinar — cached briefly so hundreds of 4s polls cost ~one query.
+const activePollCache = new Map<string, { at: number; poll: PollRow | null }>();
+async function getActivePoll(webinarId: string): Promise<PollRow | null> {
+  const hit = activePollCache.get(webinarId);
+  if (hit && Date.now() - hit.at < 2_000) return hit.poll;
+  const { rows } = await pool.query(
+    `SELECT id, question, options, active, created_at FROM webinar_funnel_polls
+      WHERE webinar_id = $1 AND active = TRUE ORDER BY created_at DESC LIMIT 1`, [webinarId],
+  );
+  const poll = rows[0] ? toPoll(rows[0]) : null;
+  activePollCache.set(webinarId, { at: Date.now(), poll });
+  if (activePollCache.size > 2000) activePollCache.clear();
+  return poll;
+}
+const tallyCache = new Map<string, { at: number; counts: number[]; total: number }>();
+async function getTally(poll: PollRow, fresh = false) {
+  const hit = tallyCache.get(poll.id);
+  if (!fresh && hit && Date.now() - hit.at < 2_000) return { counts: hit.counts, total: hit.total };
+  const { rows } = await pool.query(
+    `SELECT option_index, COUNT(*)::int AS n FROM webinar_funnel_poll_votes WHERE poll_id = $1 GROUP BY option_index`, [poll.id],
+  );
+  const counts = poll.options.map(() => 0);
+  for (const r of rows) if (r.option_index >= 0 && r.option_index < counts.length) counts[r.option_index] = r.n;
+  const total = counts.reduce((a, b) => a + b, 0);
+  tallyCache.set(poll.id, { at: Date.now(), counts, total });
+  if (tallyCache.size > 5000) tallyCache.clear();
+  return { counts, total };
+}
+const invalidatePolls = (webinarId: string) => { activePollCache.delete(webinarId); };
+const isUuid = (v?: string | null) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+
+async function findVote(pollId: string, viewerKey?: string | null, registrationId?: string | null): Promise<number | null> {
+  const conds: string[] = []; const args: unknown[] = [pollId];
+  if (viewerKey) { args.push(viewerKey); conds.push(`viewer_key = $${args.length}`); }
+  if (isUuid(registrationId)) { args.push(registrationId); conds.push(`registration_id = $${args.length}`); }
+  if (!conds.length) return null;
+  const { rows } = await pool.query(
+    `SELECT option_index FROM webinar_funnel_poll_votes WHERE poll_id = $1 AND (${conds.join(" OR ")}) LIMIT 1`, args,
+  );
+  return rows[0] ? (rows[0].option_index as number) : null;
+}
 
 export function registerWebinarFunnelLiveRoutes(app: Express, requireAuth: RequireAuth, getOwnedFunnel: GetOwned) {
   // ── Public: poll chat ─────────────────────────────────────────────────────
@@ -429,6 +483,230 @@ export function registerWebinarFunnelLiveRoutes(app: Express, requireAuth: Requi
     } catch (e: any) {
       console.error("[webinar-live] analytics error:", e.message);
       res.status(500).json({ message: "Failed to load analytics" });
+    }
+  });
+
+  // ── Public: active poll ───────────────────────────────────────────────────
+  app.get("/api/public/webinars/:slug/poll", async (req: Request, res: Response) => {
+    try {
+      const f = await getFunnelBySlug(p(req.params.slug));
+      if (!f) return res.status(404).json({ message: "Webinar not found" });
+      if (beatLimited(`pollget|${req.ip}`, 120)) return res.status(429).json({ message: "Too many requests" });
+      res.setHeader("Cache-Control", "no-store");
+      const poll = await getActivePoll(f.id);
+      if (!poll) return res.json({ poll: null });
+      const vk = viewerKeySchema.safeParse(p(req.query.viewerKey));
+      const voted = await findVote(poll.id, vk.success ? vk.data : null, p(req.query.r) || null);
+      res.json({
+        poll: { id: poll.id, question: poll.question, options: poll.options },
+        voted,
+        results: voted === null ? null : await getTally(poll),
+      });
+    } catch (e: any) {
+      console.error("[webinar-live] poll get error:", e.message);
+      res.status(500).json({ message: "Poll unavailable" });
+    }
+  });
+
+  // ── Public: vote (one per registration / viewer key) ──────────────────────
+  const voteBody = z.object({
+    optionIndex: z.number().int().min(0).max(3),
+    viewerKey: viewerKeySchema,
+    registrationId: z.string().max(64).optional().nullable(),
+    email: z.string().max(254).optional().nullable(),
+  });
+  app.post("/api/public/webinars/:slug/poll/:pollId/vote", async (req: Request, res: Response) => {
+    try {
+      const f = await getFunnelBySlug(p(req.params.slug));
+      if (!f) return res.status(404).json({ message: "Webinar not found" });
+      const parsed = voteBody.safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ message: "Invalid vote" });
+      if (beatLimited(`vote|${req.ip}`, 30)) return res.status(429).json({ message: "Too many votes" });
+      const poll = await getActivePoll(f.id);
+      if (!poll || poll.id !== p(req.params.pollId)) return res.status(409).json({ message: "This poll has closed." });
+      const { optionIndex, viewerKey } = parsed.data;
+      if (optionIndex >= poll.options.length) return res.status(400).json({ message: "Invalid option" });
+
+      const reg = await resolveRegistration(f.id, parsed.data.registrationId, parsed.data.email);
+      const ins = await pool.query(
+        `INSERT INTO webinar_funnel_poll_votes (poll_id, option_index, registration_id, email, viewer_key)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+        [poll.id, optionIndex, reg?.id ?? null, reg?.email ?? null, viewerKey],
+      );
+      const counted = (ins.rowCount ?? 0) > 0;
+      const voted = counted ? optionIndex : ((await findVote(poll.id, viewerKey, reg?.id)) ?? optionIndex);
+
+      // Best-effort CRM tag — never blocks or fails the vote.
+      if (counted && reg?.email) {
+        tagCrmContactWithPollAnswer({
+          userId: f.userId, email: reg.email, question: poll.question, optionLabel: poll.options[optionIndex],
+          context: { webinarId: f.id, pollId: poll.id },
+        }).catch(err => console.error("[webinar-live] poll CRM tag failed:", err?.message || err));
+      }
+      res.json({ voted, alreadyVoted: !counted, results: await getTally(poll, true) });
+    } catch (e: any) {
+      console.error("[webinar-live] vote error:", e.message);
+      res.status(500).json({ message: "Couldn't record your vote" });
+    }
+  });
+
+  // ── Owner: polls ──────────────────────────────────────────────────────────
+  app.get("/api/webinar-funnels/:id/polls", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const f = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+      if (!f) return res.status(404).json({ message: "Not found" });
+      const [{ rows: polls }, { rows: votes }] = await Promise.all([
+        pool.query(`SELECT id, question, options, active, created_at FROM webinar_funnel_polls WHERE webinar_id = $1 ORDER BY created_at DESC`, [f.id]),
+        pool.query(
+          `SELECT v.poll_id, v.option_index, COUNT(*)::int AS n FROM webinar_funnel_poll_votes v
+             JOIN webinar_funnel_polls pl ON pl.id = v.poll_id WHERE pl.webinar_id = $1 GROUP BY v.poll_id, v.option_index`, [f.id],
+        ),
+      ]);
+      res.setHeader("Cache-Control", "no-store");
+      res.json(polls.map(r => {
+        const poll = toPoll(r);
+        const counts = poll.options.map(() => 0);
+        for (const v of votes) if (v.poll_id === poll.id && v.option_index < counts.length) counts[v.option_index] = v.n;
+        return { ...poll, counts, total: counts.reduce((a, b) => a + b, 0) };
+      }));
+    } catch (e: any) {
+      console.error("[webinar-live] polls list error:", e.message);
+      res.status(500).json({ message: "Failed to load polls" });
+    }
+  });
+
+  const pollBody = z.object({
+    question: z.string().trim().min(1).max(200),
+    options: z.array(z.string().trim().min(1).max(80)).min(2).max(4),
+  });
+  app.post("/api/webinar-funnels/:id/polls", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const f = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+      if (!f) return res.status(404).json({ message: "Not found" });
+      const parsed = pollBody.safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ message: "A poll needs a question and 2–4 options." });
+      const { rows } = await pool.query(
+        `INSERT INTO webinar_funnel_polls (webinar_id, question, options) VALUES ($1, $2, $3::jsonb)
+         RETURNING id, question, options, active, created_at`,
+        [f.id, cleanChatText(parsed.data.question), JSON.stringify(parsed.data.options.map(o => cleanChatText(o)))],
+      );
+      const poll = toPoll(rows[0]);
+      res.status(201).json({ ...poll, counts: poll.options.map(() => 0), total: 0 });
+    } catch (e: any) {
+      console.error("[webinar-live] poll create error:", e.message);
+      res.status(500).json({ message: "Couldn't create poll" });
+    }
+  });
+
+  app.post("/api/webinar-funnels/:id/polls/:pollId/activate", requireAuth, async (req: Request, res: Response) => {
+    const f = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+    if (!f) return res.status(404).json({ message: "Not found" });
+    const pollId = p(req.params.pollId);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rowCount } = await client.query(`SELECT 1 FROM webinar_funnel_polls WHERE id = $1 AND webinar_id = $2`, [pollId, f.id]);
+      if (!rowCount) { await client.query("ROLLBACK"); return res.status(404).json({ message: "Poll not found" }); }
+      await client.query(`UPDATE webinar_funnel_polls SET active = (id = $1) WHERE webinar_id = $2`, [pollId, f.id]);
+      await client.query("COMMIT");
+      invalidatePolls(f.id);
+      res.json({ ok: true });
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("[webinar-live] poll activate error:", e.message);
+      res.status(500).json({ message: "Couldn't activate poll" });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.post("/api/webinar-funnels/:id/polls/:pollId/close", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const f = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+      if (!f) return res.status(404).json({ message: "Not found" });
+      const { rowCount } = await pool.query(
+        `UPDATE webinar_funnel_polls SET active = FALSE WHERE id = $1 AND webinar_id = $2`, [p(req.params.pollId), f.id],
+      );
+      if (!rowCount) return res.status(404).json({ message: "Poll not found" });
+      invalidatePolls(f.id);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[webinar-live] poll close error:", e.message);
+      res.status(500).json({ message: "Couldn't close poll" });
+    }
+  });
+
+  // ── Owner: revenue (registered → showed → clicked → CRM deals) ────────────
+  app.get("/api/webinar-funnels/:id/revenue", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const f = await getOwnedFunnel(p(req.params.id), (req.user as any).id);
+      if (!f) return res.status(404).json({ message: "Not found" });
+      const [regs, att, cta] = await Promise.all([
+        pool.query(`SELECT COUNT(*)::int AS n FROM webinar_funnel_registrations WHERE webinar_id = $1`, [f.id]),
+        pool.query(
+          `SELECT COUNT(*) FILTER (WHERE watch_seconds >= 15)::int AS attended,
+                  COUNT(DISTINCT registration_id) FILTER (WHERE watch_seconds >= 15)::int AS registered_attended
+             FROM webinar_attendance WHERE webinar_id = $1`, [f.id],
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS clicks, COUNT(DISTINCT COALESCE(registration_id, viewer_key))::int AS unique_clickers
+             FROM webinar_cta_clicks WHERE webinar_id = $1`, [f.id],
+        ),
+      ]);
+
+      // CRM deals attributed to this webinar. Best-effort: if the CRM tables aren't there yet, report zeros.
+      type StageAgg = { stageId: string; name: string; position: number; isWon: boolean; isLost: boolean; count: number; valueCents: number };
+      const stages = new Map<string, StageAgg>();
+      const currencyCount = new Map<string, number>();
+      let dealCount = 0, totalValueCents = 0, wonValueCents = 0, wonCount = 0;
+      try {
+        const { rows } = await pool.query(
+          `SELECT s.id AS stage_id, s.name, s.position, s.is_won, s.is_lost, o.status, o.currency,
+                  COUNT(*)::int AS n, COALESCE(SUM(o.value_cents), 0)::bigint AS value_cents
+             FROM crm_opportunities o JOIN crm_pipeline_stages s ON s.id = o.stage_id
+            WHERE o.owner_id = $1 AND (o.custom_fields->>'webinarId' = $2 OR o.tags @> $3::jsonb)
+            GROUP BY s.id, s.name, s.position, s.is_won, s.is_lost, o.status, o.currency`,
+          [f.userId, f.id, JSON.stringify([`webinar:${f.slug}`])],
+        );
+        for (const r of rows) {
+          const n = r.n as number, v = Number(r.value_cents);
+          const won = !!r.is_won || r.status === "won";
+          const st = stages.get(r.stage_id) || { stageId: r.stage_id, name: r.name, position: r.position, isWon: !!r.is_won, isLost: !!r.is_lost, count: 0, valueCents: 0 };
+          st.count += n; st.valueCents += v;
+          stages.set(r.stage_id, st);
+          dealCount += n; totalValueCents += v;
+          if (won) { wonValueCents += v; wonCount += n; }
+          currencyCount.set(r.currency || "USD", (currencyCount.get(r.currency || "USD") || 0) + n);
+        }
+      } catch (e: any) {
+        console.warn("[webinar-live] revenue: CRM deal query skipped:", e.message);
+      }
+      const currency = [...currencyCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "USD";
+
+      const registrations = regs.rows[0].n as number;
+      const a = att.rows[0];
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        webinar: { id: f.id, title: f.title, slug: f.slug, status: f.status, scheduledAt: f.scheduledAt },
+        registrations,
+        attended: a.attended,
+        registeredAttended: a.registered_attended,
+        showRate: registrations ? Math.min(1, a.registered_attended / registrations) : null,
+        ctaClicks: cta.rows[0].clicks,
+        uniqueClickers: cta.rows[0].unique_clickers,
+        deals: {
+          count: dealCount,
+          wonCount,
+          currency,
+          mixedCurrencies: currencyCount.size > 1,
+          totalValueCents,
+          wonValueCents,
+          byStage: [...stages.values()].sort((x, y) => x.position - y.position),
+        },
+      });
+    } catch (e: any) {
+      console.error("[webinar-live] revenue error:", e.message);
+      res.status(500).json({ message: "Failed to load revenue" });
     }
   });
 

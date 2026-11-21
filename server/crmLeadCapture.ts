@@ -139,3 +139,77 @@ export function captureLeadToCrmInBackground(input: CaptureLeadInput): void {
     console.error(`[crm-lead-capture] ${input.source} capture failed for owner ${input.userId}:`, err?.message || err);
   });
 }
+
+/** `poll:<label>` — control chars stripped, whitespace collapsed, capped at 40 chars total. */
+export function pollAnswerTag(optionLabel: string): string {
+  const clean = String(optionLabel || "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `poll:${clean}`.slice(0, 40).trim();
+}
+
+export interface PollAnswerInput {
+  /** Owner of the webinar funnel — the CRM the contact lives in. */
+  userId: string | null | undefined;
+  email: string | null | undefined;
+  question: string;
+  optionLabel: string;
+  context?: Record<string, unknown>;
+}
+
+/**
+ * Tag the owner's existing CRM contact (same owner + lower(email) lookup as
+ * captureLeadToCrm) with `poll:<answer>`, record customFields.pollAnswers[question]
+ * and add a timeline entry. No contact → no-op (we never create one from a vote).
+ */
+export async function tagCrmContactWithPollAnswer(input: PollAnswerInput): Promise<string | null> {
+  const email = (input.email || "").trim().toLowerCase();
+  if (!input.userId || !email || !/^\S+@\S+\.\S+$/.test(email)) return null;
+  const ownerId = input.userId;
+  const question = String(input.question || "").trim().slice(0, 200);
+  const label = String(input.optionLabel || "").trim().slice(0, 120);
+  if (!question || !label) return null;
+  const tag = pollAnswerTag(label);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`crm-lead:${ownerId}:${email}`]);
+    const { rows } = await client.query(
+      `SELECT id FROM crm_contacts
+        WHERE owner_id = $1 AND lower(email) = $2 AND deleted_at IS NULL
+        ORDER BY created_at ASC LIMIT 1`,
+      [ownerId, email],
+    );
+    if (!rows[0]) { await client.query("ROLLBACK"); return null; }
+    const contactId = rows[0].id as string;
+    await client.query(
+      `UPDATE crm_contacts SET
+          tags = CASE WHEN COALESCE(tags, '[]'::jsonb) @> $1::jsonb THEN tags
+                      ELSE COALESCE(tags, '[]'::jsonb) || $1::jsonb END,
+          custom_fields = jsonb_set(
+            COALESCE(custom_fields, '{}'::jsonb), '{pollAnswers}',
+            COALESCE(custom_fields->'pollAnswers', '{}'::jsonb) || $2::jsonb, true),
+          updated_at = now()
+        WHERE id = $3`,
+      [JSON.stringify([tag]), JSON.stringify({ [question]: label }), contactId],
+    );
+    const { rows: act } = await client.query(
+      `INSERT INTO crm_activities (contact_id, user_id, type, title, body, metadata)
+       VALUES ($1, $2, 'tag', $3, $4, $5::jsonb) RETURNING id`,
+      [contactId, ownerId, `Answered webinar poll: ${label}`.slice(0, 200), question,
+        JSON.stringify({ source: "webinar_poll", question, answer: label, tag, ...(input.context || {}) })],
+    );
+    await client.query(`INSERT INTO crm_tags (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [tag]);
+    await client.query("COMMIT");
+    emitCrmEvent({ kind: "contact.updated", id: contactId });
+    emitCrmEvent({ kind: "activity.created", id: act[0].id, contactId });
+    return contactId;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
