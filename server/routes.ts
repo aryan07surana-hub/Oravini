@@ -26,6 +26,7 @@ import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES, me
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl, isValidCtaUrl } from "@shared/webinarFunnel";
 import { registerWebinarFunnelLiveRoutes } from "./webinarFunnelLive";
 import { sendWebinarConfirmation } from "./webinarFunnelEmail";
+import { WEBINAR_OUTBOUND_DISABLED, WEBINAR_OUTBOUND_DISABLED_MESSAGE, noteWebinarOutboundDisabled, respondWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -15257,6 +15258,12 @@ Return JSON only:
   };
 
   async function sendSmsViaEmail(toPhone: string, message: string): Promise<void> {
+    // Email-to-carrier SMS gateway is disabled: throw before any lookup or send,
+    // so callers record a failure rather than a phantom delivery.
+    if (WEBINAR_OUTBOUND_DISABLED) {
+      noteWebinarOutboundDisabled("SMS email-to-carrier gateway");
+      throw new Error(WEBINAR_OUTBOUND_DISABLED_MESSAGE);
+    }
     const gw = await storage.getSmsCarrierGateway(toPhone);
     if (!gw || !gw.gatewayDomain) throw new Error(`No carrier gateway for ${toPhone}`);
     const nodemailer = await import("nodemailer");
@@ -15425,6 +15432,8 @@ Return JSON only:
 
   // SMS Broadcasts — send
   app.post("/api/admin/sms/broadcast", requireAdmin, async (req, res) => {
+    // DISABLED before createSmsBroadcast(), the recipient loop and logSms().
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res, { sent: 0 });
     const { name, message, segment } = req.body;
     if (!name || !message) return res.status(400).json({ message: "name and message required" });
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
@@ -15446,6 +15455,8 @@ Return JSON only:
 
   // SMS — send a single test SMS
   app.post("/api/admin/sms/test", requireAdmin, async (req, res) => {
+    // DISABLED — never reports a successful send.
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res);
     const { phone, message } = req.body;
     if (!phone || !message) return res.status(400).json({ message: "phone and message required" });
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
@@ -15459,6 +15470,8 @@ Return JSON only:
 
   // SMS — run sequences manually
   app.post("/api/admin/sms/run-sequences", requireAdmin, async (_req, res) => {
+    // DISABLED before importing/running the processor, so no enrollment advances.
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res);
     try {
       const { processSmsSequences } = await import("./cron");
       await processSmsSequences();

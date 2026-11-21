@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
-import nodemailer from "nodemailer";
+import { respondWebinarOutboundDisabled } from "../webinarOutboundDisabled";
 
 function p(id: string | string[] | undefined): string {
   const s = Array.isArray(id) ? id[0] : id;
@@ -170,93 +170,17 @@ export function registerWebinarEmailRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // Send test email
-  app.post("/api/webinars/:id/emails/:emailId/test", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const email = await storage.getWebinarEmailById(p(req.params.emailId));
-      if (!email) return res.status(404).json({ message: "Email not found" });
-
-      const webinar = await storage.getWebinar(p(req.params.id));
-      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
-
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const body = replaceTemplateVars(email.bodyHtml, {
-        name: user.name || "Test User",
-        webinarTitle: webinar.title,
-        date: webinar.scheduledAt ? new Date(webinar.scheduledAt).toLocaleDateString() : "TBD",
-        time: webinar.scheduledAt ? new Date(webinar.scheduledAt).toLocaleTimeString() : "TBD",
-        duration: String(webinar.durationMinutes || 60),
-        watchUrl: `${baseUrl}/watch/${webinar.meetingCode}`,
-        replayUrl: webinar.replayVideoUrl || "",
-      });
-
-      const subject = replaceTemplateVars(email.subject, {
-        name: user.name || "Test User",
-        webinarTitle: webinar.title,
-      });
-
-      // Try to send via configured transport
-      const transporter = getMailTransporter();
-      if (transporter) {
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || "webinars@oravini.com",
-          to: user.email,
-          subject,
-          html: body,
-        });
-      }
-
-      res.json({ ok: true, sentTo: user.email });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  // Send test email — DISABLED. Returns 410 before any storage read or send.
+  // The saved template this would have rendered is untouched.
+  app.post("/api/webinars/:id/emails/:emailId/test", requireAuth, async (_req: Request, res: Response) => {
+    return respondWebinarOutboundDisabled(res, { sentTo: null });
   });
 
-  // Trigger send to all registrants (manual send)
-  app.post("/api/webinars/:id/emails/:emailId/send", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const email = await storage.getWebinarEmailById(p(req.params.emailId));
-      if (!email) return res.status(404).json({ message: "Email not found" });
-
-      const webinar = await storage.getWebinar(p(req.params.id));
-      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
-
-      const registrations = await storage.getWebinarRegistrations(p(req.params.id));
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const transporter = getMailTransporter();
-      let sentCount = 0;
-
-      if (transporter) {
-        for (const reg of registrations) {
-          const body = replaceTemplateVars(email.bodyHtml, {
-            name: reg.name,
-            webinarTitle: webinar.title,
-            date: webinar.scheduledAt ? new Date(webinar.scheduledAt).toLocaleDateString() : "TBD",
-            time: webinar.scheduledAt ? new Date(webinar.scheduledAt).toLocaleTimeString() : "TBD",
-            duration: String(webinar.durationMinutes || 60),
-            watchUrl: `${baseUrl}/watch/${webinar.meetingCode}`,
-            replayUrl: webinar.replayVideoUrl || "",
-          });
-          const subject = replaceTemplateVars(email.subject, {
-            name: reg.name,
-            webinarTitle: webinar.title,
-          });
-
-          try {
-            await transporter.sendMail({
-              from: process.env.SMTP_FROM || "webinars@oravini.com",
-              to: reg.email,
-              subject,
-              html: body,
-            });
-            sentCount++;
-            await storage.logWebinarEmail(email.id, reg.email, reg.name);
-          } catch (e) { /* skip failed sends */ }
-        }
-      }
-
-      await storage.updateWebinarEmail(email.id, { sentCount: (email.sentCount || 0) + sentCount });
-      res.json({ ok: true, sent: sentCount, total: registrations.length });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  // Trigger send to all registrants (manual send) — DISABLED. Returns 410 before
+  // any storage read, recipient loop, email log write or sentCount update, so no
+  // counter moves and no registrant is recorded as messaged.
+  app.post("/api/webinars/:id/emails/:emailId/send", requireAuth, async (_req: Request, res: Response) => {
+    return respondWebinarOutboundDisabled(res, { sent: 0, total: 0 });
   });
 
   // Get email sending logs
@@ -266,28 +190,4 @@ export function registerWebinarEmailRoutes(app: Express, requireAuth: any) {
       res.json(logs);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
-}
-
-function replaceTemplateVars(template: string, vars: Record<string, string>): string {
-  let result = template;
-  for (const [key, value] of Object.entries(vars)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value || "");
-  }
-  // Handle {{#if var}}...{{/if}} blocks
-  result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName, content) => {
-    return vars[varName] ? content : "";
-  });
-  return result;
-}
-
-function getMailTransporter() {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-  }
-  return null;
 }

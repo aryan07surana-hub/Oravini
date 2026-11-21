@@ -305,7 +305,7 @@ const FEATURES = [
   { icon: "🎨", title: "AI Design Studio", desc: "Create professional carousels, lead magnets, SOPs, and Instagram story sequences in minutes.", tag: "4 Tools" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
-  { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
+  { icon: "📡", title: "Live Webinars", desc: "Host live webinars with registration pages, optional post-signup group links, and attendee CRM.", tag: "Add-on" },
   { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
@@ -1123,8 +1123,8 @@ export default function OraviniLanding() {
               {
                 icon: "📡",
                 title: "Live Webinars",
-                desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
-                bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+                desc: "Host live or automated webinars. Registration pages are built automatically, and after signup attendees can join through your optional group links. No webinar email or SMS is sent.",
+                bullets: ["Auto-built registration pages", "Optional post-signup group links", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
                 accent: "#60a5fa",
               },
               {

@@ -13,6 +13,7 @@
 import nodemailer from "nodemailer";
 import { pool } from "./storage";
 import { formatIST } from "@shared/webinarFunnel";
+import { WEBINAR_OUTBOUND_DISABLED, noteWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 
 const GOLD = "#d4b461";
 
@@ -116,6 +117,11 @@ export async function sendWebinarConfirmation(
   w: { id: string; slug: string; title: string; description: string | null; hostName: string | null; scheduledAt: Date; durationMinutes: number | null },
   reg: { id: string; name: string; email: string },
 ): Promise<boolean> {
+  // Delivery is off: return before building or touching a mail transport.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("funnel confirmation");
+    return false;
+  }
   const transport = getTransport();
   if (!transport) {
     console.log(`[webinar-email] no mail transport configured — skipped confirmation to ${reg.email}`);
@@ -147,6 +153,7 @@ export async function sendWebinarConfirmation(
 }
 
 async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email: string }) {
+  if (WEBINAR_OUTBOUND_DISABLED) return false;
   const transport = getTransport();
   if (!transport) return false;
   const link = liveLink(w.slug, reg.id);
@@ -177,6 +184,12 @@ async function sendReminder(w: FunnelRow, reg: { id: string; name: string; email
  * opened (very late sign-ups already got a fresh confirmation).
  */
 export async function runWebinarFunnelReminders(): Promise<number> {
+  // Before any DB work: the claiming UPDATE below sets reminder_1h_sent_at, so
+  // running it while delivery is off would burn the reminder for every registrant.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("funnel 1h reminders");
+    return 0;
+  }
   if (!getTransport()) return 0;
   const { rows } = await pool.query(`
     UPDATE webinar_funnel_registrations r
@@ -205,6 +218,11 @@ export async function runWebinarFunnelReminders(): Promise<number> {
 
 let started = false;
 export function startWebinarFunnelReminderJob() {
+  // Delivery is off: no timer is registered at all, so the poll never runs.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("funnel reminder job (not started)");
+    return;
+  }
   if (started) return;
   started = true;
   const tick = () => runWebinarFunnelReminders().catch(e => console.error("[webinar-email] reminder job error:", e.message));

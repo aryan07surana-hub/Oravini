@@ -19,6 +19,7 @@
  */
 import { pool } from "./storage";
 import { getTransport, fromAddress, appBaseUrl } from "./webinarFunnelEmail";
+import { WEBINAR_OUTBOUND_DISABLED, noteWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 import { WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES } from "./routes/webinar-emails";
 
 export type FollowupSegment = "clicked" | "attended" | "no_show";
@@ -132,6 +133,7 @@ const TEMPLATE_KEY: Record<FollowupSegment, keyof typeof WEBINAR_FUNNEL_FOLLOWUP
 };
 
 async function sendFollowup(row: ClaimedRow): Promise<boolean> {
+  if (WEBINAR_OUTBOUND_DISABLED) return false;
   const transport = getTransport();
   if (!transport) return false;
   const tpl = WEBINAR_FUNNEL_FOLLOWUP_TEMPLATES[TEMPLATE_KEY[row.segment]];
@@ -171,6 +173,12 @@ async function sendFollowup(row: ClaimedRow): Promise<boolean> {
 }
 
 export async function runWebinarFunnelFollowups(): Promise<number> {
+  // Before ensureFollowupTable() and the claiming INSERT: claiming while delivery
+  // is off would permanently consume each registrant's one follow-up.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("funnel follow-ups");
+    return 0;
+  }
   // Without a transport nothing is claimed, so follow-ups go out once mail is configured.
   if (!getTransport()) return 0;
   await ensureFollowupTable();
@@ -189,6 +197,11 @@ export async function runWebinarFunnelFollowups(): Promise<number> {
 let started = false;
 let running = false;
 export function startWebinarFunnelFollowupJob() {
+  // Delivery is off: no timer is registered at all, so the poll never runs.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("funnel follow-up job (not started)");
+    return;
+  }
   if (started) return;
   started = true;
   const tick = async () => {

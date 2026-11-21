@@ -750,12 +750,12 @@ function Step5({ s, set, scheduledIso, existingStatus }: StepProps & { scheduled
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 pt-1">
-        <label className="flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.14] transition-colors">
+        <label className="flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.14] transition-colors" data-testid="reminders-inactive">
           <span className="flex items-start gap-3">
             <Bell className="w-4 h-4 mt-0.5 text-zinc-400" />
-            <span><span className="block text-[13px] font-medium text-white">Email reminders</span><span className="block text-xs text-zinc-500">Inactive. Use the post-registration group links instead.</span></span>
+            <span><span className="block text-[13px] font-medium text-white">Email reminders</span><span className="block text-xs text-zinc-500">Inactive. No webinar email or SMS is sent. Saved settings are kept. Attendees can use your optional group links after signup.</span></span>
           </span>
-          <Switch checked={false} disabled data-testid="switch-reminders" />
+          <Switch checked={s.remindersEnabled} disabled data-testid="switch-reminders" />
         </label>
         <label className={`flex items-center justify-between gap-3 p-4 rounded-lg cursor-pointer transition-colors border ${s.publish ? "bg-emerald-500/[0.06] border-emerald-500/25" : "bg-white/[0.02] border-white/[0.08] hover:border-white/[0.14]"}`}>
           <span className="flex items-start gap-3">
