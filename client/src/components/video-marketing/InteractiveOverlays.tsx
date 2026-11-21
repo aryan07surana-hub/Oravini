@@ -337,14 +337,14 @@ export function useActiveInteractive(
 // Chapter markers on a progress bar
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ChapterMarkers({ chapters, duration, brandColor = GOLD }: { chapters: Chapter[]; duration: number; brandColor?: string }) {
+export function ChapterMarkers({ chapters, duration, brandColor = GOLD, toPct }: { chapters: Chapter[]; duration: number; brandColor?: string; /** Optional real-seconds -> bar % mapping (fake progress curves). */ toPct?: (sec: number) => number }) {
   if (!chapters.length || !duration) return null;
 
   return (
     <div className="absolute inset-0 pointer-events-none">
       {chapters.map(ch => {
         const start = ch.startSeconds ?? ch.startTimeSec ?? 0;
-        const pct = Math.min((start / duration) * 100, 100);
+        const pct = Math.min(toPct ? toPct(start) : (start / duration) * 100, 100);
         return (
           <div
             key={ch.id}

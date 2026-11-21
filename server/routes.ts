@@ -36,6 +36,7 @@ import { normalizeInstagramHandle, normalizeInstagramProfileUrl } from "@shared/
 import { startCompetitorAnalysisWorker, enqueueAnalysisJob, getAnalysisJob, listActiveAnalysisJobs, serializeJob, AnalysisJobError, type JobProcessor } from "./competitorAnalysisJobs";
 import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
+import { getUserCloudinaryConfig } from "./videoStorageConfig";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { FFMPEG_PATH, FFPROBE_PATH, ffmpegAvailable } from "./ffmpegPath";
@@ -14811,6 +14812,22 @@ Return JSON only:
   }, async (req: any, res: Response) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      // Bring-your-own-key: if this account saved its own Cloudinary credentials,
+      // upload there. Otherwise keep the existing platform behaviour unchanged.
+      const user = req.user as any;
+      let userCloudinary = null;
+      try {
+        userCloudinary = await getUserCloudinaryConfig(user.id);
+      } catch (e: any) {
+        console.warn("[upload/video] could not load storage config:", e.message);
+      }
+      if (userCloudinary) {
+        const url = await saveMedia(req.file.path, req.file.filename, { cloudinary: userCloudinary, folder: "oravini-videos" });
+        return res.json({
+          url, filename: req.file.filename, size: req.file.size,
+          storage: url.startsWith("/uploads/") ? "local-fallback" : "own-cloudinary",
+        });
+      }
       const videoUrl = `/uploads/${req.file.filename}`;
       res.json({ url: videoUrl, filename: req.file.filename, size: req.file.size });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
