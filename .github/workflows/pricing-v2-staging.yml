@@ -1,0 +1,27 @@
+name: Pricing V2 Staging
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'shared/pricingV2.ts'
+      - 'server/pricingV2Proposal.ts'
+      - 'client/src/components/video-marketing/TermPricingPreview.tsx'
+      - 'client/src/pages/SelectPlan.tsx'
+      - 'client/src/pages/OraviniLanding.tsx'
+      - 'tests/pricingV2.test.ts'
+      - 'tests/termPricingPreview.test.ts'
+      - '.github/workflows/pricing-v2-staging.yml'
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      VITE_PRICING_V2_PREVIEW: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --legacy-peer-deps
+      - run: npx tsx --test tests/pricingV2.test.ts tests/termPricingPreview.test.ts tests/planConfirmation.test.ts tests/creditPeriodsV2.test.ts
+      - run: node script/build.mjs
