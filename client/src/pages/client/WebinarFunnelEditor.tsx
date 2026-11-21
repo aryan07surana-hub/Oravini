@@ -476,15 +476,15 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
                 onChange={e => setDurationMinutes(Math.min(600, Math.max(5, Number(e.target.value) || 60)))} className={inputCls} style={inputStyle} />
             </Field>
           </div>
-          <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] mt-1 pt-5">
+          <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] mt-1 pt-5" data-testid="reminders-inactive">
             <div className="flex items-start gap-2.5">
               <Bell className="w-4 h-4 mt-0.5 text-zinc-400" aria-hidden />
               <div>
                 <p className="text-[13px] font-medium text-white">Email reminders</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Inactive. Use the post-registration group links instead.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Inactive. No webinar email or SMS is sent. Saved settings are kept. Attendees can use your optional group links after signup.</p>
               </div>
             </div>
-            <Switch data-testid="switch-reminders" checked={false} disabled aria-label="Email reminders inactive" />
+            <Switch data-testid="switch-reminders" checked={remindersEnabled} disabled aria-label="Email reminders inactive" />
           </div>
         </div>
 

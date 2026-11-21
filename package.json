@@ -8,7 +8,7 @@
     "build": "npm install --legacy-peer-deps && node script/build.mjs",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "test": "tsx --test tests/instagramHandle.test.ts tests/competitorAnalysisJobs.integration.test.ts tests/webinarWizardState.test.ts tests/webinarYoutube.test.ts tests/youtubeTokens.test.ts tests/webinarCta.test.ts tests/webinarEventTime.test.ts tests/webinarCommunity.test.ts tests/videoMarketingNavigation.test.ts tests/webinarAssistant.test.ts tests/improveWithAI.test.ts",
+    "test": "tsx --test tests/instagramHandle.test.ts tests/competitorAnalysisJobs.integration.test.ts tests/webinarWizardState.test.ts tests/webinarYoutube.test.ts tests/youtubeTokens.test.ts tests/webinarCta.test.ts tests/webinarEventTime.test.ts tests/webinarCommunity.test.ts tests/videoMarketingNavigation.test.ts tests/webinarAssistant.test.ts tests/improveWithAI.test.ts tests/webinarOutboundDisabled.test.ts",
     "db:push": "drizzle-kit push",
     "test:email": "tsx server/testEmail.ts"
   },
