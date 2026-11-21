@@ -60,11 +60,12 @@ export function verifyYoutubeState(state: string | undefined, now = Date.now()):
 }
 
 /**
- * Scopes requested when a user connects YouTube. upload + readonly power the
- * scheduler; force-ssl is required for liveBroadcasts / liveStreams (webinars).
+ * The combined webinar + scheduler integration needs one scope. Google's
+ * YouTube v3 discovery schema lists force-ssl for every method called here:
+ * channels.list, videos.list/insert, liveBroadcasts.insert/update/list/bind,
+ * liveStreams.insert/list. Separate upload + readonly grants are redundant.
+ * Existing stored grants are preserved. This only affects future consent.
  */
 export const YOUTUBE_OAUTH_SCOPES = [
-  "https://www.googleapis.com/auth/youtube.upload",
-  "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/youtube.force-ssl",
 ];
