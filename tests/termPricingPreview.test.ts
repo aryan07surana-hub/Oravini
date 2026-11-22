@@ -44,10 +44,57 @@ test("internal AI-cost/margin notes stay in the labelled review preview only",as
  const {readFile}=await import("node:fs/promises");
  const path=await import("node:path");
  const src=await readFile(path.join(process.cwd(),"client/src/components/video-marketing/TermPricingPreview.tsx"),"utf8");
- const open='{!final&&<p className="cost">';
+ const open='{!final&&showInternalNotes&&<p className="cost">';
  const close='</p>}{final&&plan.id!=="free"&&available?';
- assert.ok(src.includes(open),"cost paragraph is guarded by preview mode");
+ assert.ok(src.includes(open),"cost paragraph requires preview mode and explicit internal-review opt-in");
  const openAt=src.indexOf(open),closeAt=src.indexOf(close);
  assert.ok(closeAt>openAt,"guard closes immediately before the live-price buy conditional");
  assert.ok(!src.replace(open,"").includes('<p className="cost">'),"no unguarded cost paragraph remains");
+});
+
+
+test("public landing routes use the new pricing wrapper",async()=>{
+ const {readFile}=await import("node:fs/promises");
+ const app=await readFile("client/src/App.tsx","utf8");
+ assert.ok(app.includes('import OraviniLanding from "@/pages/PricingV2Landing";'));
+ assert.ok(app.includes('if (!user) return <OraviniLanding />;'));
+ assert.ok(app.includes('<Route path="/oravini" component={OraviniLanding} />'));
+});
+
+test("public pricing does not depend on the obsolete preview environment flag",async()=>{
+ const {readFile}=await import("node:fs/promises");
+ const wrapper=await readFile("client/src/pages/PricingV2Landing.tsx","utf8");
+ assert.ok(!wrapper.includes("VITE_PRICING_V2_PREVIEW"));
+ assert.ok(wrapper.includes("return <PreviewLanding/>;"));
+ assert.ok(wrapper.includes("createPortal(<Pricing/>,slot)"));
+ assert.ok(wrapper.includes("#pricing > :not(.pricing-v2-slot){display:none!important}"),"legacy checkout cards cannot remain visible beside new pricing");
+});
+
+test("public draft pricing hides internal cost and margin planning notes",async()=>{
+ (globalThis as any).location={search:""};
+ const React=await import("react");(globalThis as any).React=React;
+ const {renderToStaticMarkup}=await import("react-dom/server");
+ const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
+ const html=renderToStaticMarkup(React.createElement(Pricing));
+ assert.ok(html.includes("PREVIEW · CHECKOUT OFF"));
+ assert.ok(!html.includes("Internal planning guard"));
+ assert.ok(!html.includes("maximum included AI provider cost"));
+ assert.ok(!html.includes("65%"));
+ const review=renderToStaticMarkup(React.createElement(Pricing,{showInternalNotes:true}));
+ assert.ok(review.includes("Internal planning guard"),"private review still supports the planning notes");
+});
+
+
+test("cards show dollar savings for each term beside its discount percent",async()=>{
+ const React=await import("react");(globalThis as any).React=React;
+ const {renderToStaticMarkup}=await import("react-dom/server");
+ const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
+ for(const [term,growth,video,pct] of [[3,"14.70","20.70",10],[6,"44.10","62.10",15],[12,"147.00","207.00",25]] as const){
+  (globalThis as any).location={search:`?term=${term}`};
+  const html=renderToStaticMarkup(React.createElement(Pricing));
+  assert.ok(html.includes(`Save $${growth} (${pct}%)`),`Growth ${term}-month savings`);
+  assert.ok(html.includes(`Save $${video} (${pct}%)`),`Growth+Video ${term}-month savings`);
+  assert.ok(html.includes("No term discount"),"Pro keeps its undiscounted price");
+ }
+ (globalThis as any).location={search:""};
 });
