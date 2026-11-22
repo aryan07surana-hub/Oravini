@@ -83,3 +83,18 @@ test("public draft pricing hides internal cost and margin planning notes",async(
  const review=renderToStaticMarkup(React.createElement(Pricing,{showInternalNotes:true}));
  assert.ok(review.includes("Internal planning guard"),"private review still supports the planning notes");
 });
+
+
+test("cards show dollar savings for each term beside its discount percent",async()=>{
+ const React=await import("react");(globalThis as any).React=React;
+ const {renderToStaticMarkup}=await import("react-dom/server");
+ const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
+ for(const [term,growth,video,pct] of [[3,"14.70","20.70",10],[6,"44.10","62.10",15],[12,"147.00","207.00",25]] as const){
+  (globalThis as any).location={search:`?term=${term}`};
+  const html=renderToStaticMarkup(React.createElement(Pricing));
+  assert.ok(html.includes(`Save $${growth} (${pct}%)`),`Growth ${term}-month savings`);
+  assert.ok(html.includes(`Save $${video} (${pct}%)`),`Growth+Video ${term}-month savings`);
+  assert.ok(html.includes("No term discount"),"Pro keeps its undiscounted price");
+ }
+ (globalThis as any).location={search:""};
+});
