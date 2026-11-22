@@ -1,4 +1,5 @@
 import { registerPlanConfirmationGuard } from "./planConfirmation";
+import { registerBillingV2Routes, billingV2SessionMiddleware } from "./billing/routes";
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
@@ -1423,6 +1424,11 @@ async function runMigrations() {
 
   // Register before the legacy onboarding route; never allow its billing side effects.
   registerPlanConfirmationGuard(app, storage);
+  // Billing v2 (Whop prepaid): session refresh + checkout/reconcile/webhook routes.
+  // Registered before legacy routes so its /api/auth/cancel-plan guard runs first.
+  // Kill switches default OFF; the schema is only created by script/billing-v2-migrate.ts.
+  app.use(billingV2SessionMiddleware({ db: pool, freeEnrollment: () => process.env.BILLING_V2_FREE_ENROLLMENT_ENABLED === "true" }));
+  registerBillingV2Routes(app, { db: pool });
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
   registerDmOnboardingRoutes(app);

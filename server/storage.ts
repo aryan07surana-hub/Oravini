@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { encryptYoutubeTokenFields, decryptYoutubeTokenRow } from "./youtubeTokenCrypto";
 import { Pool } from "pg";
+import * as billingV2 from "./billing/ledger";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr, inArray } from "drizzle-orm";
 import {
   igTrackedProfiles, igFollowerSnapshots,
@@ -1538,7 +1539,39 @@ class DatabaseStorage implements IStorage {
     return row;
   }
 
+  // ── Billing v2 routing ────────────────────────────────────────────────────
+  // Accounts in billing_accounts_v2 (prepaid Whop terms or migrated Free 100/month)
+  // never touch PLAN_CREDITS or the legacy daily/monthly reset below. Everyone else
+  // (legacy Free, legacy paid subscribers, Elite, admins) keeps the legacy contract.
+  private v2FreeEnrollment(): boolean { return process.env.BILLING_V2_FREE_ENROLLMENT_ENABLED === "true"; }
+
+  private async v2Refresh(userId: string): Promise<CreditBalance | null> {
+    try {
+      const enrolled = await billingV2.isV2Account(pool, userId);
+      if (!enrolled && !this.v2FreeEnrollment()) return null;
+      const state = await billingV2.refreshForUser(pool, userId, new Date(), { allowFreeEnrollment: this.v2FreeEnrollment() });
+      return state ? (state.balance as any ?? { id: "", userId, monthlyCredits: 0, bonusCredits: 0, lastResetMonth: "", createdAt: null }) : null;
+    } catch (e: any) {
+      if (e?.code === "42P01") return null; // v2 schema not migrated: everyone is legacy
+      throw e;
+    }
+  }
+
+  /** Refreshed v2 state (null for legacy accounts or before the v2 schema exists). */
+  async getBillingV2State(userId: string): Promise<billingV2.V2State | null> {
+    try {
+      const enrolled = await billingV2.isV2Account(pool, userId);
+      if (!enrolled && !this.v2FreeEnrollment()) return null;
+      return await billingV2.refreshForUser(pool, userId, new Date(), { allowFreeEnrollment: this.v2FreeEnrollment() });
+    } catch (e: any) {
+      if (e?.code === "42P01") return null;
+      throw e;
+    }
+  }
+
   async upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance> {
+    const v2 = await this.v2Refresh(userId);
+    if (v2) return v2;
     const periodKey = this.currentPeriodKey(plan);
     const allowance = this.PLAN_CREDITS[plan] ?? 10;
     const existing = await this.getCreditBalance(userId);
@@ -1564,6 +1597,9 @@ class DatabaseStorage implements IStorage {
 
   // Force-activate a plan's full credit allowance immediately (used on plan confirmation/upgrade)
   async activatePlanCredits(userId: string, plan: string): Promise<CreditBalance> {
+    // v2 allowances come only from the verified ledger; legacy activation never applies.
+    const v2 = await this.v2Refresh(userId);
+    if (v2) return v2;
     const allowance = this.PLAN_CREDITS[plan] ?? 5;
     const periodKey = this.currentPeriodKey(plan);
     const existing = await this.getCreditBalance(userId);
@@ -1583,6 +1619,16 @@ class DatabaseStorage implements IStorage {
   }
 
   async deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }> {
+    // v2 accounts: atomic debit under the user row lock, after the current-period refresh.
+    // The session-supplied `plan` is ignored for them; state is read from the locked rows.
+    try {
+      if (await billingV2.isV2Account(pool, userId) || (this.v2FreeEnrollment() && plan === "free")) {
+        const r = await billingV2.debitCredits(pool, userId, amount, type, description, new Date(), { allowFreeEnrollment: this.v2FreeEnrollment() });
+        if (!r.legacy) return { success: r.success, balance: r.balance as any, message: r.message };
+      }
+    } catch (e: any) {
+      if (e?.code !== "42P01") throw e;
+    }
     // Tier 5 (elite) = unlimited credits — skip deduction entirely
     if (plan === "elite") {
       const balance = await this.getCreditBalance(userId) ?? { userId, monthlyCredits: 99999, bonusCredits: 0, lastResetMonth: "", id: 0 } as any;
@@ -1615,8 +1661,9 @@ class DatabaseStorage implements IStorage {
       await db.insert(creditTransactions).values({ userId, amount, type: "bonus_added", description });
       return row;
     }
+    // Atomic increment so concurrent v2 resets/debits can never lose purchased credits.
     const [row] = await db.update(creditBalances)
-      .set({ bonusCredits: existing.bonusCredits + amount })
+      .set({ bonusCredits: sqlExpr`${creditBalances.bonusCredits} + ${amount}` })
       .where(eq(creditBalances.userId, userId))
       .returning();
     await db.insert(creditTransactions).values({ userId, amount, type: "bonus_added", description });
@@ -1627,11 +1674,17 @@ class DatabaseStorage implements IStorage {
   // Elite deductions are skipped entirely, so their refunds are too. Refunds land
   // in bonusCredits (which never expire) so a month rollover can't swallow them.
   async refundCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<void> {
-    if (plan === "elite" || amount <= 0) return;
+    if (amount <= 0) return;
+    try {
+      if (await billingV2.refundCreditsV2(pool, userId, amount, type, description)) return;
+    } catch (e: any) {
+      if (e?.code !== "42P01" && !(e instanceof billingV2.BillingError)) throw e;
+    }
+    if (plan === "elite") return;
     const existing = await this.getCreditBalance(userId);
     if (!existing) return;
     await db.update(creditBalances)
-      .set({ bonusCredits: existing.bonusCredits + amount })
+      .set({ bonusCredits: sqlExpr`${creditBalances.bonusCredits} + ${amount}` })
       .where(eq(creditBalances.userId, userId));
     await db.insert(creditTransactions).values({ userId, amount, type: `${type}_refund`, description: `Refund: ${description}` });
   }

@@ -1095,6 +1095,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/auth/me", requireAuth, async (req, res) => {
+    // Billing v2: refresh the current period (expiry / monthly reset) before reporting
+    // plan rights. Legacy accounts return null and are unchanged.
+    try {
+      const v2 = await storage.getBillingV2State((req.user as any).id);
+      if (v2) {
+        const fresh = await storage.getUser((req.user as any).id);
+        if (fresh) Object.assign(req.user as any, { plan: fresh.plan, hasVideoMarketing: fresh.hasVideoMarketing });
+        (req.user as any).billingModel = "v2";
+        (req.user as any).billingV2 = { state: v2.state, planId: v2.planId, monthlyAllowance: v2.monthlyAllowance, entitlement: v2.entitlement };
+      }
+    } catch (e: any) {
+      console.error("[billing-v2] /api/auth/me refresh failed:", e?.code || e?.name || "error");
+    }
     const { password, ...safeUser } = req.user as any;
     // Merge survey fields if not already on the session user
     if (!safeUser.fields && !safeUser.struggles) {
@@ -8176,14 +8189,18 @@ Return JSON:
   app.get("/api/credits", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const balance = await storage.upsertCreditBalance(user.id, user.plan || "free");
+      // Billing v2 accounts: allowance and period come from the verified ledger.
+      const v2 = await storage.getBillingV2State(user.id);
+      const balance = v2?.balance ?? await storage.upsertCreditBalance(user.id, user.plan || "free");
       const transactions = await storage.getCreditTransactions(user.id, 100);
       return res.json({
         balance,
         transactions,
         featureCosts: FEATURE_COSTS,
-        planAllowance: ({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string, number>)[user.plan as string] ?? 20,
-        total: balance.monthlyCredits + balance.bonusCredits,
+        planAllowance: v2 ? v2.monthlyAllowance : (({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string, number>)[user.plan as string] ?? 20),
+        billingModel: v2 ? "v2" : "legacy",
+        billingV2: v2 ? { state: v2.state, planId: v2.planId, entitlement: v2.entitlement } : null,
+        total: (balance?.monthlyCredits ?? 0) + (balance?.bonusCredits ?? 0),
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
