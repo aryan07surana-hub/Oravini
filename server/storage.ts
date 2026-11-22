@@ -578,6 +578,16 @@ export interface IStorage {
   updateVideoDubbingJob(id: string, data: Partial<InsertVideoDubbingJob>): Promise<VideoDubbingJob | undefined>;
   // Video Collaboration Comments
   getVideoCollabComments(videoEventId: string): Promise<VideoCollabComment[]>;
+  // Single-row lookups used to verify the real owner of a linked resource
+  getVideoCollection(id: number): Promise<VideoCollection | undefined>;
+  getVideoCollectionItem(id: number): Promise<VideoCollectionItem | undefined>;
+  getVideoChapter(id: number): Promise<VideoChapter | undefined>;
+  getVideoCta(id: number): Promise<VideoCta | undefined>;
+  getViewerSession(id: number): Promise<VideoViewerSession | undefined>;
+  getVideoInteractiveElement(id: string): Promise<VideoInteractiveElement | undefined>;
+  getVideoAbTest(id: string): Promise<VideoAbTest | undefined>;
+  getChannelEpisode(id: number): Promise<VideoChannelEpisode | undefined>;
+  getVideoCollabComment(id: string): Promise<VideoCollabComment | undefined>;
   createVideoCollabComment(data: InsertVideoCollabComment): Promise<VideoCollabComment>;
   updateVideoCollabComment(id: string, data: Partial<InsertVideoCollabComment>): Promise<VideoCollabComment | undefined>;
   deleteVideoCollabComment(id: string): Promise<void>;
@@ -3144,6 +3154,44 @@ class DatabaseStorage implements IStorage {
   async deleteVideoCollabComment(id: string): Promise<void> {
     await db.delete(videoCollabComments).where(eq(videoCollabComments.id, id));
   }
+  // ── Single-row lookups (ownership checks) ─────────────────────────────────
+  async getVideoCollection(id: number): Promise<VideoCollection | undefined> {
+    const [row] = await db.select().from(videoCollections).where(eq(videoCollections.id, id));
+    return row;
+  }
+  async getVideoCollectionItem(id: number): Promise<VideoCollectionItem | undefined> {
+    const [row] = await db.select().from(videoCollectionItems).where(eq(videoCollectionItems.id, id));
+    return row;
+  }
+  async getVideoChapter(id: number): Promise<VideoChapter | undefined> {
+    const [row] = await db.select().from(videoChapters).where(eq(videoChapters.id, id));
+    return row;
+  }
+  async getVideoCta(id: number): Promise<VideoCta | undefined> {
+    const [row] = await db.select().from(videoCtas).where(eq(videoCtas.id, id));
+    return row;
+  }
+  async getViewerSession(id: number): Promise<VideoViewerSession | undefined> {
+    const [row] = await db.select().from(videoViewerSessions).where(eq(videoViewerSessions.id, id));
+    return row;
+  }
+  async getVideoInteractiveElement(id: string): Promise<VideoInteractiveElement | undefined> {
+    const [row] = await db.select().from(videoInteractiveElements).where(eq(videoInteractiveElements.id, id));
+    return row;
+  }
+  async getVideoAbTest(id: string): Promise<VideoAbTest | undefined> {
+    const [row] = await db.select().from(videoAbTests).where(eq(videoAbTests.id, id));
+    return row;
+  }
+  async getChannelEpisode(id: number): Promise<VideoChannelEpisode | undefined> {
+    const [row] = await db.select().from(videoChannelEpisodes).where(eq(videoChannelEpisodes.id, id));
+    return row;
+  }
+  async getVideoCollabComment(id: string): Promise<VideoCollabComment | undefined> {
+    const [row] = await db.select().from(videoCollabComments).where(eq(videoCollabComments.id, id));
+    return row;
+  }
+
 
   // ── Canva Integration ─────────────────────────────────────────────────────
   async getCanvaToken(userId: string): Promise<any | null> {
