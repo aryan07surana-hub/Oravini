@@ -103,13 +103,16 @@ test("cards show dollar savings for each term beside its discount percent",async
  (globalThis as any).location={search:""};
 });
 
-test("old-look pricing keeps current plans and gives Growth the popular treatment",async()=>{
+test("old-look pricing keeps current plans and gives only Growth+Video the popular treatment",async()=>{
  (globalThis as any).location={search:"?term=3"};
  const React=await import("react");(globalThis as any).React=React;
  const {renderToStaticMarkup}=await import("react-dom/server");
  const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
  const html=renderToStaticMarkup(React.createElement(Pricing));
- for(const name of ["plan-free","plan-growth featured","plan-pro","plan-growth_video","Most Popular","Start free.","Scale when ready.","$132.30","$177.00","$186.30"])assert.ok(html.includes(name),name);
+ for(const name of ["plan-free","plan-growth ","plan-pro","plan-growth_video featured","Most Popular","Start free.","Scale when ready.","$132.30","$177.00","$186.30"])assert.ok(html.includes(name),name);
+ const featured=html.match(/<article\b[^>]*class="[^"]*\bfeatured\b[^"]*"[\s\S]*?<\/article>/g)||[];
+ assert.equal(featured.length,1,"exactly one featured plan");
+ assert.match(featured[0],/plan-growth_video/);assert.match(featured[0],/Most Popular/);
  assert.equal((html.match(/type="range"/g)||[]).length,3,"one independent slider per paid plan");
  assert.ok(!html.includes("Weekly team calls"));
  assert.ok(!html.includes("Unlimited video hosting"));
