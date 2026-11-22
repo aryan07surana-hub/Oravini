@@ -39,6 +39,8 @@ import { normalizeInstagramHandle, normalizeInstagramProfileUrl } from "@shared/
 import { startCompetitorAnalysisWorker, enqueueAnalysisJob, getAnalysisJob, listActiveAnalysisJobs, serializeJob, AnalysisJobError, type JobProcessor } from "./competitorAnalysisJobs";
 import { newApifyMeter, meterSummary, scrapeProfilePosts, fetchProfile, profileFingerprint, postsPerWeekFromTimestamps, reelsFromScrape, ensureTranscripts, mineTranscriptPatterns, computeBenchmarks, generateWeeklyBrief, listWeeklyBriefs, normalizeHandle, type TranscriptInsights } from "./competitorIntel";
 import { saveMedia } from "./mediaStorage";
+import { registerVideoEventUpdateRoutes, redactVideoForOwner } from "./videoEventUpdate";
+import { registerVideoManagementRoutes } from "./videoManagementRoutes";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import { FFMPEG_PATH, FFPROBE_PATH, ffmpegAvailable } from "./ffmpegPath";
@@ -13783,7 +13785,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   app.get("/api/video-events", requireAuth, async (req, res) => {
     const user = req.user as any;
     const videos = await storage.getVideoEvents(user.id);
-    res.json(videos);
+    res.json(videos.map(v => redactVideoForOwner(v)));
   });
 
   app.post("/api/video-events", requireAuth, async (req, res) => {
@@ -13821,46 +13823,16 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
         showOraviniWatermark: showOraviniWatermark ?? true,
         oraviniWatermarkPosition: oraviniWatermarkPosition || "bottom-right",
       });
-      res.status(201).json(video);
+      res.status(201).json(redactVideoForOwner(video));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/video-events/:id", requireAuth, async (req, res) => {
-    try {
-      const video = await storage.getVideoEvent(p(req.params.id));
-      if (!video) return res.status(404).json({ message: "Video not found" });
-      res.json(video);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Public video routes (no auth — used by /watch-video/:id embed page) ──────
-
-  // Public: fetch video metadata (strips private fields)
-  app.get("/api/video/:id/public", async (req: Request, res: Response) => {
-    try {
-      const video = await storage.getVideoEvent(p(req.params.id));
-      if (!video) return res.status(404).json({ message: "Video not found" });
-      // Strip internal-only fields
-      const { passwordHash, domainWhitelist, userId, ...safe } = video as any;
-      res.json(safe);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Public: get chapters for a video
-  app.get("/api/video/:id/chapters", async (req: Request, res: Response) => {
-    try {
-      const chapters = await storage.getVideoChapters(p(req.params.id));
-      res.json(chapters);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Public: get active CTAs for a video
-  app.get("/api/video/:id/ctas", async (req: Request, res: Response) => {
-    try {
-      const ctas = await storage.getVideoCtas(p(req.params.id));
-      res.json(ctas.filter((c: any) => c.isActive));
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
+  // Owner-scoped video management + public viewer routes (read/delete, chapters,
+  // CTAs, viewers, interactive, collections, A/B tests, channels, dubbing,
+  // collab comments, per-video analytics, password unlock).
+  registerVideoManagementRoutes(app, requireAuth, storage);
+  // PATCH /api/video-events/:id and its /settings alias: owner-only, allowed fields only.
+  registerVideoEventUpdateRoutes(app, requireAuth, storage);
 
   // Public: lead gate — capture viewer before unlocking video
   app.post("/api/video/:id/gate", async (req: Request, res: Response) => {
@@ -13890,89 +13862,11 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── Video Chapters (management) ───────────────────────────────────────────
-  app.get("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const chapters = await storage.getVideoChapters(p(req.params.id));
-      res.json(chapters);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { title, description, startSeconds } = req.body;
-      if (!title) return res.status(400).json({ message: "title required" });
-      const chapter = await storage.createVideoChapter({ videoEventId: p(req.params.id), title, description: description || null, startSeconds: startSeconds ?? null });
-      res.status(201).json(chapter);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const chapter = await storage.updateVideoChapter(Number(req.params.id), req.body);
-      res.json(chapter);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      await storage.deleteVideoChapter(Number(req.params.id));
-      res.json({ ok: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Video CTAs (management) ────────────────────────────────────────────────
-  app.get("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const ctas = await storage.getVideoCtas(p(req.params.id));
-      res.json(ctas);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { text, url, type, style, appearAt, disappearAt, isActive } = req.body;
-      if (!text) return res.status(400).json({ message: "text required" });
-      const cta = await storage.createVideoCta({ videoEventId: p(req.params.id), text, url: url || null, type: type || "button", style: style || "gold", appearAt: appearAt ?? 0, disappearAt: disappearAt ?? null, isActive: isActive ?? true });
-      res.status(201).json(cta);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const cta = await storage.updateVideoCta(Number(req.params.id), req.body);
-      res.json(cta);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      await storage.deleteVideoCta(Number(req.params.id));
-      res.json({ ok: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
   // Public: track CTA click
   app.post("/api/video-ctas/:id/click", async (req: Request, res: Response) => {
     try {
       await storage.incrementCtaClicks(Number(req.params.id));
       res.json({ ok: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Video Viewer Sessions ─────────────────────────────────────────────────
-  app.get("/api/video-events/:id/viewers", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const sessions = await storage.getVideoViewerSessions(p(req.params.id));
-      res.json(sessions);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Alias: PATCH /api/video-events/:id/settings → same as PATCH /api/video-events/:id
-  app.patch("/api/video-events/:id/settings", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
-      res.json(video);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -14054,52 +13948,12 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
-    try {
-      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
-      res.json(video);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/video-events/:id", requireAuth, async (req, res) => {
-    try {
-      await storage.deleteVideoEvent(p(req.params.id));
-      res.json({ message: "Deleted" });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
   // ─────────────────────────────────────────────────────────────────────────
   // ── Wistia-like extensions (interactive elements, A/B, channels, dubbing,
   //    collaboration comments) ──
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Interactive Elements ─────────────────────────────────────────────────
-  app.get("/api/video-events/:id/interactive", requireAuth, async (req, res) => {
-    try { res.json(await storage.getVideoInteractiveElements(p(req.params.id))); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-events/:id/interactive", requireAuth, async (req, res) => {
-    try {
-      const el = await storage.createVideoInteractiveElement({ ...req.body, videoEventId: p(req.params.id) });
-      res.status(201).json(el);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.patch("/api/video-interactive/:id", requireAuth, async (req, res) => {
-    try { res.json(await storage.updateVideoInteractiveElement(p(req.params.id), req.body)); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.delete("/api/video-interactive/:id", requireAuth, async (req, res) => {
-    try { await storage.deleteVideoInteractiveElement(p(req.params.id)); res.json({ ok: true }); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  // Public: get active elements for the embed player
-  app.get("/api/video/:id/interactive", async (req, res) => {
-    try {
-      const els = await storage.getVideoInteractiveElements(p(req.params.id));
-      res.json(els.filter(e => e.isActive));
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
   // Public: track click on an interactive element
   app.post("/api/video-interactive/:id/click", async (req: Request, res: Response) => {
     try {
@@ -14111,21 +13965,6 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
   // ── A/B Tests ────────────────────────────────────────────────────────────
   app.get("/api/video-ab-tests", requireAuth, async (req, res) => {
     try { res.json(await storage.getVideoAbTests((req.user as any).id)); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-ab-tests", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const test = await storage.createVideoAbTest({ ...req.body, userId: user.id, status: "running" });
-      res.status(201).json(test);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.patch("/api/video-ab-tests/:id", requireAuth, async (req, res) => {
-    try { res.json(await storage.updateVideoAbTest(p(req.params.id), req.body)); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.delete("/api/video-ab-tests/:id", requireAuth, async (req, res) => {
-    try { await storage.deleteVideoAbTest(p(req.params.id)); res.json({ ok: true }); }
     catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   // Public: when an embed loads, decide which variant to serve
@@ -14161,48 +14000,14 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     try { res.json(await storage.getVideoChannels((req.user as any).id)); }
     catch (err: any) { res.status(500).json({ message: err.message }); }
   });
-  app.post("/api/video-channels", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const ch = await storage.createVideoChannel({ ...req.body, userId: user.id });
-      res.status(201).json(ch);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.get("/api/video-channels/:id", requireAuth, async (req, res) => {
-    try { res.json(await storage.getVideoChannel(p(req.params.id))); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.patch("/api/video-channels/:id", requireAuth, async (req, res) => {
-    try { res.json(await storage.updateVideoChannel(p(req.params.id), req.body)); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.delete("/api/video-channels/:id", requireAuth, async (req, res) => {
-    try { await storage.deleteVideoChannel(p(req.params.id)); res.json({ ok: true }); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  // Episodes
-  app.get("/api/video-channels/:id/episodes", async (req, res) => {
-    try { res.json(await storage.getChannelEpisodes(p(req.params.id))); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-channels/:id/episodes", requireAuth, async (req, res) => {
-    try {
-      const { videoEventId, section, sortOrder } = req.body;
-      const ep = await storage.addChannelEpisode(p(req.params.id), videoEventId, section, sortOrder);
-      res.status(201).json(ep);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.delete("/api/video-channel-episodes/:id", requireAuth, async (req, res) => {
-    try { await storage.removeChannelEpisode(Number(req.params.id)); res.json({ ok: true }); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
   // Public: view a channel by slug
   app.get("/api/channel/:slug", async (req, res) => {
     try {
       const ch = await storage.getVideoChannelBySlug(p(req.params.slug));
       if (!ch || !ch.isPublic) return res.status(404).json({ message: "Not found" });
       const episodes = await storage.getChannelEpisodes(ch.id);
-      res.json({ ...ch, episodes });
+      const { userId: _owner, ...publicChannel } = ch as any;
+      res.json({ ...publicChannel, episodes });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.post("/api/channel/:id/subscribe", async (req, res) => {
@@ -14212,60 +14017,6 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
       const sub = await storage.subscribeToChannel(p(req.params.id), email, name);
       res.status(201).json(sub);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Dubbing & Caption Translation Jobs ──────────────────────────────────
-  app.get("/api/video-events/:id/dubbing-jobs", requireAuth, async (req, res) => {
-    try { res.json(await storage.getVideoDubbingJobs((req.user as any).id, p(req.params.id))); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-events/:id/dub", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { languages } = req.body as { languages: string[] };
-      if (!Array.isArray(languages) || !languages.length) return res.status(400).json({ message: "languages array required" });
-      const jobs = await Promise.all(languages.map(language =>
-        storage.createVideoDubbingJob({ userId: user.id, videoEventId: p(req.params.id), language, jobType: "dub", status: "processing" })
-      ));
-      res.status(201).json({ jobs });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-events/:id/translate-captions", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { languages } = req.body as { languages: string[] };
-      if (!Array.isArray(languages) || !languages.length) return res.status(400).json({ message: "languages array required" });
-      const jobs = await Promise.all(languages.map(language =>
-        storage.createVideoDubbingJob({ userId: user.id, videoEventId: p(req.params.id), language, jobType: "captions", status: "processing" })
-      ));
-      res.status(201).json({ jobs });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Collaboration Comments ──────────────────────────────────────────────
-  app.get("/api/video-events/:id/collab-comments", requireAuth, async (req, res) => {
-    try { res.json(await storage.getVideoCollabComments(p(req.params.id))); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.post("/api/video-events/:id/collab-comments", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { timestamp, text } = req.body;
-      if (!text) return res.status(400).json({ message: "text required" });
-      const c = await storage.createVideoCollabComment({
-        videoEventId: p(req.params.id), authorId: user.id, authorName: user.name || user.email || "User",
-        timestamp: timestamp ?? null, text, resolved: false,
-      });
-      res.status(201).json(c);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.patch("/api/video-collab-comments/:id", requireAuth, async (req, res) => {
-    try { res.json(await storage.updateVideoCollabComment(p(req.params.id), req.body)); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-  app.delete("/api/video-collab-comments/:id", requireAuth, async (req, res) => {
-    try { await storage.deleteVideoCollabComment(p(req.params.id)); res.json({ ok: true }); }
-    catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // ── SEO: video sitemap ──────────────────────────────────────────────────
@@ -14298,7 +14049,7 @@ ${all.map((v: any) => `  <url>
       const user = req.user as any;
       const allVideos = await storage.getVideoEvents(user.id);
       const recordings = allVideos.filter((v: any) => v.videoType === "screen_recording");
-      res.json(recordings);
+      res.json(recordings.map(v => redactVideoForOwner(v)));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -14669,50 +14420,6 @@ Return JSON only:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/video-collections", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const collection = await storage.createVideoCollection({ ...req.body, userId: user.id });
-      res.json(collection);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/video-collections/:id", requireAuth, async (req, res) => {
-    try {
-      const collection = await storage.updateVideoCollection(Number(req.params.id), req.body);
-      res.json(collection);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/video-collections/:id", requireAuth, async (req, res) => {
-    try {
-      await storage.deleteVideoCollection(Number(req.params.id));
-      res.json({ message: "Deleted" });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/video-collections/:id/items", requireAuth, async (req, res) => {
-    try {
-      const items = await storage.getVideoCollectionItems(Number(req.params.id));
-      res.json(items);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/video-collections/:id/items", requireAuth, async (req, res) => {
-    try {
-      const { videoEventId, sortOrder } = req.body;
-      const item = await storage.addVideoToCollection(Number(req.params.id), videoEventId, sortOrder ?? 0);
-      res.json(item);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/video-collection-items/:id", requireAuth, async (req, res) => {
-    try {
-      await storage.removeVideoFromCollection(Number(req.params.id));
-      res.json({ message: "Removed" });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
   // Webinar Recordings
   app.get("/api/recordings", requireAuth, async (req, res) => {
     try {
@@ -15038,31 +14745,6 @@ Return JSON only:
     }
   });
 
-  // Video Analytics: Heatmap data for a video
-  app.get("/api/video-analytics/:videoId/heatmap", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const heatmap = await storage.getVideoHeatmap(p(req.params.videoId));
-      res.json(heatmap);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Video Analytics: Viewer profiles for a video
-  app.get("/api/video-analytics/:videoId/viewers", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const profiles = await storage.getVideoViewerProfiles(p(req.params.videoId));
-      res.json(profiles);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Video Analytics: Daily stats for a video
-  app.get("/api/video-analytics/:videoId/daily", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const days = req.query.days ? Number(req.query.days) : 30;
-      const stats = await storage.getVideoDailyStats(p(req.params.videoId), days);
-      res.json(stats);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
   // Video Analytics: Overview across all user's videos
   app.get("/api/video-analytics-overview", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -15106,17 +14788,6 @@ Return JSON only:
     try {
       await storage.deleteWebinarContact(p(req.params.id));
       res.json({ message: "Deleted" });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  // Video Marketing: Analytics (auth)
-  app.get("/api/video-analytics/:videoId", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const events = await storage.getVideoAnalyticsEvents(p(req.params.videoId));
-      const summary = await storage.getVideoAnalyticsSummary(p(req.params.videoId));
-      res.json({ events, summary });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
