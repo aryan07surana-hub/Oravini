@@ -4,6 +4,11 @@ on:
     branches: [main]
     paths:
       - 'server/instagramUnified*'
+      - 'server/static.ts'
+      - 'script/build*.mjs'
+      - 'tests/policyCrawler.test.ts'
+      - 'client/src/pages/Privacy.tsx'
+      - 'client/src/pages/Terms.tsx'
       - 'client/src/components/InstagramUnifiedView.tsx'
       - 'client/src/pages/client/InstagramUnified.tsx'
       - 'client/src/pages/DataDeletion.tsx'

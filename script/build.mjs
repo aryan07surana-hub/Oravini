@@ -1,3 +1,4 @@
+import { buildPolicyPages } from "./buildPolicies.mjs";
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
@@ -35,6 +36,7 @@ async function buildAll() {
 
   console.log("building client...");
   await viteBuild();
+  await buildPolicyPages("dist/public");
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));

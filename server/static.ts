@@ -14,19 +14,19 @@ try {
   distPath = path.resolve(process.cwd(), "dist", "public");
 }
 
-export function serveStatic(app: Express) {
-  if (!fs.existsSync(distPath)) {
+export function serveStatic(app: Express, publicDirectory = distPath) {
+  if (!fs.existsSync(publicDirectory)) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the build directory: ${publicDirectory}, make sure to build the client first`,
     );
   }
 
-  app.use(express.static(distPath));
+  app.use(express.static(publicDirectory, { extensions: ["html"] }));
 
   app.use((req, res, next) => {
     if (req.path.startsWith("/api")) {
       return next();
     }
-    res.sendFile(path.resolve(distPath, "index.html"));
+    res.sendFile(path.resolve(publicDirectory, "index.html"));
   });
 }
