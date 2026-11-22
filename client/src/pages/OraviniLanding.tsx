@@ -213,11 +213,11 @@ function EmailPopup({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(14px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: "#0a0a0a", border: `1px solid ${GOLD}44`, borderRadius: 22, padding: "44px 38px", maxWidth: 420, width: "100%", textAlign: "center", position: "relative", boxShadow: `0 0 80px rgba(212,180,97,0.12)` }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 20, cursor: "pointer" }}>✕</button>
+        <button aria-label="Close sign-up offer" onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 20, cursor: "pointer" }}>✕</button>
         <div style={{ fontSize: 44, marginBottom: 12 }}>🎁</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Get 10 Free AI Credits</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Start with 100 credits a month</div>
         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.42)", marginBottom: 28, lineHeight: 1.7 }}>
-          Create a free account and 10 AI credits will be added to your balance instantly — no credit card required.
+          Choose the Free plan for 100 monthly AI credits, with no rollover and no card required.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={() => { onClose(); nav("/login?tab=register"); }}
@@ -230,7 +230,7 @@ function EmailPopup({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div style={{ marginTop: 20, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
-          Credits appear in your dashboard sidebar after sign-up.
+          Your plan and current credits appear in your dashboard.
         </div>
       </div>
     </div>
@@ -1917,4 +1917,4 @@ export default function OraviniLanding() {
       )}
     </div>
   );
-}
+          }
