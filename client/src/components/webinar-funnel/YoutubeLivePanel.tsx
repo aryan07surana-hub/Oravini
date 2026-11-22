@@ -1,3 +1,4 @@
+import YoutubeAccessDisclosure from "./YoutubeAccessDisclosure";
 // Editor panel: the host's connected YouTube channel, broadcast status, stream key (masked),
 // Studio link and "Fetch replay" once the webinar has ended.
 import { useState } from "react";
@@ -85,6 +86,7 @@ export function YoutubeLivePanel({ webinar, onLinked, onReplay }: {
       {!connected ? (
         <div className="flex items-center gap-3 flex-wrap">
           <p className="text-[12px] text-zinc-400 flex-1 min-w-[200px]">Connect your channel to create the stream from here and fetch the replay automatically.</p>
+          <YoutubeAccessDisclosure/>
           <button type="button" onClick={() => startYoutubeConnect()} data-testid="btn-editor-connect-youtube"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black text-white hover:brightness-110" style={{ background: "#dc2626" }}>
             <Youtube className="w-3.5 h-3.5" /> Connect YouTube

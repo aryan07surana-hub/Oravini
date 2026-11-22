@@ -18,6 +18,7 @@
  * never blocks the public endpoint that calls it.
  */
 import nodemailer from "nodemailer";
+import { WEBINAR_OUTBOUND_DISABLED, noteWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 import { pool } from "./storage";
 import { emitCrmEvent } from "./routes/crm-events";
 import { getOrCreateCrmContactId } from "./crmLeadCapture";
@@ -312,6 +313,12 @@ export async function onWebinarCtaClicked(webinarId: string, registrationId: str
   emitCrmEvent({ kind: "task.created", id: out.taskId });
   emitCrmEvent({ kind: "activity.created", id: out.activityId, contactId, opportunityId: out.opp?.opportunityId ?? null });
 
+  // Hot-lead EMAIL only is disabled. The opportunity, stage move, activity and
+  // urgent CRM task above have already been written and are unaffected.
+  if (WEBINAR_OUTBOUND_DISABLED) {
+    noteWebinarOutboundDisabled("CRM hot-lead alert email");
+    return;
+  }
   await sendHotLeadEmail(funnel, reg).catch(err => log(`hot-lead email failed for webinar ${funnel.id}`, err));
 }
 

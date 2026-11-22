@@ -1,3 +1,4 @@
+import { registerPlanConfirmationGuard } from "./planConfirmation";
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
@@ -1331,6 +1332,7 @@ async function runMigrations() {
   // Additive only: new nullable/defaulted columns + new tables. Nothing is dropped or rewritten.
   try {
     await pool.query(`
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS community_links JSONB NOT NULL DEFAULT '[]'::jsonb;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS deck_url TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS replay_url TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_text TEXT;
@@ -1419,6 +1421,8 @@ async function runMigrations() {
     }
   }
 
+  // Register before the legacy onboarding route; never allow its billing side effects.
+  registerPlanConfirmationGuard(app, storage);
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
   registerDmOnboardingRoutes(app);

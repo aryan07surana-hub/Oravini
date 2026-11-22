@@ -1,3 +1,4 @@
+import LegacyPricingCards from "@/components/pricing/LegacyPricingCards";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -304,7 +305,7 @@ const FEATURES = [
   { icon: "🎨", title: "AI Design Studio", desc: "Create professional carousels, lead magnets, SOPs, and Instagram story sequences in minutes.", tag: "4 Tools" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
-  { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
+  { icon: "📡", title: "Live Webinars", desc: "Host live webinars with registration pages, optional post-signup group links, and attendee CRM.", tag: "Add-on" },
   { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
@@ -919,6 +920,26 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── YOUTUBE WEBINARS ─────────────────────────────────────────────── */}
+      <section id="youtube-webinars" aria-labelledby="youtube-webinars-title" style={{scrollMarginTop:84,padding:"64px 24px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <p style={{color:GOLD,fontSize:12,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:12}}>YouTube connection on Oravini</p>
+          <h2 id="youtube-webinars-title" style={{fontSize:"clamp(26px,4vw,40px)",fontWeight:800,marginBottom:18}}>Oravini is business software for creators and coaches.</h2>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8}}>Use Oravini for webinar registration, video pages, an attendee CRM, optional community links, and an optional YouTube scheduler.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>Oravini connects to the YouTube channel you choose and identifies it in your dashboard. When you create a webinar, Oravini can create a scheduled, unlisted YouTube Live broadcast, bind it to a stream, show it on your webinar page, check stream health, and link the available YouTube archive as a replay. You choose which videos the scheduler uploads to your channel.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>You send your camera and audio through YouTube Studio or your encoder, such as OBS. Oravini does not replace the encoder or record your camera itself. Connecting YouTube is optional: you can paste an existing stream link instead, and attendees do not connect a YouTube account to register. Channel eligibility and YouTube processing affect live streaming and replay availability.</p>
+          <h3 style={{fontSize:20,fontWeight:700,marginTop:26,marginBottom:12}}>Why we ask for YouTube access</h3>
+          <ul style={{paddingLeft:22,color:"rgba(255,255,255,0.65)",lineHeight:1.9}}>
+            <li>Read your channel and video details to identify the connected channel and show stream and replay status.</li>
+            <li>Manage live broadcasts and streams when you create a webinar and check its stream health.</li>
+            <li>Upload videos to your chosen channel when you use the YouTube video scheduler.</li>
+          </ul>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:20}}>Google data from your connected YouTube account is used only to provide these connected features. We do not sell it, use it for advertising targeting, or use it for general AI training.</p>
+          <p style={{color:"rgba(255,255,255,0.65)",lineHeight:1.8,marginTop:16}}>Oravini is intended for business webinars and video content. It is not a service for sharing intimate imagery, and non-consensual intimate imagery is prohibited.</p>
+          <p style={{marginTop:20,lineHeight:1.8}}><a href="/privacy" style={{color:GOLD}}>Privacy policy</a> · <a href="/terms" style={{color:GOLD}}>Terms of service</a></p>
+        </div>
+      </section>
+
       {/* ── WHAT IS ORAVINI ───────────────────────────────────────────────── */}
       <section style={{ padding: "120px 24px", maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
         <Anim>
@@ -1122,8 +1143,8 @@ export default function OraviniLanding() {
               {
                 icon: "📡",
                 title: "Live Webinars",
-                desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
-                bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+                desc: "Host live or automated webinars. Registration pages are built automatically, and after signup attendees can join through your optional group links. No webinar email or SMS is sent.",
+                bullets: ["Auto-built registration pages", "Optional post-signup group links", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
                 accent: "#60a5fa",
               },
               {
@@ -1483,6 +1504,7 @@ export default function OraviniLanding() {
             <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>Start free.<br /><span style={{ color: GOLD }}>Scale when ready.</span></h2>
           </Anim>
 
+          {import.meta.env.VITE_PRICING_V2_PREVIEW === "true" ? <LegacyPricingCards/> : <>
           {/* 4 standard tiers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginBottom: 24 }}>
             {PRICING_TIERS.map((t, i) => (
@@ -1609,6 +1631,7 @@ export default function OraviniLanding() {
               </div>
             </div>
           </Anim>
+          </>}
         </div>
       </section>
 
@@ -1880,8 +1903,9 @@ export default function OraviniLanding() {
       </footer>
 
       {/* ── FLOATING QUIZ WIDGET (bottom-right) ──────────────────────────────── */}
+      <style>{`@media(max-width:600px){.floating-landing-quiz{display:none !important}}`}</style>
       {!showQuiz && (
-        <div
+        <div className="floating-landing-quiz"
           onClick={() => setShowQuiz(true)}
           style={{ position: "fixed", bottom: 24, right: 24, zIndex: 900, background: "#0a0a0f", border: `1px solid ${GOLD}44`, borderRadius: 16, padding: "14px 20px", maxWidth: 260, cursor: "pointer", boxShadow: `0 4px 30px rgba(0,0,0,0.6), 0 0 40px ${GOLD}10`, transition: "transform 0.3s, box-shadow 0.3s" }}
           onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 40px rgba(0,0,0,0.7), 0 0 60px ${GOLD}20`; }}

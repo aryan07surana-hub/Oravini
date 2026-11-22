@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Radio } from "lucide-react";
 import { isValidCtaUrl } from "@shared/webinarFunnel";
+import { countdownParts } from "./eventTime";
 
 export const GOLD = "#d4b461";
 
@@ -21,6 +22,7 @@ export type PublicWebinar = {
   offerPrice?: string | null;
   offerExpiresAt?: string | null;
   durationMinutes?: number;
+  communityLinks?: import("@shared/webinarCommunity").CommunityLink[];
 };
 
 // ── Attendee identity (localStorage; every access guarded) ─────────────────
@@ -86,55 +88,80 @@ export function useCountdown(target: string | Date | undefined) {
   return isNaN(targetMs) ? 0 : Math.max(0, targetMs - now);
 }
 
-export function Countdown({ msLeft }: { msLeft: number }) {
-  const total = Math.floor(msLeft / 1000);
+export function Countdown({ msLeft, size = "md" }: { msLeft: number; size?: "md" | "sm" }) {
+  const { days, hours, minutes, seconds } = countdownParts(msLeft);
   const parts = [
-    { label: "Days", value: Math.floor(total / 86400) },
-    { label: "Hours", value: Math.floor((total % 86400) / 3600) },
-    { label: "Minutes", value: Math.floor((total % 3600) / 60) },
-    { label: "Seconds", value: total % 60 },
+    { label: "Days", value: days },
+    { label: "Hours", value: hours },
+    { label: "Minutes", value: minutes },
+    { label: "Seconds", value: seconds },
   ];
+  const sr = `${days} days, ${hours} hours, ${minutes} minutes`;
   return (
-    <div className="grid grid-cols-4 gap-2 sm:gap-3" data-testid="webinar-countdown" aria-live="polite">
+    <div className="grid grid-cols-4 gap-2 sm:gap-3" data-testid="webinar-countdown" role="timer" aria-label={`Starts in ${sr}`}>
       {parts.map(p => (
-        <div key={p.label} className="rounded-xl py-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}25` }}>
-          <p className="text-2xl sm:text-3xl font-black text-white tabular-nums leading-none">{String(p.value).padStart(2, "0")}</p>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-1.5">{p.label}</p>
+        <div key={p.label} className={`rounded-lg text-center bg-white/[0.03] border border-white/[0.08] ${size === "sm" ? "py-2.5" : "py-3.5"}`} aria-hidden>
+          <p className={`${size === "sm" ? "text-xl sm:text-2xl" : "text-2xl sm:text-[32px]"} font-semibold text-white tabular-nums leading-none tracking-tight`}>{String(p.value).padStart(2, "0")}</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500 mt-2">{p.label}</p>
         </div>
       ))}
     </div>
   );
 }
 
-export function PublicShell({ children }: { children: React.ReactNode }) {
+export function PublicShell({ children, width = "max-w-5xl" }: { children: React.ReactNode; width?: string }) {
   return (
-    <div className="min-h-screen w-full text-white" style={{ background: "#0a0910" }}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">{children}</div>
-      <p className="text-center text-[11px] text-zinc-600 pb-8">
-        Powered by <a href="https://oravini.com" className="hover:text-zinc-400" style={{ color: `${GOLD}aa` }}>Oravini</a>
-      </p>
+    <div className="min-h-screen w-full text-white bg-[#0b0b0e]">
+      <main className={`${width} mx-auto px-4 sm:px-6 py-8 sm:py-14`}>{children}</main>
+      <footer className="text-center text-xs text-zinc-600 pb-8">
+        Powered by <a href="https://oravini.com" className="text-zinc-500 hover:text-zinc-300 underline-offset-2 hover:underline">Oravini</a>
+      </footer>
     </div>
   );
 }
 
 export function PublicLoading() {
   return (
-    <div className="flex items-center justify-center min-h-screen" style={{ background: "#0a0910" }}>
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: GOLD, borderTopColor: "transparent" }} />
+    <div className="min-h-screen bg-[#0b0b0e]" aria-busy="true" aria-label="Loading webinar" data-testid="webinar-loading">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-4">
+        <div className="h-4 w-32 rounded bg-white/[0.04] animate-pulse" />
+        <div className="h-9 w-4/5 max-w-xl rounded-lg bg-white/[0.05] animate-pulse" />
+        <div className="h-4 w-60 rounded bg-white/[0.04] animate-pulse" />
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_380px] pt-6">
+          <div className="h-64 rounded-xl bg-white/[0.03] animate-pulse" />
+          <div className="h-64 rounded-xl bg-white/[0.03] animate-pulse" />
+        </div>
+      </div>
     </div>
   );
 }
 
 export function WebinarNotFound() {
   return (
-    <PublicShell>
-      <div className="text-center py-24" data-testid="webinar-not-found">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}25` }}>
-          <Radio className="w-7 h-7" style={{ color: GOLD }} />
+    <PublicShell width="max-w-xl">
+      <div className="text-center py-20 sm:py-28" data-testid="webinar-not-found">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-5 bg-white/[0.04] border border-white/[0.08]">
+          <Radio className="w-5 h-5 text-zinc-400" />
         </div>
-        <p className="text-5xl font-black text-white mb-2">404</p>
-        <p className="text-lg font-bold text-white mb-1">Webinar not found</p>
-        <p className="text-sm text-zinc-500">This link may be wrong, or the webinar is no longer available.</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 mb-2">Error 404</p>
+        <h1 className="text-2xl font-semibold text-white mb-2">Webinar not found</h1>
+        <p className="text-sm text-zinc-500 leading-relaxed">This link may be mistyped, or the webinar is no longer available. Check the link in your invitation email.</p>
+      </div>
+    </PublicShell>
+  );
+}
+
+/** Network/server failure (not a 404): keep the visitor on the page with a retry. */
+export function WebinarLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <PublicShell width="max-w-xl">
+      <div className="text-center py-20 sm:py-28" data-testid="webinar-load-error" role="alert">
+        <h1 className="text-2xl font-semibold text-white mb-2">We couldn't load this webinar</h1>
+        <p className="text-sm text-zinc-500 leading-relaxed mb-6">Check your connection and try again. Your registration, if you made one, is safe.</p>
+        <button type="button" onClick={onRetry}
+          className="inline-flex items-center justify-center h-10 px-4 rounded-lg text-sm font-semibold bg-white/[0.06] border border-white/[0.12] text-white hover:bg-white/[0.1] outline-none focus-visible:ring-2 focus-visible:ring-[#d4b461]/70">
+          Try again
+        </button>
       </div>
     </PublicShell>
   );

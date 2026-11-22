@@ -1,3 +1,4 @@
+import WorkspaceLayout from "@/components/webinar-funnel/WebinarWorkspaceLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import PlatformViewWrapper from "@/components/video-marketing/PlatformViewWrapper";
@@ -5,7 +6,8 @@ import TierGate, { hasVideoMarketingAccess } from "@/components/video-marketing/
 
 const GOLD = "#d4b461";
 
-export default function VideoMarketing() {
+/** `section` opens the studio on a given area; /video-hosting renders this with section="video-hosting". */
+export default function VideoMarketing({ section }: { section?: "webinars" | "video-hosting" } = {}) {
     const { user, isLoading } = useAuth();
     const [, nav] = useLocation();
 
@@ -18,7 +20,7 @@ export default function VideoMarketing() {
     }
 
     if (!user) {
-        nav("/login?redirect=/video-marketing");
+        nav(`/login?redirect=${section === "video-hosting" ? "/video-hosting" : "/video-marketing"}`);
         return null;
     }
 
@@ -29,5 +31,5 @@ export default function VideoMarketing() {
         return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketing={(user as any).hasVideoMarketing} />;
     }
 
-    return <PlatformViewWrapper />;
+    return <WorkspaceLayout section={section||"webinars"}><PlatformViewWrapper initialSection={section} embedded /></WorkspaceLayout>;
 }

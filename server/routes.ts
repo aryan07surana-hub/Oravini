@@ -1,3 +1,6 @@
+import {requireYoutubeChannel} from "./youtubeConnectionValidation";
+import {registerWebinarAssistant} from "./webinarAssistant";
+import {communityLinksSchema} from "@shared/webinarCommunity";
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -23,6 +26,7 @@ import { webinarFunnels, webinarFunnelRegistrations, WEBINAR_FUNNEL_STATUSES, me
 import { parseYouTubeVideoId, slugifyWebinarTitle, WEBINAR_SLUG_RE, isValidDeckUrl, isValidCtaUrl } from "@shared/webinarFunnel";
 import { registerWebinarFunnelLiveRoutes } from "./webinarFunnelLive";
 import { sendWebinarConfirmation } from "./webinarFunnelEmail";
+import { WEBINAR_OUTBOUND_DISABLED, WEBINAR_OUTBOUND_DISABLED_MESSAGE, noteWebinarOutboundDisabled, respondWebinarOutboundDisabled } from "./webinarOutboundDisabled";
 import { defaultFunnelWebinar, normalizeFunnelWebinar } from "@shared/funnelWebinar";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -9357,7 +9361,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
 
       const yt = google.youtube({ version: "v3", auth: oauth2Client });
       const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
-      const channel = channelRes.data.items?.[0];
+      const channel = requireYoutubeChannel(channelRes.data.items?.[0]);
 
       const prevToken = await storage.getYoutubeToken(userId);
       await storage.upsertYoutubeToken(userId, {
@@ -9381,7 +9385,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     const token = await storage.getYoutubeToken((req.user as any).id);
     if (!token) return res.json({ connected: false, configured: youtubeConfigured() });
     return res.json({
-      connected: true,
+      connected: !!token.channelId,
       configured: youtubeConfigured(),
       channelId: token.channelId,
       channelTitle: token.channelTitle,
@@ -11132,6 +11136,7 @@ Rules:
       z.string().trim().max(2000).refine(v => v === "" || isValidCtaUrl(v), "CTA URL must start with http:// or https:// (or be a booking page path like /book/…)"),
       z.null(),
     ]).optional().transform(v => (v === undefined ? undefined : v ? v : null));
+    registerWebinarAssistant(app,requireAuth);
     const funnelBody = z.object({
       title: z.string().trim().min(1, "Title is required").max(200),
       description: optStr(5000),
@@ -11154,6 +11159,7 @@ Rules:
         .transform(v => (v === undefined ? undefined : v ? new Date(v) : null)),
       durationMinutes: z.number().int().min(5).max(600).optional(),
       remindersEnabled: z.boolean().optional(),
+      communityLinks: communityLinksSchema.optional(),
     });
 
     const YT_INVALID_MSG = "Couldn't find a YouTube video ID in that link. Use a youtube.com/watch?v=..., youtube.com/live/..., or youtu.be/... link, or the 11-character video ID.";
@@ -11247,6 +11253,7 @@ Rules:
           offerExpiresAt: body.offerExpiresAt ?? null,
           durationMinutes: body.durationMinutes ?? 60,
           remindersEnabled: body.remindersEnabled ?? true,
+          communityLinks: body.communityLinks ?? [],
         }).returning();
         res.status(201).json({ ...ownerView(row), registrationCount: 0 });
       } catch (e: any) {
@@ -11295,6 +11302,7 @@ Rules:
         if (body.offerExpiresAt !== undefined) updates.offerExpiresAt = body.offerExpiresAt;
         if (body.durationMinutes !== undefined) updates.durationMinutes = body.durationMinutes;
         if (body.remindersEnabled !== undefined) updates.remindersEnabled = body.remindersEnabled;
+        if (body.communityLinks !== undefined) updates.communityLinks = body.communityLinks;
         if (Object.keys(updates).length === 0) return res.json(ownerView(existing));
         const [row] = await db.update(webinarFunnels).set(updates)
           .where(and(eq(webinarFunnels.id, existing.id), eq(webinarFunnels.userId, userId)))
@@ -11400,6 +11408,7 @@ Rules:
         status: f.status,
         deckUrl: f.deckUrl,
         replayVideoId: f.replayUrl,
+        communityLinks: f.communityLinks ?? [],
         offerText: f.offerText,
         offerPrice: f.offerPrice,
         offerExpiresAt: f.offerExpiresAt,
@@ -14920,6 +14929,12 @@ Return JSON only:
   };
 
   async function sendSmsViaEmail(toPhone: string, message: string): Promise<void> {
+    // Email-to-carrier SMS gateway is disabled: throw before any lookup or send,
+    // so callers record a failure rather than a phantom delivery.
+    if (WEBINAR_OUTBOUND_DISABLED) {
+      noteWebinarOutboundDisabled("SMS email-to-carrier gateway");
+      throw new Error(WEBINAR_OUTBOUND_DISABLED_MESSAGE);
+    }
     const gw = await storage.getSmsCarrierGateway(toPhone);
     if (!gw || !gw.gatewayDomain) throw new Error(`No carrier gateway for ${toPhone}`);
     const nodemailer = await import("nodemailer");
@@ -15088,6 +15103,8 @@ Return JSON only:
 
   // SMS Broadcasts — send
   app.post("/api/admin/sms/broadcast", requireAdmin, async (req, res) => {
+    // DISABLED before createSmsBroadcast(), the recipient loop and logSms().
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res, { sent: 0 });
     const { name, message, segment } = req.body;
     if (!name || !message) return res.status(400).json({ message: "name and message required" });
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
@@ -15109,6 +15126,8 @@ Return JSON only:
 
   // SMS — send a single test SMS
   app.post("/api/admin/sms/test", requireAdmin, async (req, res) => {
+    // DISABLED — never reports a successful send.
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res);
     const { phone, message } = req.body;
     if (!phone || !message) return res.status(400).json({ message: "phone and message required" });
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
@@ -15122,6 +15141,8 @@ Return JSON only:
 
   // SMS — run sequences manually
   app.post("/api/admin/sms/run-sequences", requireAdmin, async (_req, res) => {
+    // DISABLED before importing/running the processor, so no enrollment advances.
+    if (WEBINAR_OUTBOUND_DISABLED) return respondWebinarOutboundDisabled(res);
     try {
       const { processSmsSequences } = await import("./cron");
       await processSmsSequences();

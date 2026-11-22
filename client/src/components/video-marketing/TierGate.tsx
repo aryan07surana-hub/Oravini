@@ -82,7 +82,7 @@ function TiltCard({ children, style = {} }: { children: React.ReactNode; style?:
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const FEATURES = [
-    { icon: "📡", title: "Live Webinars", desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.", tag: "Core Feature" },
+    { icon: "📡", title: "Live Webinars", desc: "Host live or automated webinars. Registration pages are built automatically, and after signup attendees can join through your optional community links. No webinar email or SMS is sent.", tag: "Core Feature" },
     { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with a custom progress bar you fully control. Set precise timing to maximise watch-through and push conversion rates past 70%.", tag: "High Converting" },
     { icon: "✂️", title: "AI Clip Finder", desc: "Feed in any long-form video — a webinar replay, podcast, or VSL. The AI scans the full timeline and extracts the highest-value clips ready to repurpose.", tag: "AI Powered" },
     { icon: "🗂️", title: "Video Library", desc: "One organised library for all your content — VSLs, webinar recordings, and standard videos. Import via URL, file upload, or Google Drive.", tag: "Organised" },
