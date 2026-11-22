@@ -889,6 +889,9 @@ export default function OraviniLanding() {
           <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>
             Powered by Brandverse
           </div>
+          <p style={{ marginTop: 18, fontSize: "clamp(14px, 1.9vw, 17px)", color: "rgba(255,255,255,0.72)", lineHeight: 1.6, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}>
+            Webinar and video software for creators and coaches — registration pages, an attendee CRM, and a YouTube video scheduler.
+          </p>
         </div>
 
         {/* CTA buttons — pinned just above scroll cue */}
@@ -917,6 +920,66 @@ export default function OraviniLanding() {
         <div className="hero-scroll" style={{ position: "absolute", bottom: 36, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 2 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>Scroll</div>
           <div style={{ width: 1, height: 40, background: `linear-gradient(to bottom, ${GOLD}66, transparent)`, animation: "floatY 1.8s ease-in-out infinite" }} />
+        </div>
+      </section>
+
+      {/* ── WHAT ORAVINI IS FOR (app purpose — keep near the top) ─────────── */}
+      <section
+        id="what-oravini-is"
+        aria-labelledby="what-oravini-is-heading"
+        style={{ padding: "72px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.015)" }}
+      >
+        <div style={{ maxWidth: 860, margin: "0 auto" }}>
+          <h2 id="what-oravini-is-heading" style={{ fontSize: "clamp(24px, 3.4vw, 34px)", fontWeight: 800, lineHeight: 1.25, letterSpacing: "-0.02em", marginBottom: 18, color: "#fff" }}>
+            What Oravini is for
+          </h2>
+          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.72)", lineHeight: 1.8, margin: "0 0 16px" }}>
+            Oravini is a webinar and video business tool for creators and coaches. You can build registration
+            pages for your webinars, add optional community links that registrants see after they sign up, keep
+            every registration and attendee in a built-in CRM, and schedule videos to publish on your own
+            YouTube channel.
+          </p>
+
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "28px 0 10px" }}>
+            What connecting your YouTube channel does
+          </h3>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.62)", lineHeight: 1.8, margin: "0 0 12px" }}>
+            Connecting a YouTube channel is optional — you can use Oravini with a stream link you create
+            yourself. If you do connect one, Oravini:
+          </p>
+          <ul style={{ fontSize: 15, color: "rgba(255,255,255,0.62)", lineHeight: 1.8, margin: "0 0 16px", paddingLeft: 22 }}>
+            <li>reads your channel identity, so we can show which channel is connected;</li>
+            <li>creates scheduled, unlisted livestreams for your webinars and binds a stream to them;</li>
+            <li>reads stream health and whether a recorded archive is available afterwards;</li>
+            <li>uploads the videos you choose to upload.</li>
+          </ul>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.62)", lineHeight: 1.8, margin: "0 0 16px" }}>
+            Your actual camera and audio are never captured by Oravini. They are sent to YouTube through
+            YouTube Studio or an external encoder such as OBS. Whether you can go live, and when a recording
+            becomes available, is decided by YouTube — live-streaming eligibility on your channel and YouTube's
+            processing time both affect availability.
+          </p>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.62)", lineHeight: 1.8, margin: "0 0 16px" }}>
+            For these features Oravini requests a single Google OAuth scope,{" "}
+            <code style={{ fontSize: 13.5, color: GOLD, wordBreak: "break-all" }}>https://www.googleapis.com/auth/youtube.force-ssl</code>.
+            We do not sell your data, use it for advertising or ad targeting, or use it to train generalised AI
+            models. You can disconnect at any time.
+          </p>
+
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#fff", margin: "28px 0 10px" }}>
+            What Oravini is not for
+          </h3>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.62)", lineHeight: 1.8, margin: "0 0 20px" }}>
+            Oravini is for business webinars and video publishing. It is not for generating or hosting intimate
+            imagery, and non-consensual intimate imagery is prohibited.
+          </p>
+
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, margin: 0 }}>
+            Read our{" "}
+            <a href="/privacy" style={{ color: GOLD, textDecoration: "underline" }}>Privacy Policy</a>
+            {" "}and{" "}
+            <a href="/terms" style={{ color: GOLD, textDecoration: "underline" }}>Terms of Service</a>.
+          </p>
         </div>
       </section>
 
