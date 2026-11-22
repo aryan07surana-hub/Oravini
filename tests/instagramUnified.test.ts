@@ -185,3 +185,15 @@ describe("signed new-app removal callbacks", () => {
     } finally {await h.close();}
   });
 });
+
+// Expired or revoked connections still contain local data that users must be able to remove.
+test("expired connection retains the data removal control", async () => {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const React = await import("react");
+  const { InstagramUnifiedView } = await import("../client/src/components/InstagramUnifiedView");
+  const html = renderToStaticMarkup(React.createElement(InstagramUnifiedView, {
+    status: { configured: true, connected: false, reconnectRequired: true, accounts: [{ id: "99", username: "sample" }], selectedAccountId: "99", lastSyncedAt: null },
+    media: [], onConnect() {}, onAccount() {}, onSync() {}, onRemove() {}
+  }));
+  assert.match(html, /Remove this connection/);
+});
