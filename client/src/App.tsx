@@ -39,7 +39,7 @@ import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
 import DashboardPreview from "@/pages/DashboardPreview";
-import SelectPlan from "@/pages/SelectPlan";
+import SelectPlan from "@/pages/SelectPlanV2";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import Privacy from "@/pages/Privacy";
@@ -495,4 +495,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-}
+      }
