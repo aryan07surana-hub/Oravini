@@ -33,7 +33,7 @@ export default function Privacy() {
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Privacy Policy</h1>
-          <p className="text-zinc-400 text-sm">Last updated: November 21, 2026</p>
+          <p className="text-zinc-400 text-sm">Last updated: November 23, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
             This policy explains how Oravini collects, uses, stores, and protects your personal data.
             We are committed to full transparency — if anything is unclear, email us at{" "}
@@ -165,6 +165,12 @@ export default function Privacy() {
           </Section>
 
           <Section num="7" title="Instagram & Meta Data Usage">
+            <p><strong className="text-white">Oravini Content &amp; Analytics:</strong> The new Instagram insights connection uses Meta Unified Login for professional Business or Creator accounts. You choose a business portfolio and the Instagram accounts to share. A Facebook Page is not required for this connection. It is separate from Oravini's messaging integration.</p>
+            <p>For the new connection we store shared Instagram account IDs and usernames, the client business ID, login configuration and app identifiers, an encrypted access token and its expiry when supplied. When you refresh insights, we read and store your latest media IDs, captions, post types, timestamps, Instagram links and available metrics such as views, reach, likes, comments, saves, shares and estimated three-second Reel skip rate. We keep dated metric snapshots with the synced media. Missing data is not treated as zero. Meta may delay or limit metrics.</p>
+            <p>This connection supports your own-account content insights. It does not provide competitors' private reach or retention, or a full second-by-second Instagram retention curve. It does not automatically send messages or publish content.</p>
+            <p>The new connection's token is encrypted at rest and used only on Oravini's server to call Meta. This insights view does not send the token or your connected-account media to an AI provider. Our hosting and database services process stored data to run the feature; Meta processes authorization and API requests. Other AI features and their processors are described separately below.</p>
+            <p>Remove the new connection from Connected insights to delete its local token, shared account identifiers, cached media and metric snapshots. This does not revoke Meta authorization, delete Instagram posts or affect a separate messaging connection. You can revoke the relevant app in your Instagram, Facebook or Meta business integration settings. For deletion without sign-in, or removal of other stored data, follow our <a href="/data-deletion" className="underline" style={{ color: GOLD }}>data deletion instructions</a> or email <a href={`mailto:${email}`} className="underline" style={{ color: GOLD }}>{email}</a>. Requests are handled within 30 days, subject to legal retention requirements.</p>
+
             <p>When you connect your Instagram account, we access data in accordance with Meta's Platform Policy:</p>
             <ul className="list-disc pl-5 space-y-2">
               <Li>We only access data you have explicitly authorised via OAuth.</Li>

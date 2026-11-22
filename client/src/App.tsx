@@ -43,6 +43,8 @@ import SelectPlan from "@/pages/SelectPlanV2";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import Privacy from "@/pages/Privacy";
+import DataDeletion from "@/pages/DataDeletion";
+import InstagramUnified from "@/pages/client/InstagramUnified";
 import Terms from "@/pages/Terms";
 import Onboarding from "@/pages/Onboarding";
 import VerifyPhone from "@/pages/VerifyPhone";
@@ -309,6 +311,7 @@ function AppRoutes() {
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
       <Route path="/preview" component={DashboardPreview} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/data-deletion" component={DataDeletion} />
       <Route path="/terms" component={Terms} />
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
@@ -357,6 +360,7 @@ function AppRoutes() {
       <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
       <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
+      <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
       <Route path="/tracking/content/instagram">{() => <Guard component={InstagramTracking} />}</Route>
       <Route path="/tracking/content/youtube">{() => <Guard component={YouTubeTracking} />}</Route>
       <Route path="/tracking/content/calendar">{() => <Guard component={ContentCalendar} />}</Route>
@@ -495,4 +499,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-      }
+}

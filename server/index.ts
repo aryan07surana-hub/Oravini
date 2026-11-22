@@ -11,6 +11,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
+import { registerInstagramUnifiedRoutes } from "./instagramUnifiedRoutes";
 import { registerDmOnboardingRoutes } from "./dmOnboarding";
 import { registerMetaAdsRoutes } from "./metaAdsRoutes";
 import { registerMetaAdsManagerRoutes } from "./metaAdsManagerRoutes";
@@ -223,7 +224,7 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       // Payment connection / revenue responses are private to each user: never log their bodies.
-      if (capturedJsonResponse && !path.startsWith("/api/payments")) {
+      if (capturedJsonResponse && !path.startsWith("/api/payments") && !path.startsWith("/api/instagram/unified")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
       log(logLine);
@@ -1431,6 +1432,7 @@ async function runMigrations() {
   registerBillingV2Routes(app, { db: pool });
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
+  await registerInstagramUnifiedRoutes(app, { query: (text, values) => pool.query(text, values) });
   registerDmOnboardingRoutes(app);
   registerMetaAdsRoutes(app);
   registerMetaAdsManagerRoutes(app);
