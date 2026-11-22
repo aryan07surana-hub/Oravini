@@ -21,7 +21,7 @@ test("GrowthVideo optional AI cap is nineteen dollars seventy cents",()=>{assert
 
 test("term bonus credits are monthly and independent of price discounts",()=>{for(const [id,base,expected] of [["growth",400,[400,550,600,650]],["pro",700,[700,850,900,950]],["growth_video",1000,[1000,1150,1200,1250]]] as const){assert.deepEqual(TERM_STEPS.map(t=>monthlyCredits(id,base,t)),expected);}assert.equal(monthlyCredits("free",100,12),100);assert.throws(()=>monthlyCredits("growth",400,2),/Unsupported/);});
 
-test("pricing stays a labelled draft with checkout disabled unless the server catalog is final",async()=>{
+test("final prices keep checkout disabled until verified server offers are available",async()=>{
  const {displayOffer,termLabel}=await import("../client/src/components/video-marketing/TermPricingPreview");
  for(const st of [null,{checkoutOpen:false,fulfillmentOpen:false,offers:null},{checkoutOpen:false,fulfillmentOpen:true,offers:[{planId:"growth",termMonths:3,amountCents:1,discountPercent:99,monthlyAllowance:9}]}]){
   const o=displayOffer(st as any,"growth",49,3);assert.equal(o.final,false);assert.equal(o.discount,10);assert.equal(o.total,132.3);assert.equal(o.credits,null);
@@ -31,12 +31,12 @@ test("pricing stays a labelled draft with checkout disabled unless the server ca
  assert.equal(termLabel(1),"1 calendar month");assert.equal(termLabel(6),"6 calendar months");
 });
 
-test("draft render: calendar-month terms, total prepaid, effective monthly, bonus allowance, no auto-renewal, no live checkout",async()=>{
+test("final-price render preserves terms, allowances and payment availability guard",async()=>{
  (globalThis as any).location={search:""};
  const React=await import("react");(globalThis as any).React=React;const {renderToStaticMarkup}=await import("react-dom/server");
  const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
  const html=renderToStaticMarkup(React.createElement(Pricing));
- for(const s of ["PREVIEW · CHECKOUT OFF","calendar month","no auto-renewal","/ month effective","400 app credits","Checkout not available yet","Discount placeholders, not final"])assert.ok(html.includes(s),s);
+ for(const s of ["PREPAID · NO AUTO-RENEWAL","calendar month","no auto-renewal","/ month effective","400 app credits","Payments temporarily unavailable"])assert.ok(html.includes(s),s);
  assert.ok(!html.includes(`class="buy buy-live"`),"no live checkout button");assert.ok(!html.includes("Prepay 1 calendar month"));
 });
 
@@ -70,13 +70,17 @@ test("public pricing does not depend on the obsolete preview environment flag",a
  assert.ok(wrapper.includes("#pricing > :not(.pricing-v2-slot){display:none!important}"),"legacy checkout cards cannot remain visible beside new pricing");
 });
 
-test("public draft pricing hides internal cost and margin planning notes",async()=>{
+test("public pricing hides internal cost and margin planning notes",async()=>{
  (globalThis as any).location={search:""};
  const React=await import("react");(globalThis as any).React=React;
  const {renderToStaticMarkup}=await import("react-dom/server");
  const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
  const html=renderToStaticMarkup(React.createElement(Pricing));
- assert.ok(html.includes("PREVIEW · CHECKOUT OFF"));
+ assert.ok(html.includes("PREPAID · NO AUTO-RENEWAL"));
+ assert.ok(html.includes("Payments temporarily unavailable"));
+ assert.ok(!html.includes("Nothing here is on sale yet."));
+ assert.ok(!html.includes("Discount placeholders, not final"));
+ assert.ok(!html.includes(" · draft"));
  assert.ok(!html.includes("Internal planning guard"));
  assert.ok(!html.includes("maximum included AI provider cost"));
  assert.ok(!html.includes("65%"));
@@ -97,4 +101,30 @@ test("cards show dollar savings for each term beside its discount percent",async
   assert.ok(html.includes("No term discount"),"Pro keeps its undiscounted price");
  }
  (globalThis as any).location={search:""};
+});
+
+test("old-look pricing keeps current plans and gives Growth the popular treatment",async()=>{
+ (globalThis as any).location={search:"?term=3"};
+ const React=await import("react");(globalThis as any).React=React;
+ const {renderToStaticMarkup}=await import("react-dom/server");
+ const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
+ const html=renderToStaticMarkup(React.createElement(Pricing));
+ for(const name of ["plan-free","plan-growth featured","plan-pro","plan-growth_video","Most Popular","Start free.","Scale when ready.","$132.30","$177.00","$186.30"])assert.ok(html.includes(name),name);
+ assert.equal((html.match(/type="range"/g)||[]).length,3,"one independent slider per paid plan");
+ assert.ok(!html.includes("Weekly team calls"));
+ assert.ok(!html.includes("Unlimited video hosting"));
+ (globalThis as any).location={search:""};
+});
+
+test("Tier 5 uses the original visual block and a real Brandverse route",async()=>{
+ (globalThis as any).location={search:""};
+ const React=await import("react");(globalThis as any).React=React;
+ const {renderToStaticMarkup}=await import("react-dom/server");
+ const {default:Pricing}=await import("../client/src/components/video-marketing/TermPricingPreview");
+ const html=renderToStaticMarkup(React.createElement(Pricing));
+ assert.match(html,/<a class="elite-link" href="\/brandverse">Learn About Tier 5/);
+ assert.ok(html.includes("Tier 5 · Exclusive"));
+ assert.ok(html.includes("Work With Us"));
+ assert.ok(!html.includes("Demo only. Booking is disabled."));
+ assert.ok(!html.includes('class="buy buy-live"'),"checkout remains closed");
 });
