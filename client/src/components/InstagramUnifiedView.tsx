@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Instagram, Link2, ShieldCheck, ArrowUpRight, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
 export type UnifiedStatus = { configured: boolean; connected: boolean; accounts: { id: string; username: string }[]; selectedAccountId: string | null; lastSyncedAt: string | null; reconnectRequired: boolean; expiresAt?: string | null };
 export type UnifiedMedia = { id: string; caption: string; mediaType: string; permalink: string | null; timestamp: string | null; metrics: Record<string, number | null> };
@@ -25,7 +25,7 @@ export function InstagramUnifiedView({ status, media, busy, loading, error, noti
         <div><div className="mb-4 flex flex-wrap items-center gap-3"><h2 id="connection-heading" className="text-lg font-semibold">Instagram connection</h2><span className={`rounded-full px-2.5 py-1 text-[11px] ${status.connected && status.configured ? "bg-emerald-500/10 text-emerald-300" : "bg-white/5 text-zinc-400"}`}>{loading ? "Checking connection" : !status.configured ? "Setup pending" : status.reconnectRequired ? "Reconnect needed" : status.connected ? "Connected" : "Not connected"}</span></div>
           {loading ? <p className="text-sm text-zinc-400">Loading your connection...</p> : <>
             <p className="max-w-xl text-sm leading-6 text-zinc-400">{!status.configured ? "The new Instagram login configuration is not ready yet. Your existing messaging connection is unchanged." : status.reconnectRequired ? "Meta access has expired or is no longer valid. Connect again to choose the accounts you want to share." : status.connected ? "Your account access stays private. Select the professional account to use for this insights view." : "Use Instagram or Facebook to connect a Business or Creator account. You need a business portfolio, but not a Facebook Page."}</p>
-            <div className="mt-5 flex flex-wrap gap-3"><button disabled={busy || !status.configured} onClick={onConnect} className={primary}><Link2 className="h-4 w-4" />{status.connected || status.reconnectRequired ? "Reconnect Instagram" : "Connect Instagram"}</button>{status.connected && <button disabled={busy} onClick={onRemove} className={secondary}>Remove this connection</button>}</div>
+            <div className="mt-5 flex flex-wrap gap-3"><button disabled={busy || !status.configured} onClick={onConnect} className={primary}><Link2 className="h-4 w-4" />{status.connected || status.reconnectRequired ? "Reconnect Instagram" : "Connect Instagram"}</button>{(status.connected || status.reconnectRequired || status.accounts.length > 0) && <button disabled={busy} onClick={onRemove} className={secondary}>Remove this connection</button>}</div>
           </>}
         </div>
         <aside className="rounded-xl border border-white/5 bg-black/20 p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#d4b461]"><ShieldCheck className="h-4 w-4" />You stay in control</div><ul className="space-y-2 text-xs leading-5 text-zinc-400"><li>Meta handles login. Do not paste your Instagram password here.</li><li>Your shared account IDs and access token stay on Oravini's server. Tokens are encrypted at rest.</li><li>This view reads your own media and insights. It does not send DMs, publish posts or expose competitor private stats.</li></ul></aside>
@@ -39,4 +39,4 @@ export function InstagramUnifiedView({ status, media, busy, loading, error, noti
     </section>
     <footer className="flex flex-wrap gap-5 border-t border-white/10 pt-5 text-xs text-zinc-500"><a className="hover:text-[#d4b461]" href="/privacy#section-7">Instagram privacy</a><a className="hover:text-[#d4b461]" href="/terms">Terms</a><a className="hover:text-[#d4b461]" href="/data-deletion">Remove your data</a></footer>
   </div>;
-                             }
+    }
