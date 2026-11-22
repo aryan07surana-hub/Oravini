@@ -17,7 +17,7 @@ export default function Terms() {
 
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Terms of Service</h1>
-          <p className="text-zinc-400 text-sm">Last updated: November 21, 2026</p>
+          <p className="text-zinc-400 text-sm">Last updated: November 23, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
             By accessing or using Oravini, you agree to these Terms. If you do not agree, do not use the platform.
             Questions? Email <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>
@@ -102,6 +102,7 @@ export default function Terms() {
           </Section>
 
           <Section num="6" title="Instagram & Meta Integration">
+            <p>Oravini Content &amp; Analytics uses Meta Unified Login for accounts you own or are authorized to manage. You choose the business portfolio and professional Instagram accounts to share. Access depends on your permissions, Meta's approval and API availability. The new insights view is separate from messaging automation, does not publish or send messages, and does not expose competitors' private metrics. Missing metrics are unavailable, not guaranteed zeros. To remove stored connection data or request deletion, see our <a href="/data-deletion" className="underline" style={{ color: GOLD }}>data deletion instructions</a>.</p>
             <p>By connecting your Instagram account, you also agree to:</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><a href="https://www.facebook.com/terms.php" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Meta's Terms of Service</a></li>
@@ -266,4 +267,4 @@ export default function Terms() {
       </div>
     </div>
   );
-}
+            }
