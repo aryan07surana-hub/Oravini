@@ -2602,7 +2602,8 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
               <p className="text-xs text-muted-foreground">Month-by-month performance overview</p>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {!isYt && <Link href="/tracking/content/instagram/insights" className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10">Connected insights</Link>}
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className={isYt ? "border-red-500/30 text-red-400 hover:bg-red-500/10 gap-1.5" : "border-pink-500/30 text-pink-400 hover:bg-pink-500/10 gap-1.5"} data-testid={isYt ? "button-import-youtube" : "button-import-instagram"}>
               <RefreshCw className="w-3.5 h-3.5" /> {isYt ? "Import from YouTube" : "Import from Instagram"}
             </Button>
@@ -2955,4 +2956,4 @@ export function TrackingHome() {
       </div>
     </ClientLayout>
   );
-}
+                }
