@@ -44,6 +44,7 @@ import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import Privacy from "@/pages/Privacy";
 import DataDeletion from "@/pages/DataDeletion";
+import InstagramScheduler from "@/pages/client/InstagramScheduler";
 import InstagramUnified from "@/pages/client/InstagramUnified";
 import Terms from "@/pages/Terms";
 import Onboarding from "@/pages/Onboarding";
@@ -360,6 +361,7 @@ function AppRoutes() {
       <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
       <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
+      <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={InstagramScheduler} />}</Route>
       <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
       <Route path="/tracking/content/instagram">{() => <Guard component={InstagramTracking} />}</Route>
       <Route path="/tracking/content/youtube">{() => <Guard component={YouTubeTracking} />}</Route>
@@ -499,4 +501,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-}
+      }
