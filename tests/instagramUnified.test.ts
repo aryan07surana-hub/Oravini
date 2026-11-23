@@ -122,7 +122,7 @@ describe("route security and tenant boundaries", () => {
       const body = await res.json(); const state = new URL(body.authorizationUrl).searchParams.get("state")!;
       assert.match(state, /^[a-f0-9]{64}$/);
       const insert = h.calls.find(x => x.sql.startsWith("INSERT INTO instagram_unified_oauth_states"));
-      assert.deepEqual(insert.values, [hashValue(state), "user-a", hashValue("session-a")]);
+      assert.deepEqual(insert.values, [hashValue(state), "user-a", hashValue("session-a"), false]);
     } finally { await h.close(); }
   });
   test("callback rejects unknown/replayed states before any token exchange", async () => {

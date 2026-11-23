@@ -11,6 +11,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
+import { registerInstagramPublishingRoutes, startPublishingWorker } from "./instagramPublishingRoutes";
 import { registerInstagramUnifiedRoutes } from "./instagramUnifiedRoutes";
 import { registerDmOnboardingRoutes } from "./dmOnboarding";
 import { registerMetaAdsRoutes } from "./metaAdsRoutes";
@@ -1433,6 +1434,7 @@ async function runMigrations() {
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
   await registerInstagramUnifiedRoutes(app, { query: (text, values) => pool.query(text, values) });
+  await registerInstagramPublishingRoutes(app, { query: (text, values) => pool.query(text, values) });
   registerDmOnboardingRoutes(app);
   registerMetaAdsRoutes(app);
   registerMetaAdsManagerRoutes(app);
@@ -1489,5 +1491,6 @@ async function runMigrations() {
     startWebinarFunnelReminderJob();
     startWebinarFunnelFollowupJob();
     startSchedulingCronJobs();
+    startPublishingWorker({ query: (text, values) => pool.query(text, values) });
   });
 })();

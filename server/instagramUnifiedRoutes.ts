@@ -29,6 +29,7 @@ export async function ensureInstagramUnifiedSchema(query: Query) {
   );
   ALTER TABLE instagram_unified_connections ADD COLUMN IF NOT EXISTS grant_version TEXT NOT NULL DEFAULT 'initial';
   ALTER TABLE instagram_unified_connections ADD COLUMN IF NOT EXISTS login_subject_id TEXT;
+  ALTER TABLE instagram_unified_oauth_states ADD COLUMN IF NOT EXISTS publishing BOOLEAN NOT NULL DEFAULT false;
   CREATE TABLE IF NOT EXISTS instagram_unified_deletion_receipts (code_hash TEXT PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
 }
 export async function registerInstagramUnifiedRoutes(app: Express, deps: Dependencies) {
@@ -94,9 +95,14 @@ export async function registerInstagramUnifiedRoutes(app: Express, deps: Depende
   app.post(`${prefix}/connect`, authenticated, sameOrigin, async (req, res) => {
     try {
       const config = readUnifiedConfig(env), state = newState();
+      const publishing = req.body?.publishing === true;
+      if (publishing) {
+        if (env.INSTAGRAM_PUBLISH_ENABLED !== "true" || !/^\d+$/.test(env.INSTAGRAM_PUBLISH_CONFIG_ID || "")) throw new UnifiedError("publishing_disabled", 503);
+        config.configId = env.INSTAGRAM_PUBLISH_CONFIG_ID!;
+      }
       if (!req.sessionID) throw new UnifiedError("session_required", 401);
       await query("DELETE FROM instagram_unified_oauth_states WHERE user_id=$1 OR expires_at<NOW()", [owner(req)]);
-      await query("INSERT INTO instagram_unified_oauth_states(state_hash,user_id,session_hash,expires_at) VALUES($1,$2,$3,NOW()+INTERVAL '10 minutes')", [hashValue(state), owner(req), hashValue(req.sessionID)]);
+      await query("INSERT INTO instagram_unified_oauth_states(state_hash,user_id,session_hash,expires_at,publishing) VALUES($1,$2,$3,NOW()+INTERVAL '10 minutes',$4)", [hashValue(state), owner(req), hashValue(req.sessionID), publishing]);
       res.json({ authorizationUrl: authorizationUrl(config, state) });
     } catch (error) { fail(res, error); }
   });
@@ -108,12 +114,17 @@ export async function registerInstagramUnifiedRoutes(app: Express, deps: Depende
     try {
       const state = typeof req.query.state === "string" ? req.query.state : "";
       if (!/^[a-f\d]{64}$/.test(state)) throw new UnifiedError("state_invalid");
-      const consumed = await query("DELETE FROM instagram_unified_oauth_states WHERE state_hash=$1 AND user_id=$2 AND session_hash=$3 AND expires_at>NOW() RETURNING user_id", [hashValue(state), owner(req), hashValue(req.sessionID)]);
+      const consumed = await query("DELETE FROM instagram_unified_oauth_states WHERE state_hash=$1 AND user_id=$2 AND session_hash=$3 AND expires_at>NOW() RETURNING user_id,publishing", [hashValue(state), owner(req), hashValue(req.sessionID)]);
       if (consumed.rows.length !== 1) throw new UnifiedError("state_invalid");
       if (req.query.error) return finish("cancelled");
       const code = typeof req.query.code === "string" ? req.query.code : "";
       if (!code || code.length > 8192) throw new UnifiedError("code_invalid");
-      const config = readUnifiedConfig(env), graph = new UnifiedGraph(config, deps.fetcher);
+      const config = readUnifiedConfig(env);
+      if (consumed.rows[0].publishing) {
+        if (env.INSTAGRAM_PUBLISH_ENABLED !== "true" || !/^\d+$/.test(env.INSTAGRAM_PUBLISH_CONFIG_ID || "")) throw new UnifiedError("publishing_disabled", 503);
+        config.configId = env.INSTAGRAM_PUBLISH_CONFIG_ID!;
+      }
+      const graph = new UnifiedGraph(config, deps.fetcher);
       const { token, expiresAt } = await graph.exchange(code);
       const found = await graph.discover(token);
       const encrypted = sealToken(token, config.encryptionKey);
@@ -161,7 +172,7 @@ export async function registerInstagramUnifiedRoutes(app: Express, deps: Depende
       const row = rows[0];
       grantVersion = row?.grant_version;
       if (!row?.selected_account_id || !row.accounts?.some((x: any) => x.id === row.selected_account_id)) throw new UnifiedError("choose_account", 409);
-      if (row.app_id !== config.appId || row.config_id !== config.configId) throw new UnifiedError("reconnect_required", 401);
+      if (row.app_id !== config.appId || ![config.configId, env.INSTAGRAM_PUBLISH_CONFIG_ID].filter(Boolean).includes(row.config_id)) throw new UnifiedError("reconnect_required", 401);
       if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) throw new UnifiedError("reconnect_required", 401);
       const gate = await query("UPDATE instagram_unified_connections SET last_sync_started_at=NOW() WHERE user_id=$1 AND grant_version=$2 AND (last_sync_started_at IS NULL OR last_sync_started_at<NOW()-INTERVAL '15 minutes') RETURNING user_id", [userId, grantVersion]);
       if (!gate.rows.length) { res.setHeader("Retry-After", "900"); throw new UnifiedError("refresh_cooldown", 429); }
@@ -188,4 +199,4 @@ export async function registerInstagramUnifiedRoutes(app: Express, deps: Depende
       res.json({ removed: true });
     } catch (error) { fail(res, error); }
   });
-}
+          }
