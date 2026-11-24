@@ -1,4 +1,5 @@
 import { buildPolicyPages } from "./buildPolicies.mjs";
+import { buildMarketingPages } from "./buildMarketingPages.mjs";
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
@@ -37,6 +38,14 @@ async function buildAll() {
   console.log("building client...");
   await viteBuild();
   await buildPolicyPages("dist/public");
+  // SEO prerender of the marketing landing. Non-fatal: on failure the
+  // server falls back to the meta-injected shell instead of home.html.
+  try {
+    await buildMarketingPages("dist/public");
+    console.log("prerendered marketing landing (dist/public/home.html)");
+  } catch (err) {
+    console.warn("WARNING: marketing page prerender failed; serving meta-injected shell instead.", err);
+  }
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));

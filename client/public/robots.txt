@@ -1,0 +1,23 @@
+# Oravini — robots.txt
+# Public marketing pages are crawlable. App and API routes are excluded
+# so crawl budget goes to pages that can rank.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /super-admin
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /select-plan
+Disallow: /verify-phone
+Disallow: /documents
+Disallow: /chat
+Disallow: /community
+Disallow: /progress
+Disallow: /calls
+Disallow: /crm
+Disallow: /webinars
+Disallow: /settings
+
+Sitemap: https://oravini.com/sitemap.xml
