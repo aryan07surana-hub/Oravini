@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import {
   DEFAULT_META,
-  HOME_PATHS,
+  PRERENDERED_ROUTES,
   SEO_ROUTES,
   injectSeoMeta,
 } from "./seoMeta";
@@ -33,12 +33,15 @@ export function serveStatic(app: Express, publicDirectory = distPath) {
   );
 
   // Prerendered marketing HTML from script/buildMarketingPages.mjs, when the
-  // build produced it. Crawlers get the full landing content without
-  // executing JavaScript; the SPA still boots over it for real visitors.
-  const homeHtmlPath = path.resolve(publicDirectory, "home.html");
-  const homeHtml = fs.existsSync(homeHtmlPath)
-    ? fs.readFileSync(homeHtmlPath, "utf8")
-    : null;
+  // build produced it. Crawlers get the full page content without executing
+  // JavaScript; the SPA still boots over it for real visitors.
+  const prerendered = new Map<string, string>();
+  for (const [route, file] of Object.entries(PRERENDERED_ROUTES)) {
+    const filePath = path.resolve(publicDirectory, file);
+    if (fs.existsSync(filePath)) {
+      prerendered.set(route, fs.readFileSync(filePath, "utf8"));
+    }
+  }
 
   // index.html with per-route meta injected, cached per route.
   const seoCache = new Map<string, string>();
@@ -53,9 +56,15 @@ export function serveStatic(app: Express, publicDirectory = distPath) {
     }
     const route = req.path.length > 1 ? req.path.replace(/\/+$/, "") : req.path;
 
-    if (HOME_PATHS.includes(route)) {
+    const prerenderedHtml = prerendered.get(route);
+    if (prerenderedHtml) {
       res.setHeader("content-type", "text/html; charset=utf-8");
-      return res.send(homeHtml ?? injectSeoMeta(indexHtml, SEO_ROUTES[route] ?? DEFAULT_META));
+      return res.send(prerenderedHtml);
+    }
+
+    if (route === "/" || route === "/oravini") {
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      return res.send(injectSeoMeta(indexHtml, SEO_ROUTES[route] ?? DEFAULT_META));
     }
 
     const meta = SEO_ROUTES[route];

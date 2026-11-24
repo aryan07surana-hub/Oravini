@@ -35,6 +35,7 @@ import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/PricingV2Landing";
+import { ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage } from "@/pages/seoPages";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
@@ -314,6 +315,10 @@ function AppRoutes() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
       <Route path="/terms" component={Terms} />
+      <Route path="/manychat-alternative" component={ManyChatAlternativePage} />
+      <Route path="/vs/manychat" component={VsManychatPage} />
+      <Route path="/instagram-dm-automation" component={IgDmAutomationPage} />
+      <Route path="/webinar-platform" component={WebinarPlatformPage} />
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
       <Route path="/select-plan" component={SelectPlan} />

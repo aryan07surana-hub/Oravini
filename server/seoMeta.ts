@@ -25,7 +25,15 @@ export const DEFAULT_META: SeoMeta = {
 
 // Routes whose fully prerendered HTML is generated at build time
 // (script/buildMarketingPages.mjs) and served instead of the bare app shell.
-export const HOME_PATHS = ["/", "/oravini"];
+// Keys are route paths, values are the generated file in dist/public.
+export const PRERENDERED_ROUTES: Record<string, string> = {
+  "/": "home.html",
+  "/oravini": "home.html",
+  "/manychat-alternative": "manychat-alternative.html",
+  "/vs/manychat": "vs-manychat.html",
+  "/instagram-dm-automation": "instagram-dm-automation.html",
+  "/webinar-platform": "webinar-platform.html",
+};
 
 // Per-route metadata for public pages served from the app shell.
 // Guarded app pages are intentionally absent: they fall through to the
@@ -35,6 +43,34 @@ export const SEO_ROUTES: Record<string, SeoMeta> = {
   "/oravini": {
     ...DEFAULT_META,
     canonical: `${SITE_URL}/oravini`,
+  },
+  "/manychat-alternative": {
+    title: "ManyChat Alternative for Creators: Instagram DM Automation + Webinars + Funnels | Oravini",
+    description:
+      "Looking for a ManyChat alternative? Oravini combines Instagram DM automation with webinars, video hosting, funnels, CRM and AI content tools in one platform built for creators and personal brands.",
+    canonical: `${SITE_URL}/manychat-alternative`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/vs/manychat": {
+    title: "Oravini vs ManyChat: Honest Comparison for Creators (2026) | Oravini",
+    description:
+      "Oravini vs ManyChat compared feature by feature: DM automation, webinars, funnels, video hosting, CRM, AI tools and pricing model. See which fits a creator business.",
+    canonical: `${SITE_URL}/vs/manychat`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/instagram-dm-automation": {
+    title: "Instagram DM Automation for Creators: Comment-to-DM, Keyword Replies | Oravini",
+    description:
+      "Automate Instagram DMs: comment-to-DM, keyword auto-replies, story mentions and welcome messages. Oravini connects DM automation to your webinars, funnels and CRM.",
+    canonical: `${SITE_URL}/instagram-dm-automation`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/webinar-platform": {
+    title: "Webinar Platform for Creators & Coaches: Registration → Live → Replay → Sale | Oravini",
+    description:
+      "A webinar platform built for creators: registration pages, live room with chat, Q&A, polls and offers, automatic replays, and every attendee tracked in your CRM.",
+    canonical: `${SITE_URL}/webinar-platform`,
+    ogImage: DEFAULT_OG_IMAGE,
   },
   "/preview": {
     title: "Oravini Dashboard Preview — See the AI Growth Platform in Action",
