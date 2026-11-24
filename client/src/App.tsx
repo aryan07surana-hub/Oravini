@@ -211,6 +211,219 @@ function SuperAdminGuard({ component: Component, ...props }: any) {
   if (!user) return <Redirect to="/login" />;
   if (user.email !== "oravini@gmail.com") return <Redirect to="/login" />;
   return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
+import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
+import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
+import { CustomCursor, GlobalBackground } from "@/components/GlobalUI";
+import { TourProvider } from "@/components/ui/TourGuide";
+import CookieBanner from "@/components/CookieBanner";
+import NotFound from "@/pages/not-found";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error("[ErrorBoundary]", error, info); }
+  render() {
+    if (this.state.error) {
+      const err = this.state.error as Error;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0910", color: "#fff", padding: 24, fontFamily: "system-ui, sans-serif" }}>
+          <div style={{ maxWidth: 480, textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(212,180,97,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
+            <h1 style={{ color: "#d4b461", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#d4b461", color: "#0a0910", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
+import LusionInspired from "@/pages/LusionInspired";
+import Landing from "@/pages/Landing";
+import OraviniLanding from "@/pages/PricingV2Landing";
+import { ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage } from "@/pages/seoPages";
+import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
+import Brandverse from "@/pages/Brandverse";
+import Login from "@/pages/Login";
+import DashboardPreview from "@/pages/DashboardPreview";
+import SelectPlan from "@/pages/SelectPlanV2";
+import Apply from "@/pages/Apply";
+import Audit from "@/pages/Audit";
+import Privacy from "@/pages/Privacy";
+import DataDeletion from "@/pages/DataDeletion";
+import InstagramScheduler from "@/pages/client/InstagramScheduler";
+import InstagramUnified from "@/pages/client/InstagramUnified";
+import Terms from "@/pages/Terms";
+import Onboarding from "@/pages/Onboarding";
+import VerifyPhone from "@/pages/VerifyPhone";
+import PublicForm from "@/pages/PublicForm";
+import PublicBooking from "@/pages/PublicBooking";
+import CancelBooking from "@/pages/CancelBooking";
+import RescheduleBooking from "@/pages/RescheduleBooking";
+import EmbedBooking from "@/pages/EmbedBooking";
+import WebinarFunnelLanding from "@/pages/public/WebinarFunnelLanding";
+import WebinarFunnelLive from "@/pages/public/WebinarFunnelLive";
+import WebinarFunnels from "@/pages/client/WebinarFunnels";
+import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
+import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
+
+// New webinars start in the guided wizard; "?mode=advanced" opens the plain form.
+function WebinarFunnelNew() {
+  const advanced = new URLSearchParams(useSearch()).get("mode") === "advanced";
+  return advanced ? <WebinarFunnelEditor id="new" /> : <WebinarSetupWizard />;
+}
+import WebinarFunnelRegistrations from "@/pages/client/WebinarFunnelRegistrations";
+
+import ClientDashboard from "@/pages/client/Dashboard";
+import ClientDocuments from "@/pages/client/Documents";
+import ClientChat from "@/pages/client/Chat";
+import ClientProgress from "@/pages/client/Progress";
+import ClientCalls from "@/pages/client/Calls";
+import { TrackingHome, ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
+import MetaAdsTracking from "@/pages/client/MetaAdsTracking";
+import ContentCalendar from "@/pages/client/ContentCalendar";
+import AIIdeas from "@/pages/client/AIIdeas";
+import CarouselStudio from "@/pages/client/CarouselStudio";
+import AIDesign from "@/pages/client/AIDesign";
+import CompetitorStudy from "@/pages/client/CompetitorStudy";
+import AIContentCoach from "@/pages/client/AIContentCoach";
+import DMTracker from "@/pages/client/DMTracker";
+import DMHub from "@/pages/client/DMHub";
+import DMAutomation from "@/pages/client/DMAutomation";
+import AIVideoEditor from "@/pages/client/AIVideoEditor";
+import TwitterScheduler from "@/pages/client/TwitterScheduler";
+import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
+import YouTubeScheduler from "@/pages/client/YouTubeScheduler";
+import Sessions from "@/pages/client/Sessions";
+import Credits from "@/pages/client/Credits";
+import PlanSettings from "@/pages/client/PlanSettings";
+import Payments from "@/pages/client/Payments";
+import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
+import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
+import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
+import ICPBuilder from "@/pages/client/ICPBuilder";
+import SOPGenerator from "@/pages/client/SOPGenerator";
+import AudiencePsychologyMap from "@/pages/client/AudiencePsychologyMap";
+import AIContentPlanner from "@/pages/client/AIContentPlanner";
+import ContentAnalyser from "@/pages/client/ContentAnalyser";
+import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
+import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
+import SendDM from "@/pages/client/SendDM";
+import ToolsHub from "@/pages/client/ToolsHub";
+import FormsHub from "@/pages/client/FormsHub";
+import FormBuilder from "@/pages/client/FormBuilder";
+import FormResponses from "@/pages/client/FormResponses";
+import FormsCRM from "@/pages/client/FormsCRM";
+import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import VideoClipEditor from "@/pages/client/VideoClipEditor";
+import ScreenRecorder from "@/pages/client/ScreenRecorder";
+import RepurposePage from "@/pages/client/Repurpose";
+import HookLibraryPage from "@/pages/client/HookLibrary";
+import CaptionWriterPage from "@/pages/client/CaptionWriter";
+import WebinarStudio from "@/pages/client/WebinarStudio";
+import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
+import WatchWebinar from "@/pages/public/WatchWebinar";
+import WatchRecording from "@/pages/public/WatchRecording";
+import Recordings from "@/pages/client/Recordings";
+import PanelistInvite from "@/pages/public/PanelistInvite";
+import PanelistStudio from "@/pages/public/PanelistStudio";
+import WatchVideo from "@/pages/public/WatchVideo";
+import EmbedPlayer from "@/pages/public/EmbedPlayer";
+import PublicLandingPage from "@/pages/public/PublicLandingPage";
+import ChannelView from "@/pages/public/ChannelView";
+import ClipFinder from "@/pages/client/ClipFinder";
+import Community from "@/pages/client/Community";
+import ClientVideoMarketing from "@/pages/client/VideoMarketing";
+import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
+import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
+import ClientProjectTracker from "@/pages/client/ProjectTracker";
+import ClientCRM from "@/pages/client/CRM";
+import LandingPages from "@/pages/client/LandingPages";
+import PagesHub from "@/pages/client/PagesHub";
+import LandingPageBuilder from "@/pages/client/LandingPageBuilder";
+import Funnels from "@/pages/client/Funnels";
+import FunnelBuilder from "@/pages/client/FunnelBuilder";
+import FunnelStepBuilder from "@/pages/client/FunnelStepBuilder";
+import Pages from "@/pages/client/Pages";
+import Domains from "@/pages/client/Domains";
+import FunnelAnalytics from "@/pages/client/FunnelAnalytics";
+import FunnelAutomations from "@/pages/client/FunnelAutomations";
+import FunnelDomain from "@/pages/client/FunnelDomain";
+// PublicFunnelDomain (legacy custom-domain redirector) is superseded by HostGate; file kept for reference.
+import PublicFunnelStep from "@/pages/public/PublicFunnelStep";
+import PageStudio, { PageStudioNew } from "@/pages/client/PageStudio";
+
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminClients from "@/pages/admin/Clients";
+import AdminClientDetail from "@/pages/admin/ClientDetail";
+import AdminChat from "@/pages/admin/Chat";
+import AdminSettings from "@/pages/admin/Settings";
+import AdminTracking from "@/pages/admin/Tracking";
+import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
+import AdminCredits from "@/pages/admin/AdminCredits";
+import AdminCRM from "@/pages/admin/AdminCRM";
+import AdminCRMSuite from "@/pages/admin/AdminCRMSuite";
+import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
+import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
+import AdminReferrals from "@/pages/admin/AdminReferrals";
+import AdminResponses from "@/pages/admin/AdminResponses";
+import AdminCommunity from "@/pages/admin/AdminCommunity";
+import AdminScheduling from "@/pages/admin/AdminScheduling";
+import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
+import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
+import AdminContentTracker from "@/pages/admin/AdminContentTracker";
+import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
+import AdminMetaAdsManager from "@/pages/admin/AdminMetaAdsManager";
+import ProjectTracker from "@/pages/admin/ProjectTracker";
+import AdminFeedback from "@/pages/admin/AdminFeedback";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
+
+import PortalEliteMembers from "@/pages/portal/EliteMembers";
+import PortalSessionsHub from "@/pages/portal/SessionsHub";
+import PortalSchedulingHub from "@/pages/portal/SchedulingHub";
+import PortalCalendar from "@/pages/portal/Calendar";
+import PortalCourseModules from "@/pages/portal/CourseModules";
+import PortalDailyRead from "@/pages/portal/DailyRead";
+import PortalProjectTracker from "@/pages/portal/ProjectTracker";
+import PortalSettings from "@/pages/portal/Settings";
+
+import SuperAdminOverview from "@/pages/super-admin/Overview";
+import SuperAdminClientList from "@/pages/super-admin/ClientList";
+import SuperAdminDocuments from "@/pages/super-admin/DocumentsList";
+import SuperAdminTodos from "@/pages/super-admin/TodoList";
+import SuperAdminDailyRead from "@/pages/super-admin/DailyRead";
+import SuperAdminInspiration from "@/pages/super-admin/Inspiration";
+import SuperAdminContentTracker from "@/pages/super-admin/ContentTracker";
+
+function PortalGuard({ component: Component, ...props }: any) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    </div>
+  );
+  if (!user) return <Redirect to="/login" />;
+  if (user.email !== "oravini@gmail.com") return <Redirect to="/login" />;
+  return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
+
+}
+
+function SuperAdminGuard({ component: Component, ...props }: any) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    </div>
+  );
+  if (!user) return <Redirect to="/login" />;
+  if (user.email !== "oravini@gmail.com") return <Redirect to="/login" />;
+  return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
 }
 
 function Guard({ component: Component, adminOnly = false, ...props }: any) {
@@ -314,6 +527,10 @@ function AppRoutes() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/data-deletion" component={DataDeletion} />
       <Route path="/terms" component={Terms} />
+      <Route path="/manychat-alternative" component={ManyChatAlternativePage} />
+      <Route path="/vs/manychat" component={VsManychatPage} />
+      <Route path="/instagram-dm-automation" component={IgDmAutomationPage} />
+      <Route path="/webinar-platform" component={WebinarPlatformPage} />
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
       <Route path="/select-plan" component={SelectPlan} />
@@ -501,4 +718,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-      }
+}
