@@ -8,6 +8,7 @@ import passport from "passport";
 import { registerSchedulingRoutes, isRetiredClientBookingPage } from "./schedulingRoutes";
 import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerDialerRoutes, startSequenceRunner, registerPlatformChatRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerActivityRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
+import { sendPlatformMail, sendPlatformMailInBackground } from "./mailer";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -1312,15 +1313,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   );
 
   // ── OTP ─────────────────────────────────────────────────────────────────────
-  const otpTransporter = nodemailer.createTransport({
-    host: process.env.PLATFORM_SMTP_HOST || "email-smtp.us-east-1.amazonaws.com",
-    port: parseInt(process.env.PLATFORM_SMTP_PORT || "587"),
-    secure: false,
-    auth: {
-      user: process.env.PLATFORM_SMTP_USER || process.env.EMAIL_USER,
-      pass: process.env.PLATFORM_SMTP_PASS || process.env.EMAIL_PASS,
-    },
-  });
+  // Render free web services block outbound SMTP (ports 25/465/587), so mail goes through
+  // the Resend HTTPS API when RESEND_API_KEY is set (see server/mailer.ts).
+  const otpTransporter = {
+    sendMail: (opts: any) => sendPlatformMail(opts),
+    sendInBackground: (opts: any) => sendPlatformMailInBackground(opts),
+  };
 
   app.post("/api/auth/otp/send", async (req, res) => {
     const { email } = req.body;
@@ -1386,7 +1384,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await storage.createOtpCode(email, code, expiresAt);
 
     try {
-      await otpTransporter.sendMail({
+      otpTransporter.sendInBackground({
         from: `"Oravini" <support@oravini.com>`,
         to: email,
         subject: "Reset your Oravini password",
