@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft, User } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
+import { SiGoogle, SiFacebook } from "react-icons/si";
 const oraviniLogoPath = "/oravini-logo.png";
 
 const GOLD = "#d4b461";
@@ -78,6 +78,7 @@ export default function Login() {
 
   const [tab, setTab] = useState<Tab>(tabParam === "register" ? "register" : "login");
   const [googleHint, setGoogleHint] = useState(false);
+  const [fbHint, setFbHint] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -114,6 +115,9 @@ export default function Login() {
     if (error === "google_failed") {
       toast({ title: "Google sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Google.", variant: "destructive" });
       window.history.replaceState({}, "", "/login");
+    } else if (error === "facebook_failed") {
+      toast({ title: "Facebook sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Facebook.", variant: "destructive" });
+      window.history.replaceState({}, "", "/login");
     }
   }, []);
 
@@ -136,6 +140,9 @@ export default function Login() {
       } else if (err.message === "GOOGLE_ACCOUNT") {
         setGoogleHint(true);
         toast({ title: "This account uses Google sign-in", description: "Click 'Continue with Google' to log in.", variant: "destructive" });
+      } else if (err.message === "FACEBOOK_ACCOUNT") {
+        setFbHint(true);
+        toast({ title: "This account uses Facebook sign-in", description: "Click 'Continue with Facebook' to log in.", variant: "destructive" });
       } else {
         toast({ title: "Login failed", description: err.message, variant: "destructive" });
       }
@@ -199,6 +206,14 @@ export default function Login() {
     return `/api/auth/google${qs ? `?${qs}` : ""}`;
   })();
 
+  const facebookAuthUrl = (() => {
+    const urlRef = new URLSearchParams(window.location.search).get("ref");
+    const params = new URLSearchParams();
+    if (urlRef) params.set("ref", urlRef);
+    const qs = params.toString();
+    return `/api/auth/facebook${qs ? `?${qs}` : ""}`;
+  })();
+
   const googleBtn = (
     <div>
       <a href={googleAuthUrl} data-testid="button-google-login">
@@ -209,6 +224,19 @@ export default function Login() {
         </Button>
       </a>
       {googleHint && <p style={{ fontSize: 12, color: GOLD, textAlign: "center", marginTop: 8, fontWeight: 500 }}>↑ Your account was created with Google</p>}
+    </div>
+  );
+
+  const facebookBtn = (
+    <div className="mt-3">
+      <a href={facebookAuthUrl} data-testid="button-facebook-login">
+        <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
+          style={{ border: fbHint ? `1.5px solid ${GOLD}` : "1px solid rgba(255,255,255,0.1)", background: fbHint ? "rgba(212,180,97,0.12)" : "rgba(255,255,255,0.05)", color: fbHint ? GOLD : "rgba(255,255,255,0.85)", boxShadow: fbHint ? "0 0 18px rgba(212,180,97,0.25)" : "none" }}>
+          <SiFacebook className="w-4 h-4" />
+          Continue with Facebook
+        </Button>
+      </a>
+      {fbHint && <p style={{ fontSize: 12, color: GOLD, textAlign: "center", marginTop: 8, fontWeight: 500 }}>↑ Your account was created with Facebook</p>}
     </div>
   );
 
@@ -288,13 +316,14 @@ export default function Login() {
                 <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Sign in to access your Oravini portal</p>
               </div>
               {googleBtn}
+              {facebookBtn}
               {divider}
               <form onSubmit={e => { e.preventDefault(); if (!email || !password) { toast({ title: "Missing fields", description: "Please enter your email and password", variant: "destructive" }); return; } login.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label style={{ color: "rgba(255,255,255,0.55)" }}>Email address</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-email" type="email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setGoogleHint(false); }} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
+                    <Input data-testid="input-email" type="email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setGoogleHint(false); setFbHint(false); }} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -332,6 +361,7 @@ export default function Login() {
                 <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Join Oravini and start growing today</p>
               </div>
               {googleBtn}
+              {facebookBtn}
               {divider}
               <form onSubmit={e => { e.preventDefault(); register.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
@@ -463,4 +493,4 @@ export default function Login() {
       </div>
     </div>
   );
-}
+                    }

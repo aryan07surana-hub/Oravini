@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   phone: text("phone"),
   phoneVerified: boolean("phone_verified").notNull().default(true),
   googleId: text("google_id").unique(),
+  facebookId: text("facebook_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
   planConfirmed: boolean("plan_confirmed").notNull().default(false),
   hasVideoMarketing: boolean("has_video_marketing").notNull().default(false),
