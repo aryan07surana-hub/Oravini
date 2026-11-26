@@ -10,6 +10,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
+import { registerFacebookAuth } from "./facebookAuth";
 import { registerOAuthRoutes } from "./oauth";
 import { registerInstagramPublishingRoutes, startPublishingWorker } from "./instagramPublishingRoutes";
 import { registerInstagramUnifiedRoutes } from "./instagramUnifiedRoutes";
@@ -1446,6 +1447,7 @@ async function runMigrations() {
   // Kill switches default OFF; the schema is only created by script/billing-v2-migrate.ts.
   app.use(billingV2SessionMiddleware({ db: pool, freeEnrollment: () => process.env.BILLING_V2_FREE_ENROLLMENT_ENABLED === "true" }));
   registerBillingV2Routes(app, { db: pool });
+  registerFacebookAuth(app);
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
   await registerInstagramUnifiedRoutes(app, { query: (text, values) => pool.query(text, values) });
