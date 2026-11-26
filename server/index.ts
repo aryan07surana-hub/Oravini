@@ -112,6 +112,8 @@ passport.use(
       const valid = await comparePassword(password, user.password || "");
       // If password fails and they have a googleId, their account is Google-linked
       if (!valid && user.googleId) return done(null, false, { message: "GOOGLE_ACCOUNT" });
+      // Same for Facebook-linked accounts
+      if (!valid && user.facebookId) return done(null, false, { message: "FACEBOOK_ACCOUNT" });
       if (!valid) {
         recordFailedLogin(email);
         return done(null, false, { message: "Invalid email or password" });
@@ -280,6 +282,19 @@ async function runMigrations() {
     console.log("[migration] users.has_video_marketing_addon ensured");
   } catch (e: any) {
     console.warn("[migration] users.has_video_marketing_addon skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS facebook_id TEXT
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_facebook_id_key ON users (facebook_id)
+    `);
+    console.log("[migration] users.facebook_id ensured");
+  } catch (e: any) {
+    console.warn("[migration] users.facebook_id skipped:", e.message);
   }
 
   try {
