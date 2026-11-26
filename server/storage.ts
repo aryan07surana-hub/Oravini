@@ -169,6 +169,7 @@ export interface IStorage {
   getValidOtpCode(email: string, code: string): Promise<OtpCode | undefined>;
   markOtpUsed(id: string): Promise<void>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getUserByFacebookId(facebookId: string): Promise<User | undefined>;
 
   // Credits
   getCreditBalance(userId: string): Promise<CreditBalance | undefined>;
@@ -769,6 +770,11 @@ class DatabaseStorage implements IStorage {
 
   async getUserByGoogleId(googleId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
+  async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.facebookId, facebookId));
     return user;
   }
 
