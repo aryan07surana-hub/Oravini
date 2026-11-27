@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { ToolGrid, FeatureRows, Faq } from "@/components/landing/LandingMore";
+import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingCursor } from "@/components/landing/LandingCursor";
 import { DMDemo, IdeasDemo, SchedulerDemo, VideoDemo, WebinarDemo, StreakDemo } from "@/components/landing/LandingDemos";
 
@@ -213,6 +214,8 @@ export default function Landing() {
     </div>
   </div>
 </header>
+
+<LandingShowcase />
 
 <section id="features">
   <div className="wrap">
