@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 const MEDIA = "https://oravini-media.pages.dev/";
 const mediaFor = (id: string) => (["coach", "webinar", "ytlive"].includes(id) ? "https://oravini-media2.pages.dev/" : ["tracking", "documents", "competitor", "design", "analyser", "aivideo", "editor", "recorder", "projecttracker", "tools"].includes(id) ? "https://oravini-media3.pages.dev/" : MEDIA);
 // Only the original five have vertical cuts (mp4 only). Newer videos are 16:9 and used on every screen size.
+// These media3 videos only ship as mp4 (no webm), so skip the webm request that would 404.
+const NO_WEBM = new Set(["documents", "competitor", "design", "analyser", "aivideo", "editor", "recorder", "projecttracker", "tools"]);
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const TITLES: Record<string, string> = {
   dm: "DM Automation in 30 seconds",
@@ -140,8 +142,8 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
               </div>
             )}
             <div style={{ padding: "0 24px" }}>
-              <video key={shape + id} poster={`${mediaFor(id)}${id}.jpg`} autoPlay muted={auto} loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eef4fe", objectFit: "cover", borderRadius: 12, border: "1px solid #e3e9f3" }}>
-                {!tall && <source src={`${mediaFor(id)}${id}_${shape}.webm`} type="video/webm" />}
+              <video key={shape + id} poster={`${mediaFor(id)}${id}.jpg`} autoPlay muted={auto} loop playsInline controls preload="auto" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eef4fe", objectFit: "cover", borderRadius: 12, border: "1px solid #e3e9f3" }}>
+                {!tall && !NO_WEBM.has(id) && <source src={`${mediaFor(id)}${id}_${shape}.webm`} type="video/webm" />}
                 <source src={`${mediaFor(id)}${id}_${shape}.mp4`} type="video/mp4" />
               </video>
             </div>
