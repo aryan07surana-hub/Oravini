@@ -8,6 +8,7 @@ import {
   SEO_ROUTES,
   injectSeoMeta,
 } from "./seoMeta";
+import { matchesSpaRoute } from "./spaRoutes";
 
 let distPath: string;
 
@@ -18,6 +19,20 @@ try {
   );
 } catch {
   distPath = path.resolve(process.cwd(), "dist", "public");
+}
+
+// Cache policy for static assets:
+// - /assets/* are Vite content-hashed bundles: safe to cache for a year.
+// - Other files in public/ (logo, favicon, video, robots.txt, sitemap.xml)
+//   change in place, so they get a day at most.
+// - HTML (shell + prerendered pages) always revalidates so deploys show
+//   immediately.
+function staticCacheHeaders(res: express.Response, filePath: string) {
+  if (/[/\\]assets[/\\]/.test(filePath)) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  } else if (!/\.html?$/i.test(filePath)) {
+    res.setHeader("Cache-Control", "public, max-age=86400");
+  }
 }
 
 export function serveStatic(app: Express, publicDirectory = distPath) {
@@ -46,9 +61,22 @@ export function serveStatic(app: Express, publicDirectory = distPath) {
   // index.html with per-route meta injected, cached per route.
   const seoCache = new Map<string, string>();
 
+  function sendHtml(res: express.Response, html: string, status = 200) {
+    res.status(status);
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+    return res.send(html);
+  }
+
   // index: false — "/" is answered below so it can serve the prerendered
   // landing (or the meta-injected shell) instead of the bare shell.
-  app.use(express.static(publicDirectory, { extensions: ["html"], index: false }));
+  app.use(
+    express.static(publicDirectory, {
+      extensions: ["html"],
+      index: false,
+      setHeaders: staticCacheHeaders,
+    }),
+  );
 
   app.use((req, res, next) => {
     if (req.path.startsWith("/api")) {
@@ -58,13 +86,11 @@ export function serveStatic(app: Express, publicDirectory = distPath) {
 
     const prerenderedHtml = prerendered.get(route);
     if (prerenderedHtml) {
-      res.setHeader("content-type", "text/html; charset=utf-8");
-      return res.send(prerenderedHtml);
+      return sendHtml(res, prerenderedHtml);
     }
 
     if (route === "/" || route === "/oravini") {
-      res.setHeader("content-type", "text/html; charset=utf-8");
-      return res.send(injectSeoMeta(indexHtml, SEO_ROUTES[route] ?? DEFAULT_META));
+      return sendHtml(res, injectSeoMeta(indexHtml, SEO_ROUTES[route] ?? DEFAULT_META));
     }
 
     const meta = SEO_ROUTES[route];
@@ -74,10 +100,17 @@ export function serveStatic(app: Express, publicDirectory = distPath) {
         html = injectSeoMeta(indexHtml, meta);
         seoCache.set(route, html);
       }
-      res.setHeader("content-type", "text/html; charset=utf-8");
-      return res.send(html);
+      return sendHtml(res, html);
     }
 
+    // Unknown URLs get a real 404 status (the SPA still renders its
+    // not-found page over the shell). Serving a 200 here would be a soft
+    // 404: Google flags them and they waste crawl budget.
+    if (!matchesSpaRoute(route)) {
+      return sendHtml(res, indexHtml, 404);
+    }
+
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
     res.sendFile(path.resolve(publicDirectory, "index.html"));
   });
 }

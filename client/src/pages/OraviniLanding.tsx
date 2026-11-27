@@ -737,7 +737,13 @@ function OutcomeMetrics() {
 }
 
 // ── Hero Background Video (infinite loop) ────────────────────────────────────
+// The <video> mounts only after hydration: the prerendered static HTML stays
+// light (no 4MB fetch competing with the JS bundle on first load) and real
+// visitors still get the loop a moment after the page boots.
 function HeroVideo() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
   return (
     <video
       autoPlay
@@ -1917,4 +1923,4 @@ export default function OraviniLanding() {
       )}
     </div>
   );
-          }
+    }
