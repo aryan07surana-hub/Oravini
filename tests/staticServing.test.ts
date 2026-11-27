@@ -17,7 +17,12 @@ test('every route declared in App.tsx is recognized by the server', () => {
   const declared = [...appSource.matchAll(/path="([^"]*)"/g)].map((m) => m[1]);
   assert.ok(declared.length > 100, 'route extraction from App.tsx broke');
   const missing = declared.filter(
-    (r) => !SPA_ROUTES.includes(r) && !SEO_ROUTES[r] && !PRERENDERED_ROUTES[r],
+    (r) =>
+      !SPA_ROUTES.includes(r) &&
+      !SEO_ROUTES[r] &&
+      !PRERENDERED_ROUTES[r] &&
+      // Dynamic marketing routes (e.g. /blog/:slug) are registered per slug.
+      !(r.endsWith('/:slug') && Object.keys(SEO_ROUTES).some((k) => k.startsWith(r.slice(0, -5)))),
   );
   assert.deepEqual(missing, [], `routes in App.tsx unknown to the server: ${missing.join(', ')}`);
 });
