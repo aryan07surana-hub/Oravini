@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const MEDIA = "https://oravini-media.pages.dev/";
-const mediaFor = (id: string) => (id === "coach" ? "https://oravini-media2.pages.dev/" : MEDIA);
+const mediaFor = (id: string) => (["coach", "webinar", "ytlive"].includes(id) ? "https://oravini-media2.pages.dev/" : MEDIA);
 // Only the original five have vertical cuts (mp4 only). Newer videos are 16:9 and used on every screen size.
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const TITLES: Record<string, string> = {
@@ -20,6 +20,8 @@ const TITLES: Record<string, string> = {
   webstream: "Stream your webinar anywhere",
   aicrm: "Your AI CRM, every lead in one place",
   coach: "Meet your AI Content Coach",
+  webinar: "The Oravini webinar platform",
+  ytlive: "Run a webinar on YouTube Live",
 };
 
 // Small blue "Watch how it works" button (bottom-right) that opens the matching promo video in a modal.
