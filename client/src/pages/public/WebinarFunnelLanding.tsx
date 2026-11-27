@@ -1,5 +1,5 @@
 import {safeCommunityLinks,communityProvider} from "@shared/webinarCommunity";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { ArrowRight, CalendarClock, CalendarPlus, CheckCircle2, Globe2, Mic, PlayCircle } from "lucide-react";
 import { formatIST, googleCalendarUrl } from "@shared/webinarFunnel";
@@ -11,6 +11,29 @@ import { btn, focusRing } from "@/components/webinar-funnel/ui";
 import { getUtmParams } from "@/lib/utm";
 
 const fieldCls = `w-full h-11 px-3.5 rounded-lg text-sm text-white placeholder:text-zinc-600 bg-white/[0.03] border transition-colors focus:border-[#d4b461]/70 ${focusRing}`;
+
+function VslPlayer({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [unmuted, setUnmuted] = useState(false);
+  const start = () => {
+    const v = ref.current; if (!v) return;
+    v.muted = false; v.currentTime = 0; v.controls = true; setUnmuted(true);
+    v.play().catch(() => {});
+  };
+  return (
+    <div className="relative mx-auto w-full max-w-[340px] aspect-[9/16] rounded-2xl overflow-hidden border border-white/[0.1] bg-black" data-testid="vsl-player">
+      <video ref={ref} src={src} autoPlay muted loop={!unmuted} playsInline preload="auto" controls={unmuted} controlsList="nodownload noplaybackrate" disablePictureInPicture className="absolute inset-0 w-full h-full object-contain" />
+      {!unmuted && (
+        <button type="button" onClick={start} data-testid="vsl-unmute" aria-label="Watch with sound from the start"
+          className="absolute inset-0 flex flex-col items-center justify-end pb-6 bg-gradient-to-t from-black/70 via-transparent to-transparent">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#d4b461] text-black text-sm font-semibold px-5 py-3 shadow-lg animate-pulse">
+            <PlayCircle className="w-5 h-5" /> Tap to watch with sound
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 type Errors = { name?: string; email?: string; form?: string };
 
@@ -151,9 +174,9 @@ export default function WebinarFunnelLanding() {
           {hasTiers && (
             <div className="mt-8" data-testid="webinar-vsl">
               {vslUrl ? (
-                <video src={vslUrl} controls playsInline preload="metadata" className="w-full rounded-xl border border-white/[0.08] bg-black aspect-video" />
+                <VslPlayer src={vslUrl} />
               ) : (
-                <div className="w-full aspect-video rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] flex items-center justify-center text-sm text-zinc-500">
+                <div className="w-full max-w-[340px] mx-auto aspect-[9/16] rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] flex items-center justify-center text-sm text-zinc-500">
                   <PlayCircle className="w-6 h-6 mr-2" /> Masterclass preview video coming soon
                 </div>
               )}
@@ -265,6 +288,12 @@ export default function WebinarFunnelLanding() {
           </p>
         </section>
       </div>
+      {hasTiers && canRegister && !registered && (
+        <div className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-white/[0.1] bg-[#0b0b0e]/95 backdrop-blur p-3 grid grid-cols-2 gap-2" data-testid="sticky-cta">
+          <button type="button" className={btn("secondary", "md")} onClick={() => { setTier("general"); document.getElementById("reg-name")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>Register free</button>
+          <button type="button" className={btn("primary", "md")} onClick={() => { setTier("vip"); document.getElementById("reg-name")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>VIP {webinar.vipPrice || ""}</button>
+        </div>
+      )}
     </PublicShell>
   );
 }
