@@ -56,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
         <div className="px-6 py-5 border-b border-sidebar-border flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-[0.25em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</p>
+            <p className="text-xs font-semibold tracking-[0.25em] uppercase" style={{ color: "#2e78ef" }}>BRANDVERSEE</p>
             <p className="text-[10px] text-muted-foreground mt-0.5 tracking-wider uppercase">Admin Panel</p>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
@@ -134,7 +134,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <button onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</span>
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: "#2e78ef" }}>BRANDVERSEE</span>
         </header>
 
         <main className="flex-1 overflow-auto">
