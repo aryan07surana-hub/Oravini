@@ -28,8 +28,8 @@ const feeFor = (price: number) => Math.max(1, Math.round((Math.round(price * 100
 const whopFeeFor = (price: number) => Math.round(Math.round(price * 100) * 0.027) + 30;
 
 async function post(method: string, url: string, body?: unknown) {
-  const res = await apiRequest(method, url, body);
-  return res.json();
+  // apiRequest already returns parsed JSON.
+  return apiRequest(method, url, body);
 }
 
 export function FeeNotice({ compact }: { compact?: boolean }) {
