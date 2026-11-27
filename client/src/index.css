@@ -864,3 +864,8 @@ html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow
 
 .oravini-landing .tile .dwrap{height:276px}
 .oravini-landing .tile.wide .dwrap{width:min(100%,520px)}
+.oravini-landing .mock-tabs{display:none}
+.oravini-landing .side-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#a3acb8;padding:12px 10px 4px}
+.oravini-landing button.side-item:hover{background:#f1f5fb}
+@keyframes mockIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (max-width:900px){.oravini-landing .mock-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 10px;scrollbar-width:none}.oravini-landing .mock-tabs button{flex:none;border:1px solid #e3e9f3;background:#fff;border-radius:999px;padding:6px 12px;font:600 12px inherit;color:#5b6675}.oravini-landing .mock-tabs button.on{background:#2e78ef;border-color:#2e78ef;color:#fff}}
