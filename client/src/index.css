@@ -350,22 +350,22 @@ html, body {
 
 /* Calm light theme (dashboard redesign). Applied to <html> only while the dashboard is mounted. */
 html.calm-light {
-  --background: 0 0% 100%;
+  --background: 240 6% 97%;
   --foreground: 228 18% 10%;
-  --border: 225 14% 91%;
+  --border: 40 6% 87%;
   --card: 0 0% 100%;
   --card-foreground: 228 18% 10%;
   --card-border: 225 14% 91%;
-  --sidebar: 225 20% 98%;
+  --sidebar: 0 0% 100%;
   --sidebar-foreground: 228 18% 10%;
   --sidebar-border: 225 14% 92%;
-  --sidebar-primary: 226 68% 54%;
+  --sidebar-primary: 217 86% 56%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 225 20% 95%;
   --sidebar-accent-foreground: 228 18% 10%;
   --popover: 0 0% 100%;
   --popover-foreground: 228 18% 10%;
-  --primary: 226 68% 54%;
+  --primary: 217 86% 56%;
   --primary-foreground: 0 0% 100%;
   --secondary: 225 20% 95%;
   --secondary-foreground: 228 18% 10%;
@@ -374,7 +374,7 @@ html.calm-light {
   --accent: 225 20% 95%;
   --accent-foreground: 228 18% 10%;
   --input: 225 14% 88%;
-  --ring: 226 68% 54%;
+  --ring: 217 86% 56%;
   color-scheme: light;
 }
 /* Remap hard-coded dark utility colours used by the sidebar and older dashboard sections */
@@ -385,3 +385,19 @@ html.calm-light .text-zinc-600 { color: hsl(225 8% 58%); }
 html.calm-light .bg-zinc-900, html.calm-light .bg-zinc-800, html.calm-light [class*="bg-zinc-900/"], html.calm-light [class*="bg-zinc-800/"] { background-color: hsl(225 20% 96%); }
 html.calm-light .border-zinc-800, html.calm-light .border-zinc-700, html.calm-light .divide-zinc-800 > * { border-color: hsl(225 14% 91%); }
 html.calm-light .bg-black\/50 { background-color: rgba(20,22,28,0.4); }
+
+/* Calm light: restyle remaining gold accents (inline styles in older components) to the calm blue */
+html.calm-light [style*="color: rgb(212, 180, 97)"], html.calm-light [style*="color: rgb(196, 179, 122)"], html.calm-light [style*="color: rgb(184, 152, 72)"] { color: #2e78ef !important; }
+html.calm-light [style*="background: rgba(212, 180, 97"], html.calm-light [style*="background: linear-gradient"][style*="212, 180, 97"], html.calm-light [style*="background-color: rgba(212, 180, 97"] { background: rgba(46,120,239,0.06) !important; }
+html.calm-light [style*="solid rgba(212, 180, 97"], html.calm-light [style*="solid rgb(212, 180, 97"] { border-color: rgba(46,120,239,0.22) !important; }
+html.calm-light [style*="18, 14, 30"], html.calm-light [style*="22, 16, 36"] { background: #ffffff !important; }
+html.calm-light [style*="background: linear-gradient(135deg, rgb(184, 152, 72)"] { background: #2e78ef !important; box-shadow: none !important; }
+html.calm-light .text-\[\#d4b461\] { color: #2e78ef; }
+html.calm-light [class*="bg-[#d4b461]"] { background-color: rgba(46,120,239,0.08); }
+html.calm-light [class*="border-[#d4b461]"] { border-color: rgba(46,120,239,0.22); }
+html.calm-light [class*="to-[#d4b461]"], html.calm-light [class*="from-[#d4b461]"] { --tw-gradient-from: rgba(46,120,239,0.06); --tw-gradient-to: transparent; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+html.calm-light [style*="background: rgb(212, 180, 97)"], html.calm-light [style*="background-color: rgb(212, 180, 97)"] { background: #2e78ef !important; color: #fff !important; }
+html.calm-light [style*="color: rgb(255, 255, 255)"] { color: hsl(228 18% 10%) !important; }
+html.calm-light [style*="color: rgba(255, 255, 255, 0.5"], html.calm-light [style*="color: rgba(255, 255, 255, 0.4"], html.calm-light [style*="color: rgba(255, 255, 255, 0.6"] { color: hsl(225 8% 42%) !important; }
+html.calm-light [style*="background: rgba(255, 255, 255, 0.0"] { background: hsl(225 20% 97%) !important; }
+html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans-serif, system-ui, sans-serif; }
