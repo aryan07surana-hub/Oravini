@@ -1,9 +1,10 @@
+import { OraviniMark } from "@/components/OraviniLogo";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 const oraviniLogoPath = "/oravini-logo.png";
 
-const GOLD = "#d4b461";
-const GOLD_BRIGHT = "#f0c84b";
+const GOLD = "#2e78ef";
+const GOLD_BRIGHT = "#4f93ff";
 const CALENDLY = "https://calendly.com/brandversee/30min";
 
 /* ───────────────────────────────────────────────────────────
@@ -52,21 +53,21 @@ function StrategyModal({ onClose }: { onClose: () => void }) {
   const softwareInterest = answers[4]?.startsWith("Yes") || answers[4]?.startsWith("Maybe");
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ background: "#080808", border: `1px solid ${GOLD}33`, borderRadius: 24, padding: "44px 40px", maxWidth: 540, width: "100%", position: "relative" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 20, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 22, cursor: "pointer" }}>✕</button>
+    <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(255,255,255,0.86)", backdropFilter: "blur(16px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: "#ffffff", border: `1px solid ${GOLD}33`, borderRadius: 24, padding: "44px 40px", maxWidth: 540, width: "100%", position: "relative" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 20, background: "none", border: "none", color: "rgba(16,24,40,0.47)", fontSize: 22, cursor: "pointer" }}>✕</button>
         {done ? (
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 42, marginBottom: 16 }}>🚀</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: GOLD, marginBottom: 10 }}>
               {softwareInterest ? "You're pre-qualified for Scale Your Software!" : "You're pre-qualified!"}
             </div>
-            <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>
+            <div style={{ color: "rgba(16,24,40,0.67)", fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>
               {softwareInterest
                 ? "You're exactly the type of creator we build custom platforms for. Book your free 30-min call — we'll sketch your platform and custom growth plan live."
                 : "You're exactly the type of creator we work with. Book your free 30-min strategy call now — our team will build a custom growth plan for you."}
             </div>
-            <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, borderRadius: 12, padding: "15px 36px", textDecoration: "none" }}>
+            <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#ffffff", fontWeight: 800, fontSize: 16, borderRadius: 12, padding: "15px 36px", textDecoration: "none" }}>
               Book My Free Strategy Call →
             </a>
           </div>
@@ -74,17 +75,17 @@ function StrategyModal({ onClose }: { onClose: () => void }) {
           <>
             <div style={{ display: "flex", gap: 6, marginBottom: 28 }}>
               {CALL_QS.map((_, i) => (
-                <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= step ? GOLD : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />
+                <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= step ? GOLD : "rgba(16,24,40,0.1)", transition: "background 0.3s" }} />
               ))}
             </div>
             <div style={{ fontSize: 11, letterSpacing: "0.15em", color: GOLD, textTransform: "uppercase", marginBottom: 10 }}>Question {step + 1} of {CALL_QS.length}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 24, lineHeight: 1.4 }}>{CALL_QS[step].q}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#101828", marginBottom: 24, lineHeight: 1.4 }}>{CALL_QS[step].q}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {CALL_QS[step].opts.map(opt => (
                 <button key={opt} onClick={() => pick(opt)}
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "13px 18px", color: "rgba(255,255,255,0.8)", fontSize: 14, cursor: "pointer", textAlign: "left", fontWeight: 500, transition: "all 0.2s" }}
+                  style={{ background: "rgba(16,24,40,0.04)", border: "1px solid rgba(16,24,40,0.1)", borderRadius: 10, padding: "13px 18px", color: "rgba(16,24,40,0.92)", fontSize: 14, cursor: "pointer", textAlign: "left", fontWeight: 500, transition: "all 0.2s" }}
                   onMouseEnter={e => { (e.currentTarget).style.border = `1px solid ${GOLD}88`; (e.currentTarget).style.color = GOLD; }}
-                  onMouseLeave={e => { (e.currentTarget).style.border = "1px solid rgba(255,255,255,0.1)"; (e.currentTarget).style.color = "rgba(255,255,255,0.8)"; }}>
+                  onMouseLeave={e => { (e.currentTarget).style.border = "1px solid rgba(16,24,40,0.1)"; (e.currentTarget).style.color = "rgba(16,24,40,0.92)"; }}>
                   {opt}
                 </button>
               ))}
@@ -579,7 +580,7 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
       {/* Toggle button */}
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 7000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
         {showBadge && !open && (
-          <div style={{ background: "#080808", border: `1px solid ${GOLD}33`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "rgba(255,255,255,0.8)", boxShadow: "0 12px 40px rgba(0,0,0,0.6)", maxWidth: 230, animation: "bvFadeIn 0.5s ease" }}>
+          <div style={{ background: "#ffffff", border: `1px solid ${GOLD}33`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "rgba(16,24,40,0.92)", boxShadow: "0 12px 40px rgba(0,0,0,0.6)", maxWidth: 230, animation: "bvFadeIn 0.5s ease" }}>
             Ask me anything about Tier 5 👋
           </div>
         )}
@@ -589,8 +590,8 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
           style={{
             width: 58, height: 58, borderRadius: 999, border: "none", cursor: "pointer",
             background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`,
-            color: "#000", fontSize: 24, fontWeight: 900,
-            boxShadow: "0 12px 40px rgba(212,180,97,0.35)",
+            color: "#ffffff", fontSize: 24, fontWeight: 900,
+            boxShadow: "0 12px 40px rgba(46,120,239,0.35)",
             display: "flex", alignItems: "center", justifyContent: "center",
             transition: "transform 0.25s",
           }}
@@ -608,23 +609,23 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
           style={{
             position: "fixed", bottom: 96, right: 24, zIndex: 7001,
             width: "min(380px, calc(100vw - 32px))", height: "min(560px, calc(100vh - 140px))",
-            background: "#080808", border: `1px solid ${GOLD}33`, borderRadius: 20,
+            background: "#ffffff", border: `1px solid ${GOLD}33`, borderRadius: 20,
             display: "flex", flexDirection: "column", overflow: "hidden",
-            boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(212,180,97,0.06)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(46,120,239,0.06)",
             animation: "bvFadeIn 0.25s ease",
           }}
         >
           {/* Header */}
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${GOLD}18`, display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(180deg, rgba(212,180,97,0.06), transparent)" }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontWeight: 900, fontSize: 16 }}>O</div>
+          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${GOLD}18`, display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(180deg, rgba(46,120,239,0.06), transparent)" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontWeight: 900, fontSize: 16 }}>O</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>Oravini Assistant</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#101828" }}>Oravini Assistant</div>
               <div style={{ fontSize: 11, color: GOLD, display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 6, height: 6, borderRadius: 99, background: "#4ade80", boxShadow: "0 0 8px #4ade80" }} />
                 Online — trained on Tier 5
               </div>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="Close" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", fontSize: 20, cursor: "pointer" }}>×</button>
+            <button onClick={() => setOpen(false)} aria-label="Close" style={{ background: "none", border: "none", color: "rgba(16,24,40,0.57)", fontSize: 20, cursor: "pointer" }}>×</button>
           </div>
 
           {/* Messages */}
@@ -634,8 +635,8 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
                 <div
                   style={{
                     maxWidth: "88%",
-                    background: m.from === "user" ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.04)",
-                    color: m.from === "user" ? "#000" : "rgba(255,255,255,0.9)",
+                    background: m.from === "user" ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(16,24,40,0.04)",
+                    color: m.from === "user" ? "#ffffff" : "rgba(16,24,40,1)",
                     border: m.from === "user" ? "none" : `1px solid ${GOLD}18`,
                     borderRadius: 14,
                     padding: "10px 13px",
@@ -661,9 +662,9 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
                       <button
                         key={s}
                         onClick={() => send(s)}
-                        style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}22`, color: "rgba(255,255,255,0.7)", fontSize: 11.5, fontWeight: 600, borderRadius: 99, padding: "6px 12px", cursor: "pointer", transition: "all 0.2s" }}
+                        style={{ background: "rgba(16,24,40,0.03)", border: `1px solid ${GOLD}22`, color: "rgba(16,24,40,0.82)", fontSize: 11.5, fontWeight: 600, borderRadius: 99, padding: "6px 12px", cursor: "pointer", transition: "all 0.2s" }}
                         onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}12`; e.currentTarget.style.color = GOLD; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(16,24,40,0.03)"; e.currentTarget.style.color = "rgba(16,24,40,0.82)"; }}
                       >
                         {s}
                       </button>
@@ -673,7 +674,7 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
               </div>
             ))}
             {typing && (
-              <div style={{ alignSelf: "flex-start", background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}18`, borderRadius: 14, padding: "10px 14px", display: "flex", gap: 4 }}>
+              <div style={{ alignSelf: "flex-start", background: "rgba(16,24,40,0.04)", border: `1px solid ${GOLD}18`, borderRadius: 14, padding: "10px 14px", display: "flex", gap: 4 }}>
                 <span className="bv-typing-dot" />
                 <span className="bv-typing-dot" style={{ animationDelay: "0.15s" }} />
                 <span className="bv-typing-dot" style={{ animationDelay: "0.3s" }} />
@@ -684,20 +685,20 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
           {/* Input */}
           <form
             onSubmit={e => { e.preventDefault(); send(input); }}
-            style={{ padding: "12px 14px", borderTop: `1px solid ${GOLD}18`, display: "flex", gap: 8, background: "rgba(0,0,0,0.4)" }}
+            style={{ padding: "12px 14px", borderTop: `1px solid ${GOLD}18`, display: "flex", gap: 8, background: "rgba(255,255,255,0.86)" }}
           >
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Ask anything about Tier 5..."
-              style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}22`, borderRadius: 10, padding: "10px 13px", color: "#fff", fontSize: 13, outline: "none" }}
+              style={{ flex: 1, background: "rgba(16,24,40,0.04)", border: `1px solid ${GOLD}22`, borderRadius: 10, padding: "10px 13px", color: "#101828", fontSize: 13, outline: "none" }}
               onFocus={e => (e.currentTarget.style.borderColor = `${GOLD}66`)}
               onBlur={e => (e.currentTarget.style.borderColor = `${GOLD}22`)}
             />
             <button
               type="submit"
               disabled={!input.trim()}
-              style={{ background: input.trim() ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.06)", color: input.trim() ? "#000" : "rgba(255,255,255,0.3)", border: "none", borderRadius: 10, padding: "0 14px", fontSize: 13, fontWeight: 800, cursor: input.trim() ? "pointer" : "default", transition: "all 0.2s" }}
+              style={{ background: input.trim() ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(16,24,40,0.06)", color: input.trim() ? "#ffffff" : "rgba(16,24,40,0.42)", border: "none", borderRadius: 10, padding: "0 14px", fontSize: 13, fontWeight: 800, cursor: input.trim() ? "pointer" : "default", transition: "all 0.2s" }}
             >
               Send
             </button>
@@ -727,7 +728,7 @@ function Slider({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{label}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(16,24,40,0.82)" }}>{label}</div>
         <div style={{ fontSize: 15, fontWeight: 800, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
           {prefix}{value.toLocaleString()}{suffix}
         </div>
@@ -740,7 +741,7 @@ function Slider({
         value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
         className="bv-slider"
-        style={{ width: "100%", background: `linear-gradient(to right, ${GOLD} 0%, ${GOLD} ${pct}%, rgba(255,255,255,0.08) ${pct}%, rgba(255,255,255,0.08) 100%)` }}
+        style={{ width: "100%", background: `linear-gradient(to right, ${GOLD} 0%, ${GOLD} ${pct}%, rgba(16,24,40,0.08) ${pct}%, rgba(16,24,40,0.08) 100%)` }}
       />
     </div>
   );
@@ -768,7 +769,7 @@ function ROICalculator({ onBookStrategy }: { onBookStrategy: () => void }) {
   const roiMultiplier = revenue > 0 ? total / (revenue * 0.1) : 0;
 
   return (
-    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, padding: "36px 32px" }}>
+    <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, padding: "36px 32px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 44, alignItems: "start" }} className="bv-roi-grid">
         {/* Inputs */}
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -784,28 +785,28 @@ function ROICalculator({ onBookStrategy }: { onBookStrategy: () => void }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14, background: `linear-gradient(180deg, ${GOLD}12, transparent)`, border: `1px solid ${GOLD}33`, borderRadius: 16, padding: "28px 26px" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 700 }}>Projected Monthly Lift</div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>⏱ Time saved value</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{formatMoney(timeSavedValue)}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
+            <div style={{ fontSize: 13, color: "rgba(16,24,40,0.72)" }}>⏱ Time saved value</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#101828" }}>{formatMoney(timeSavedValue)}</div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>📈 Extra revenue from leads + close rate</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{formatMoney(extraRevenue)}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
+            <div style={{ fontSize: 13, color: "rgba(16,24,40,0.72)" }}>📈 Extra revenue from leads + close rate</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#101828" }}>{formatMoney(extraRevenue)}</div>
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "18px 0 6px" }}>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", fontWeight: 700 }}>Total monthly value</div>
+            <div style={{ fontSize: 14, color: "rgba(16,24,40,0.97)", fontWeight: 700 }}>Total monthly value</div>
             <div style={{ fontSize: 34, fontWeight: 900, color: GOLD, lineHeight: 1 }}>{formatMoney(total)}</div>
           </div>
 
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12, color: "rgba(16,24,40,0.47)", lineHeight: 1.6 }}>
             Based on Tier 5 clients offloading ~80% of manual work, lifting qualified leads ~30%, and improving close rates ~25% via positioning + offer work. Real numbers depend on your niche and execution.
           </div>
 
           <button
             onClick={onBookStrategy}
-            style={{ marginTop: 8, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "13px 22px", cursor: "pointer" }}
+            style={{ marginTop: 8, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#ffffff", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "13px 22px", cursor: "pointer" }}
           >
             Unlock This Lift — Book a Call →
           </button>
@@ -813,8 +814,8 @@ function ROICalculator({ onBookStrategy }: { onBookStrategy: () => void }) {
       </div>
       <style>{`
         .bv-slider { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 99px; outline: none; }
-        .bv-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 99px; background: ${GOLD_BRIGHT}; border: 2px solid #000; cursor: pointer; box-shadow: 0 0 12px ${GOLD}66; }
-        .bv-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 99px; background: ${GOLD_BRIGHT}; border: 2px solid #000; cursor: pointer; box-shadow: 0 0 12px ${GOLD}66; }
+        .bv-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 99px; background: ${GOLD_BRIGHT}; border: 2px solid #ffffff; cursor: pointer; box-shadow: 0 0 12px ${GOLD}66; }
+        .bv-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 99px; background: ${GOLD_BRIGHT}; border: 2px solid #ffffff; cursor: pointer; box-shadow: 0 0 12px ${GOLD}66; }
         @media(max-width: 800px) { .bv-roi-grid { grid-template-columns: 1fr !important; } }
       `}</style>
     </div>
@@ -870,8 +871,8 @@ function Timeline() {
               key={t}
               onClick={() => setTab(t)}
               style={{
-                background: active ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.03)",
-                color: active ? "#000" : "rgba(255,255,255,0.7)",
+                background: active ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(16,24,40,0.03)",
+                color: active ? "#ffffff" : "rgba(16,24,40,0.82)",
                 border: active ? "none" : `1px solid ${GOLD}22`,
                 borderRadius: 99,
                 padding: "10px 22px",
@@ -891,18 +892,18 @@ function Timeline() {
       {/* Content */}
       <div key={tab} style={{ animation: "bvFadeIn 0.35s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>{data.heading}</div>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", maxWidth: 600, margin: "0 auto", lineHeight: 1.7 }}>{data.subhead}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#101828", marginBottom: 8 }}>{data.heading}</div>
+          <div style={{ fontSize: 14, color: "rgba(16,24,40,0.62)", maxWidth: 600, margin: "0 auto", lineHeight: 1.7 }}>{data.subhead}</div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${data.weeks.length}, minmax(0, 1fr))`, gap: 16, marginBottom: 28 }} className="bv-timeline-grid">
           {data.weeks.map(w => (
-            <div key={w.label} style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}18`, borderRadius: 16, padding: "22px 22px", transition: "transform 0.3s, border-color 0.3s" }}
+            <div key={w.label} style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}18`, borderRadius: 16, padding: "22px 22px", transition: "transform 0.3s, border-color 0.3s" }}
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}44`; }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}18`; }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, background: `${GOLD}18`, display: "inline-block", padding: "3px 10px", borderRadius: 99, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>{w.label}</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 10 }}>{w.title}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.7 }}>{w.body}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#101828", marginBottom: 10 }}>{w.title}</div>
+              <div style={{ fontSize: 13, color: "rgba(16,24,40,0.62)", lineHeight: 1.7 }}>{w.body}</div>
             </div>
           ))}
         </div>
@@ -911,7 +912,7 @@ function Timeline() {
           <div style={{ fontSize: 11, fontWeight: 800, color: GOLD, letterSpacing: "0.15em", textTransform: "uppercase" }}>Milestones</div>
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
             {data.goals.map(g => (
-              <div key={g} style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 8 }}>
+              <div key={g} style={{ fontSize: 13, color: "rgba(16,24,40,0.97)", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ color: GOLD }}>✦</span>{g}
               </div>
             ))}
@@ -947,16 +948,16 @@ function FAQ() {
       {FAQS.map((f, i) => {
         const isOpen = open === i;
         return (
-          <div key={f.q} style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${isOpen ? GOLD + "44" : GOLD + "14"}`, borderRadius: 14, overflow: "hidden", transition: "border-color 0.3s" }}>
+          <div key={f.q} style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${isOpen ? GOLD + "44" : GOLD + "14"}`, borderRadius: 14, overflow: "hidden", transition: "border-color 0.3s" }}>
             <button
               onClick={() => setOpen(isOpen ? null : i)}
-              style={{ width: "100%", background: "none", border: "none", color: "#fff", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, textAlign: "left" }}
+              style={{ width: "100%", background: "none", border: "none", color: "#101828", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontSize: 15, fontWeight: 700, textAlign: "left" }}
             >
               <span>{f.q}</span>
               <span style={{ color: GOLD, fontSize: 20, transform: isOpen ? "rotate(45deg)" : "none", transition: "transform 0.25s" }}>+</span>
             </button>
             <div style={{ maxHeight: isOpen ? 400 : 0, transition: "max-height 0.35s ease", overflow: "hidden" }}>
-              <div style={{ padding: "0 22px 20px", fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.8 }}>{f.a}</div>
+              <div style={{ padding: "0 22px 20px", fontSize: 14, color: "rgba(16,24,40,0.67)", lineHeight: 1.8 }}>{f.a}</div>
             </div>
           </div>
         );
@@ -977,9 +978,9 @@ export default function Brandverse() {
   const openStrategy = () => setShowStrategy(true);
 
   return (
-    <div style={{ background: "#000", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", overflowX: "hidden", position: "relative", zIndex: 1 }}>
+    <div style={{ background: "#ffffff", color: "#101828", fontFamily: "'Inter', system-ui, sans-serif", overflowX: "hidden", position: "relative", zIndex: 1 }}>
       <style>{`
-        @keyframes bvPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(212,180,97,0.3); } 70%{ box-shadow:0 0 0 18px rgba(212,180,97,0); } }
+        @keyframes bvPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(46,120,239,0.3); } 70%{ box-shadow:0 0 0 18px rgba(46,120,239,0); } }
         @keyframes bvOrb1 { 0%,100%{ transform:translate(0,0); } 50%{ transform:translate(40px,-50px) scale(1.1); } }
         @keyframes bvOrb2 { 0%,100%{ transform:translate(0,0); } 60%{ transform:translate(-60px,40px) scale(0.9); } }
         @keyframes bvFadeIn { from{ opacity:0; transform:translateY(20px); } to{ opacity:1; transform:none; } }
@@ -990,18 +991,18 @@ export default function Brandverse() {
       {showStrategy && <StrategyModal onClose={() => setShowStrategy(false)} />}
 
       {/* Navbar */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(0,0,0,0.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(212,180,97,0.08)" }}>
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(255,255,255,0.86)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(46,120,239,0.08)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer" }}>
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7 }} />
+            <OraviniMark size={30} />
           </button>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => nav("/login")} style={{ background: "none", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer" }}
+            <button onClick={() => nav("/login")} style={{ background: "none", border: "1px solid rgba(16,24,40,0.15)", borderRadius: 8, color: "rgba(16,24,40,0.82)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}>
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(16,24,40,0.15)"; e.currentTarget.style.color = "rgba(16,24,40,0.82)"; }}>
               Members Login
             </button>
-            <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, border: "none", borderRadius: 8, color: "#000", fontSize: 13, fontWeight: 800, padding: "9px 20px", cursor: "pointer" }}>
+            <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, border: "none", borderRadius: 8, color: "#ffffff", fontSize: 13, fontWeight: 800, padding: "9px 20px", cursor: "pointer" }}>
               Sign Up
             </button>
           </div>
@@ -1011,26 +1012,26 @@ export default function Brandverse() {
       {/* ── HERO ─────────────────────────────────────── */}
       <section style={{ padding: "100px 24px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-          <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,180,97,0.07) 0%, transparent 70%)", top: "-20%", left: "50%", transform: "translateX(-50%)", animation: "bvOrb1 14s ease-in-out infinite" }} />
-          <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,180,97,0.05) 0%, transparent 70%)", bottom: "-10%", right: "-10%", animation: "bvOrb2 18s ease-in-out infinite" }} />
-          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,180,97,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(212,180,97,0.025) 1px, transparent 1px)", backgroundSize: "50px 50px" }} />
+          <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(46,120,239,0.07) 0%, transparent 70%)", top: "-20%", left: "50%", transform: "translateX(-50%)", animation: "bvOrb1 14s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(46,120,239,0.05) 0%, transparent 70%)", bottom: "-10%", right: "-10%", animation: "bvOrb2 18s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(46,120,239,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(46,120,239,0.025) 1px, transparent 1px)", backgroundSize: "50px 50px" }} />
         </div>
         <div style={{ position: "relative", zIndex: 1, animation: "bvFadeIn 0.8s ease 0.2s both" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", marginBottom: 18 }}>The Team Behind Oravini</div>
-          <h1 style={{ fontSize: "clamp(42px, 7vw, 88px)", fontWeight: 900, letterSpacing: "0.04em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, lineHeight: 0.95 }}>
+          <h1 style={{ fontSize: "clamp(42px, 7vw, 88px)", fontWeight: 900, letterSpacing: "0.04em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #1d5fd6 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, lineHeight: 0.95 }}>
             ORAVINI
           </h1>
-          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", maxWidth: 640, margin: "0 auto 40px", lineHeight: 1.8 }}>
+          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(16,24,40,0.62)", maxWidth: 640, margin: "0 auto 40px", lineHeight: 1.8 }}>
             We build complete growth ecosystems for influencers, consultants, and info product creators — content strategy, offer design, audience monetization, all done with you.
           </p>
-          <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 40px", cursor: "pointer", animation: "bvPulse 2.5s ease 2s infinite" }}>
+          <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#ffffff", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 40px", cursor: "pointer", animation: "bvPulse 2.5s ease 2s infinite" }}>
             Book a Free Strategy Call →
           </button>
         </div>
       </section>
 
       {/* ── BEFORE / AFTER ─────────────────────────── */}
-      <section style={{ padding: "80px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <section style={{ padding: "80px 24px", borderTop: "1px solid rgba(16,24,40,0.05)", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 56 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Shift</div>
@@ -1042,7 +1043,7 @@ export default function Brandverse() {
             <Anim>
               <div style={{ background: "rgba(255,80,80,0.04)", border: "1px solid rgba(255,80,80,0.18)", borderRadius: 18, padding: "28px 28px", height: "100%" }}>
                 <div style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "#ff7777", fontWeight: 700, marginBottom: 14 }}>Before · Creator chaos</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 18 }}>Duct-taping SaaS tools together</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#101828", marginBottom: 18 }}>Duct-taping SaaS tools together</div>
                 <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
                   {[
                     "Juggling Canva + CapCut + Later + ChatGPT + Notion every week",
@@ -1054,7 +1055,7 @@ export default function Brandverse() {
                     "Can't scale without hiring a full team",
                     "Audience senses you're using off-the-shelf tools",
                   ].map(t => (
-                    <li key={t} style={{ display: "flex", gap: 10, color: "rgba(255,255,255,0.7)", fontSize: 13.5, lineHeight: 1.6 }}>
+                    <li key={t} style={{ display: "flex", gap: 10, color: "rgba(16,24,40,0.82)", fontSize: 13.5, lineHeight: 1.6 }}>
                       <span style={{ color: "#ff7777", flexShrink: 0 }}>✕</span>{t}
                     </li>
                   ))}
@@ -1064,7 +1065,7 @@ export default function Brandverse() {
             <Anim delay={120}>
               <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}33`, borderRadius: 18, padding: "28px 28px", height: "100%", boxShadow: `0 0 60px ${GOLD}10` }}>
                 <div style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 700, marginBottom: 14 }}>After · With Oravini</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 18 }}>One system built around YOUR brand</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#101828", marginBottom: 18 }}>One system built around YOUR brand</div>
                 <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
                   {[
                     "One unified creator OS — all 9 Oravini AI tools in one place",
@@ -1076,7 +1077,7 @@ export default function Brandverse() {
                     "Scale output 10x without hiring an in-house team",
                     "Scale Your Software: your own branded platform on top",
                   ].map(t => (
-                    <li key={t} style={{ display: "flex", gap: 10, color: "rgba(255,255,255,0.85)", fontSize: 13.5, lineHeight: 1.6 }}>
+                    <li key={t} style={{ display: "flex", gap: 10, color: "rgba(16,24,40,0.97)", fontSize: 13.5, lineHeight: 1.6 }}>
                       <span style={{ color: GOLD, flexShrink: 0 }}>✓</span>{t}
                     </li>
                   ))}
@@ -1099,14 +1100,14 @@ export default function Brandverse() {
         <Anim delay={100}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center" }} className="bv-mission-grid">
             <div>
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85, marginBottom: 20 }}>
+              <p style={{ fontSize: 16, color: "rgba(16,24,40,0.67)", lineHeight: 1.85, marginBottom: 20 }}>
                 Oravini is the growth partner for influencers, consultants, and info product creators who are serious about turning their audience into a real business. We built Oravini — a suite of AI-powered tools — so every client we work with has an unfair advantage.
               </p>
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
+              <p style={{ fontSize: 16, color: "rgba(16,24,40,0.67)", lineHeight: 1.85 }}>
                 Whether you're launching a coaching offer, selling a course, or scaling a consulting brand — we combine content strategy, offer positioning, and audience psychology into one done-with-you system that actually moves numbers.
               </p>
             </div>
-            <div style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 20, padding: "36px 32px" }}>
+            <div style={{ background: "rgba(16,24,40,0.02)", border: "1px solid rgba(46,120,239,0.12)", borderRadius: 20, padding: "36px 32px" }}>
               {[
                 { icon: "🎯", label: "Full-Stack Growth", desc: "Content + Offer + Monetization — built together, not in isolation" },
                 { icon: "🤝", label: "Done With You", desc: "Not courses or PDFs — we execute alongside you every step" },
@@ -1116,7 +1117,7 @@ export default function Brandverse() {
                   <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{icon}</div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: GOLD, marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>{desc}</div>
+                    <div style={{ fontSize: 13, color: "rgba(16,24,40,0.52)", lineHeight: 1.6 }}>{desc}</div>
                   </div>
                 </div>
               ))}
@@ -1129,19 +1130,19 @@ export default function Brandverse() {
       {/* ── VSL ─────────────────────────── */}
       <section style={{ padding: "40px 24px 80px" }}>
         <Anim>
-          <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 24, overflow: "hidden", aspectRatio: "16/9", maxWidth: 860, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(212,180,97,0.08) 0%, transparent 60%)" }} />
+          <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 24, overflow: "hidden", aspectRatio: "16/9", maxWidth: 860, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(46,120,239,0.08) 0%, transparent 60%)" }} />
             <div style={{ textAlign: "center", zIndex: 1 }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${GOLD}22`, border: `2px solid ${GOLD}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 30, cursor: "pointer", animation: "bvPulse 2.5s ease-in-out infinite" }}>▶</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>The Oravini Story</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Video coming soon</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(16,24,40,0.72)", marginBottom: 6 }}>The Oravini Story</div>
+              <div style={{ fontSize: 13, color: "rgba(16,24,40,0.25)" }}>Video coming soon</div>
             </div>
           </div>
         </Anim>
       </section>
 
       {/* ── STATS ─────────────────────────── */}
-      <section style={{ padding: "60px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(212,180,97,0.02)" }}>
+      <section style={{ padding: "60px 24px", borderTop: "1px solid rgba(16,24,40,0.05)", borderBottom: "1px solid rgba(16,24,40,0.05)", background: "rgba(46,120,239,0.02)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 28, textAlign: "center" }}>
           {[
             { v: "10×", l: "Content output without hiring" },
@@ -1152,7 +1153,7 @@ export default function Brandverse() {
             <Anim key={s.l} delay={i * 80}>
               <div style={{ padding: "14px 10px" }}>
                 <div style={{ fontSize: "clamp(32px, 5vw, 54px)", fontWeight: 900, color: GOLD, lineHeight: 1, letterSpacing: "-0.02em", marginBottom: 10 }}>{s.v}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "0.04em" }}>{s.l}</div>
+                <div style={{ fontSize: 12, color: "rgba(16,24,40,0.62)", letterSpacing: "0.04em" }}>{s.l}</div>
               </div>
             </Anim>
           ))}
@@ -1161,10 +1162,10 @@ export default function Brandverse() {
 
 
       {/* ── WHAT YOU GET (6 features) ─────────────────────────── */}
-      <section style={{ padding: "80px 24px", background: "rgba(212,180,97,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <section style={{ padding: "80px 24px", background: "rgba(46,120,239,0.02)", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
-            <div style={{ display: "inline-block", fontSize: 10, fontWeight: 800, color: "#000", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 14px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Tier 5 — Done With You</div>
+            <div style={{ display: "inline-block", fontSize: 10, fontWeight: 800, color: "#ffffff", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 14px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Tier 5 — Done With You</div>
             <h2 style={{ fontSize: "clamp(26px, 4vw, 48px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
               What you get when you<br /><span style={{ color: GOLD }}>work with Oravini</span>
             </h2>
@@ -1179,13 +1180,13 @@ export default function Brandverse() {
               { icon: "📱", title: "Direct Team Access", desc: "Message the Oravini team directly through your Oravini dashboard. Real people, real answers — not a ticket system.", tag: "Always On" },
             ].map(({ icon, title, desc, tag }, i) => (
               <Anim key={title} delay={i * 70}>
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 18, padding: "30px 26px", height: "100%", transition: "transform 0.3s, border-color 0.3s", position: "relative" }}
+                <div style={{ background: "rgba(16,24,40,0.02)", border: "1px solid rgba(46,120,239,0.12)", borderRadius: 18, padding: "30px 26px", height: "100%", transition: "transform 0.3s, border-color 0.3s", position: "relative" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}33`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(212,180,97,0.12)"; }}>
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(46,120,239,0.12)"; }}>
                   <div style={{ position: "absolute", top: 16, right: 16, fontSize: 9, fontWeight: 700, color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}33`, borderRadius: 99, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase" }}>{tag}</div>
                   <div style={{ fontSize: 30, marginBottom: 14 }}>{icon}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{title}</div>
-                  <div style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.75 }}>{desc}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#101828", marginBottom: 10 }}>{title}</div>
+                  <div style={{ fontSize: 13.5, color: "rgba(16,24,40,0.57)", lineHeight: 1.75 }}>{desc}</div>
                 </div>
               </Anim>
             ))}
@@ -1224,11 +1225,11 @@ export default function Brandverse() {
             { step: "04", title: "Execute & Optimise", desc: "We work with you weekly — reviewing content, adjusting the strategy based on data, and pushing for consistent improvement." },
           ].map(({ step, title, desc }, i) => (
             <Anim key={step} delay={i * 80}>
-              <div style={{ display: "flex", gap: 28, padding: "36px 0", borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+              <div style={{ display: "flex", gap: 28, padding: "36px 0", borderBottom: i < 3 ? "1px solid rgba(16,24,40,0.05)" : "none" }}>
                 <div style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 900, color: `${GOLD}30`, fontVariantNumeric: "tabular-nums", flexShrink: 0, lineHeight: 1.2 }}>{step}</div>
                 <div>
-                  <div style={{ fontSize: 19, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{title}</div>
-                  <div style={{ fontSize: 14.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.8 }}>{desc}</div>
+                  <div style={{ fontSize: 19, fontWeight: 700, color: "#101828", marginBottom: 10 }}>{title}</div>
+                  <div style={{ fontSize: 14.5, color: "rgba(16,24,40,0.57)", lineHeight: 1.8 }}>{desc}</div>
                 </div>
               </div>
             </Anim>
@@ -1237,15 +1238,15 @@ export default function Brandverse() {
       </section>
 
       {/* ── SCALE YOUR SOFTWARE ─────────────────────────── */}
-      <section style={{ padding: "100px 24px", position: "relative", overflow: "hidden", background: `radial-gradient(ellipse 70% 60% at 50% 0%, ${GOLD}08 0%, transparent 70%)`, borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <section style={{ padding: "100px 24px", position: "relative", overflow: "hidden", background: `radial-gradient(ellipse 70% 60% at 50% 0%, ${GOLD}08 0%, transparent 70%)`, borderTop: "1px solid rgba(16,24,40,0.05)", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${GOLD}06 1px, transparent 1px), linear-gradient(90deg, ${GOLD}06 1px, transparent 1px)`, backgroundSize: "40px 40px", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 1 }}>
           <Anim style={{ textAlign: "center", marginBottom: 48 }}>
-            <div style={{ display: "inline-block", fontSize: 10, fontWeight: 800, color: "#000", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 14px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 18 }}>Premium Program · Tier 5 Add-On</div>
+            <div style={{ display: "inline-block", fontSize: 10, fontWeight: 800, color: "#ffffff", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 14px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 18 }}>Premium Program · Tier 5 Add-On</div>
             <h2 style={{ fontSize: "clamp(30px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", marginBottom: 18 }}>
               Scale <span style={{ color: GOLD }}>Your Software</span>
             </h2>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", maxWidth: 720, margin: "0 auto", lineHeight: 1.8 }}>
+            <p style={{ fontSize: 16, color: "rgba(16,24,40,0.67)", maxWidth: 720, margin: "0 auto", lineHeight: 1.8 }}>
               For serious scalers. We build and scale a custom web app for your brand alongside the mentorship — your own platform, your own moat. 100% your branding, your domain, your logic. AI workers trained on your voice. Ongoing development driven by YOUR roadmap.
             </p>
           </Anim>
@@ -1258,12 +1259,12 @@ export default function Brandverse() {
               { icon: "🎯", title: "Mentorship Attached", desc: "Weekly strategy calls run in lockstep with the build. Strategy and software scale together." },
             ].map((f, i) => (
               <Anim key={f.title} delay={i * 80}>
-                <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 18, padding: "28px 24px", height: "100%", transition: "transform 0.3s, border-color 0.3s" }}
+                <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 18, padding: "28px 24px", height: "100%", transition: "transform 0.3s, border-color 0.3s" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}55`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}22`; }}>
                   <div style={{ fontSize: 28, marginBottom: 14 }}>{f.icon}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 10 }}>{f.title}</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.7 }}>{f.desc}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#101828", marginBottom: 10 }}>{f.title}</div>
+                  <div style={{ fontSize: 13, color: "rgba(16,24,40,0.62)", lineHeight: 1.7 }}>{f.desc}</div>
                 </div>
               </Anim>
             ))}
@@ -1273,12 +1274,12 @@ export default function Brandverse() {
             <div style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}33`, borderRadius: 20, padding: "30px 36px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 24 }}>
               <div style={{ maxWidth: 560 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: GOLD, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 8 }}>Application Only</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Want us to build your platform?</div>
-                <div style={{ fontSize: 13.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#101828", marginBottom: 6 }}>Want us to build your platform?</div>
+                <div style={{ fontSize: 13.5, color: "rgba(16,24,40,0.67)", lineHeight: 1.7 }}>
                   Scope, timeline, and investment are custom. We discuss it transparently on your strategy call — no pitch, just scoping.
                 </div>
               </div>
-              <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 32px", cursor: "pointer", whiteSpace: "nowrap" }}>
+              <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#ffffff", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 32px", cursor: "pointer", whiteSpace: "nowrap" }}>
                 Bring It Up On Your Call →
               </button>
             </div>
@@ -1296,10 +1297,10 @@ export default function Brandverse() {
             </h2>
           </Anim>
           <Anim delay={120}>
-            <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, overflow: "hidden" }}>
+            <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr", background: `${GOLD}10`, borderBottom: `1px solid ${GOLD}22` }}>
                 <div style={{ padding: "18px 22px", fontSize: 12, fontWeight: 800, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase" }}> </div>
-                <div style={{ padding: "18px 22px", fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.5)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Generic Creator SaaS</div>
+                <div style={{ padding: "18px 22px", fontSize: 12, fontWeight: 800, color: "rgba(16,24,40,0.62)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Generic Creator SaaS</div>
                 <div style={{ padding: "18px 22px", fontSize: 12, fontWeight: 800, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase" }}>Oravini + Scale Your Software</div>
               </div>
               {[
@@ -1314,9 +1315,9 @@ export default function Brandverse() {
                 ["Audience perception", "Using off-the-shelf tools", "YOU built this — premium signal"],
                 ["Best for", "Getting started", "Serious scaling + exit-ready asset"],
               ].map((row, i) => (
-                <div key={row[0]} style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr", borderBottom: i < 9 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                  <div style={{ padding: "16px 22px", fontSize: 13.5, color: "rgba(255,255,255,0.85)", fontWeight: 700 }}>{row[0]}</div>
-                  <div style={{ padding: "16px 22px", fontSize: 13, color: "rgba(255,255,255,0.45)" }}>{row[1]}</div>
+                <div key={row[0]} style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr", borderBottom: i < 9 ? "1px solid rgba(16,24,40,0.05)" : "none" }}>
+                  <div style={{ padding: "16px 22px", fontSize: 13.5, color: "rgba(16,24,40,0.97)", fontWeight: 700 }}>{row[0]}</div>
+                  <div style={{ padding: "16px 22px", fontSize: 13, color: "rgba(16,24,40,0.57)" }}>{row[1]}</div>
                   <div style={{ padding: "16px 22px", fontSize: 13, color: GOLD, fontWeight: 600 }}>{row[2]}</div>
                 </div>
               ))}
@@ -1331,14 +1332,14 @@ export default function Brandverse() {
       </section>
 
       {/* ── ROI CALCULATOR ─────────────────────────── */}
-      <section style={{ padding: "100px 24px", background: "rgba(212,180,97,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <section style={{ padding: "100px 24px", background: "rgba(46,120,239,0.02)", borderTop: "1px solid rgba(16,24,40,0.05)", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>ROI Calculator</div>
             <h2 style={{ fontSize: "clamp(26px, 4vw, 46px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.02em", marginBottom: 14 }}>
               See your <span style={{ color: GOLD }}>monthly lift</span>
             </h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", maxWidth: 560, margin: "0 auto", lineHeight: 1.7 }}>
+            <p style={{ fontSize: 15, color: "rgba(16,24,40,0.62)", maxWidth: 560, margin: "0 auto", lineHeight: 1.7 }}>
               Drop in your real numbers. We'll show the realistic monthly value of automating manual work, lifting leads, and closing at a higher rate.
             </p>
           </Anim>
@@ -1362,7 +1363,7 @@ export default function Brandverse() {
       </section>
 
       {/* ── CTA ─────────────────────────── */}
-      <section style={{ padding: "100px 24px", textAlign: "center", background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(212,180,97,0.06) 0%, transparent 70%)" }}>
+      <section style={{ padding: "100px 24px", textAlign: "center", background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(46,120,239,0.06) 0%, transparent 70%)" }}>
         <Anim>
           <div style={{ fontSize: 11, letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", marginBottom: 16 }}>Limited Spots Available</div>
         </Anim>
@@ -1372,18 +1373,18 @@ export default function Brandverse() {
           </h2>
         </Anim>
         <Anim delay={200}>
-          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginBottom: 40, maxWidth: 480, margin: "0 auto 40px", lineHeight: 1.7 }}>
+          <p style={{ fontSize: 16, color: "rgba(16,24,40,0.52)", marginBottom: 40, maxWidth: 480, margin: "0 auto 40px", lineHeight: 1.7 }}>
             We only take a limited number of Tier 5 clients per month. If you're serious about growth, book a call and let's see if we're a fit.
           </p>
         </Anim>
         <Anim delay={300}>
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "17px 44px", cursor: "pointer", boxShadow: `0 0 60px rgba(212,180,97,0.2)` }}>
+            <button onClick={openStrategy} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#ffffff", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "17px 44px", cursor: "pointer", boxShadow: `0 0 60px rgba(46,120,239,0.2)` }}>
               Book a Free Strategy Call →
             </button>
-            <button onClick={() => nav("/login?tab=register&redirect=audit")} style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 32px", cursor: "pointer" }}
+            <button onClick={() => nav("/login?tab=register&redirect=audit")} style={{ background: "rgba(16,24,40,0.04)", color: "rgba(16,24,40,0.82)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(16,24,40,0.12)", borderRadius: 12, padding: "17px 32px", cursor: "pointer" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}>
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(16,24,40,0.12)"; e.currentTarget.style.color = "rgba(16,24,40,0.82)"; }}>
               Get My Free Audit First →
             </button>
           </div>
@@ -1391,18 +1392,18 @@ export default function Brandverse() {
       </section>
 
       {/* Footer */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "36px 24px" }}>
+      <footer style={{ borderTop: "1px solid rgba(16,24,40,0.05)", padding: "36px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 28, width: 28, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
+            <OraviniMark size={30} />
+            <span style={{ fontSize: 12, color: "rgba(16,24,40,0.2)" }}>Powered by Oravini</span>
           </div>
-          <button onClick={() => nav("/oravini")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 13, cursor: "pointer" }}
+          <button onClick={() => nav("/oravini")} style={{ background: "none", border: "none", color: "rgba(16,24,40,0.42)", fontSize: 13, cursor: "pointer" }}
             onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}>
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(16,24,40,0.42)")}>
             ← Back to Oravini
           </button>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2026 Oravini. All rights reserved.</div>
+          <div style={{ fontSize: 12, color: "rgba(16,24,40,0.2)" }}>© 2026 Oravini. All rights reserved.</div>
         </div>
       </footer>
 
