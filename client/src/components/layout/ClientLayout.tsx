@@ -179,26 +179,26 @@ function SidebarReferralWidget() {
   );
 }
 
-const topNavItems = [
+const topNavItems: { href: string; label: string; icon: any; group?: string }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/community", label: "Community", icon: Users2 },
-  { href: "/tracking", label: "Tracking", icon: BarChart2 },
-  { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
-  { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
+  { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles, group: "Create" },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
-  // Webinars + Video Hosting are top-level (also still reachable via Tools / Video Marketing).
-  { href: "/tools/webinars", label: "Webinars", icon: Radio },
-  { href: "/video-hosting", label: "Video Hosting", icon: Video },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-studio", label: "AI Video Studio", icon: Sparkles },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/oravini-recorder", label: "Oravini Recorder", icon: MonitorPlay },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/recordings", label: "Recordings", icon: Film },
+  // Webinars + Video Hosting are top-level (also still reachable via Tools / Video Marketing).
+  { href: "/tools/webinars", label: "Webinars", icon: Radio, group: "Sell" },
+  { href: "/video-hosting", label: "Video Hosting", icon: Video },
   { href: "/pages-hub", label: "Pages & Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
+  { href: "/tracking", label: "Tracking", icon: BarChart2, group: "Grow" },
+  { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
 ];
 
 const bottomNavItems = [
@@ -279,7 +279,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 }),
                 ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/crm", label: "CRM", icon: Database }] : []),
-              ].map(({ href, label, icon: Icon }) => {
+              ].map(({ href, label, icon: Icon, group }: any) => {
                 const active = href === "/tracking"
                   ? (location === "/tracking" || location.startsWith("/tracking/content"))
                   : href === "/tracking/competitor"
@@ -291,8 +291,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                         : location === href;
                 const badge = href === "/community" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
                 return (
+                  <div key={href}>
+                  {group && <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500" data-testid={`nav-group-${group.toLowerCase()}`}>{group}</p>}
                   <Link
-                    key={href}
                     href={href}
                     data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
                     onClick={() => setMobileOpen(false)}
@@ -311,10 +312,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     )}
                     {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
                   </Link>
+                  </div>
                 );
               })}
 
               {/* Tools — directly below Video Editor, navigates to /tools hub page */}
+              <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">More</p>
               <Link
                 href="/tools"
                 data-testid="nav-tools"
