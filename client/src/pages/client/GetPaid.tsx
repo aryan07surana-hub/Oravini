@@ -13,7 +13,7 @@ const input = "w-full bg-background border border-border rounded-xl px-3 py-2.5 
 
 type CheckoutRow = {
   id: string; code: string; title: string; description: string | null; price: number; currency: string;
-  feeCents: number; sellerReceivesCents: number; redirectUrl: string | null; buttonColor: string | null;
+  feeCents: number; sellerReceivesCents: number; redirectUrl: string | null; buttonColor: string | null; buttonLabel: string; offerLive: boolean;
   webinarFunnelId: string | null; active: boolean; link: string; sales: number;
 };
 type Status = {
@@ -52,6 +52,7 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
   const [price, setPrice] = useState("");
   const [redirectUrl, setRedirectUrl] = useState("");
   const [buttonColor, setButtonColor] = useState("#2e78ef");
+  const [buttonLabel, setButtonLabel] = useState("");
   const [funnelId, setFunnelId] = useState("");
   const p = Number(price);
   const valid = title.trim().length >= 2 && Number.isFinite(p) && p >= 1 && p <= 5000;
@@ -60,12 +61,12 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
   const create = useMutation({
     mutationFn: () => post("POST", "/api/whop-platform/checkouts", {
       title: title.trim(), description: description.trim() || null, price: p,
-      redirectUrl: redirectUrl.trim() || "", buttonColor, webinarFunnelId: funnelId || "",
+      redirectUrl: redirectUrl.trim() || "", buttonColor, buttonLabel: buttonLabel.trim() || null, webinarFunnelId: funnelId || "",
     }),
     onSuccess: (r: any) => {
       if (!r?.checkout) throw new Error(r?.message || "Could not save");
       queryClient.invalidateQueries({ queryKey: [KEY] });
-      setTitle(""); setDescription(""); setPrice(""); setRedirectUrl(""); setFunnelId("");
+      setTitle(""); setDescription(""); setPrice(""); setRedirectUrl(""); setFunnelId(""); setButtonLabel("");
       toast({ title: "Checkout link created", description: "Copy it from the list below." });
       onDone();
     },
@@ -84,6 +85,9 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
       </div>
       <label className="text-xs text-muted-foreground space-y-1 block">Description (shown to the buyer)
         <textarea className={input} rows={2} value={description} onChange={e => setDescription(e.target.value)} maxLength={500} />
+      </label>
+      <label className="text-xs text-muted-foreground space-y-1 block">Button text viewers see in the live room
+        <input className={input} value={buttonLabel} onChange={e => setButtonLabel(e.target.value)} maxLength={40} placeholder="Click here to buy" data-testid="input-button-label" />
       </label>
       <div className="grid sm:grid-cols-3 gap-3">
         <label className="text-xs text-muted-foreground space-y-1 sm:col-span-2">After payment, send buyers to (optional https link)
@@ -125,6 +129,11 @@ function Row({ c, funnels }: { c: CheckoutRow; funnels: { id: string; title: str
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
     onError: () => toast({ title: "Could not update", variant: "destructive" }),
   });
+  const push = useMutation({
+    mutationFn: (live: boolean) => post("POST", `/api/whop-platform/checkouts/${c.id}/push`, { live }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+    onError: () => toast({ title: "Could not update the live offer", variant: "destructive" }),
+  });
   const copy = async () => { try { await navigator.clipboard.writeText(c.link); toast({ title: "Link copied" }); } catch { toast({ title: c.link }); } };
   return (
     <div className={`rounded-xl p-4 space-y-2 ${c.active ? "" : "opacity-60"}`} style={card} data-testid={`checkout-${c.code}`}>
@@ -139,6 +148,15 @@ function Row({ c, funnels }: { c: CheckoutRow; funnels: { id: string; title: str
         </button>
       </div>
       <p className="text-[11px] text-muted-foreground break-all flex items-center gap-1"><Link2 className="w-3 h-3" />{c.link}</p>
+      {c.webinarFunnelId && (
+        <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
+          <span>Button: "{c.buttonLabel}"</span>
+          <button onClick={() => push.mutate(!c.offerLive)} disabled={push.isPending} data-testid={`push-${c.code}`}
+            className="text-xs px-3 h-8 rounded-lg font-semibold text-white disabled:opacity-40" style={{ background: c.offerLive ? "#16a34a" : GOLD }}>
+            {c.offerLive ? "Live now. Click to hide" : "Show to viewers now"}
+          </button>
+        </div>
+      )}
       {funnels.length > 0 && (
         <label className="text-[11px] text-muted-foreground flex items-center gap-2">Webinar banner:
           <select className="bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground" value={c.webinarFunnelId ?? ""}
