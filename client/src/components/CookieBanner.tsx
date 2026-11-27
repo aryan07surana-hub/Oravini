@@ -23,28 +23,30 @@ export default function CookieBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-50 rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl p-4">
+    <div
+      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-50"
+      style={{ borderRadius: 20, background: "rgba(255,255,255,.94)", backdropFilter: "blur(14px)", border: "1px solid rgba(46,120,239,.16)", boxShadow: "0 18px 50px rgba(16,24,40,.16)", padding: 16 }}
+    >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <p className="text-sm text-zinc-300 leading-relaxed">
-          🍪 We use essential cookies to keep you logged in. We{" "}
-          <strong className="text-white">never</strong> track you or sell your data.{" "}
-          <a href="/privacy#section-15" className="text-[#d4b461] hover:underline">Learn more</a>
+        <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#475467", margin: 0 }}>
+          We use essential cookies to keep you logged in. We{" "}
+          <strong style={{ color: "#101828" }}>never</strong> track you or sell your data.{" "}
+          <a href="/privacy#section-15" style={{ color: "#2e78ef", fontWeight: 600 }}>Learn more</a>
         </p>
-        <button onClick={decline} className="text-zinc-600 hover:text-zinc-400 flex-shrink-0 mt-0.5">
+        <button onClick={decline} aria-label="Close" style={{ color: "#98a2b3", flexShrink: 0, marginTop: 2 }}>
           <X className="w-4 h-4" />
         </button>
       </div>
       <div className="flex gap-2">
         <button
           onClick={accept}
-          className="flex-1 py-2 rounded-lg text-xs font-bold text-black transition-opacity hover:opacity-90"
-          style={{ background: "#d4b461" }}
+          style={{ flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 700, color: "#fff", background: "linear-gradient(180deg,#5b9bff,#2e78ef)", boxShadow: "0 6px 16px rgba(46,120,239,.3)" }}
         >
           Accept
         </button>
         <button
           onClick={decline}
-          className="flex-1 py-2 rounded-lg text-xs font-semibold text-zinc-400 border border-zinc-700 hover:border-zinc-500 transition-colors"
+          style={{ flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 600, color: "#344054", background: "#fff", border: "1px solid #e4e7ec" }}
         >
           Decline
         </button>
