@@ -75,6 +75,7 @@ const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
 const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
 const V_DMAutomation = withToolVideo(DMAutomation, "dm");
 const V_WebinarFunnels = withToolVideo(WebinarFunnels, "web");
+const V_WebinarStudio = withToolVideo(WebinarStudio, "live");
 const V_Community = withToolVideo(Community, "community");
 const V_ClientProgress = withToolVideo(ClientProgress, "streaks");
 const V_PagesHub = withToolVideo(PagesHub, "funnels");
@@ -434,7 +435,7 @@ function AppRoutes() {
       <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
       <Route path="/recordings">{() => <Guard component={Recordings} />}</Route>
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
-      <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
+      <Route path="/webinar-studio/:id">{(p) => <Guard component={V_WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
       <Route path="/ig-tracker">{() => { window.location.replace("/tracking/content/instagram"); return null; }}</Route>
       <Route path="/ig-growth-tracker">{() => <Guard component={IgGrowthTracker} />}</Route>
