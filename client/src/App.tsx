@@ -198,8 +198,8 @@ import SuperAdminContentTracker from "@/pages/super-admin/ContentTracker";
 function PortalGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -242,7 +242,7 @@ function HomeRedirect() {
       <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
     </div>
   );
-  if (!user) return <OraviniLanding />;
+  if (!user) return <Landing />;
   if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/overview" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
@@ -310,7 +310,7 @@ function AppRoutes() {
     <Switch>
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
-      <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/oravini" component={Landing} />
       <Route path="/new-home" component={Landing} />
       <Route path="/lusion" component={LusionInspired} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
