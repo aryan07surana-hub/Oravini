@@ -35,6 +35,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
+import { withToolVideo } from "@/components/ToolVideoFab";
 import OraviniLanding from "@/pages/PricingV2Landing";
 import {
   ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage,
@@ -69,6 +70,16 @@ import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
 import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
 
 // New webinars start in the guided wizard; "?mode=advanced" opens the plain form.
+const V_ClientDashboard = withToolVideo(ClientDashboard, "dashboard");
+const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
+const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
+const V_DMAutomation = withToolVideo(DMAutomation, "dm");
+const V_WebinarFunnels = withToolVideo(WebinarFunnels, "web");
+const V_Community = withToolVideo(Community, "community");
+const V_ClientProgress = withToolVideo(ClientProgress, "streaks");
+const V_PagesHub = withToolVideo(PagesHub, "funnels");
+const V_ClientVideoMarketing = withToolVideo(ClientVideoMarketing, "video");
+
 function WebinarFunnelNew() {
   const advanced = new URLSearchParams(useSearch()).get("mode") === "advanced";
   return advanced ? <WebinarFunnelEditor id="new" /> : <WebinarSetupWizard />;
@@ -198,7 +209,6 @@ import SuperAdminContentTracker from "@/pages/super-admin/ContentTracker";
 
 function PortalGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
-  useCalmLight();
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-screen bg-white">
       <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
@@ -212,9 +222,10 @@ function PortalGuard({ component: Component, ...props }: any) {
 
 function SuperAdminGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
+  useCalmLight();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -244,7 +255,7 @@ function HomeRedirect() {
       <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
     </div>
   );
-  if (!user) return <OraviniLanding />;
+  if (!user) return <Landing />;
   if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/overview" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
@@ -312,7 +323,7 @@ function AppRoutes() {
     <Switch>
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
-      <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/oravini" component={Landing} />
       <Route path="/new-home" component={Landing} />
       <Route path="/lusion" component={LusionInspired} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
@@ -366,13 +377,13 @@ function AppRoutes() {
       <Route path="/w/:slug">{() => <WebinarFunnelLanding />}</Route>
 
       {/* Client — protected */}
-      <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
+      <Route path="/dashboard">{() => <Guard component={V_ClientDashboard} />}</Route>
       <Route path="/documents">{() => <Guard component={ClientDocuments} />}</Route>
       <Route path="/chat">{() => <Guard component={ClientChat} />}</Route>
-      <Route path="/community">{() => <Guard component={Community} />}</Route>
-      <Route path="/progress">{() => <Guard component={ClientProgress} />}</Route>
+      <Route path="/community">{() => <Guard component={V_Community} />}</Route>
+      <Route path="/progress">{() => <Guard component={V_ClientProgress} />}</Route>
       <Route path="/calls">{() => <Guard component={ClientCalls} />}</Route>
-      <Route path="/ai-ideas">{() => <Guard component={AIIdeas} />}</Route>
+      <Route path="/ai-ideas">{() => <Guard component={V_AIIdeas} />}</Route>
       <Route path="/carousel-studio">{() => <Guard component={CarouselStudio} />}</Route>
       <Route path="/ai-design">{() => <Guard component={AIDesign} />}</Route>
       <Route path="/lead-magnet">{() => <Guard component={LeadMagnetGenerator} />}</Route>
@@ -386,7 +397,7 @@ function AppRoutes() {
       <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
       <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
-      <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={InstagramScheduler} />}</Route>
+      <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={V_InstagramScheduler} />}</Route>
       <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
       <Route path="/tracking/content/instagram">{() => <Guard component={InstagramTracking} />}</Route>
       <Route path="/tracking/content/youtube">{() => <Guard component={YouTubeTracking} />}</Route>
@@ -396,8 +407,8 @@ function AppRoutes() {
       <Route path="/tracking/ads">{() => <Guard component={MetaAdsTracking} />}</Route>
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
-      <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
-      <Route path="/pages-hub">{() => <Guard component={PagesHub} />}</Route>
+      <Route path="/dm-automation">{() => <Guard component={V_DMAutomation} />}</Route>
+      <Route path="/pages-hub">{() => <Guard component={V_PagesHub} />}</Route>
       <Route path="/landing-pages">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/landing-pages/:id/edit">{() => <Guard component={LandingPageBuilder} />}</Route>
       <Route path="/funnels">{() => <Redirect to="/pages-hub" />}</Route>
@@ -437,7 +448,7 @@ function AppRoutes() {
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
       {/* Top-level "Video Hosting" sidebar entry: same studio, opened on its hosting section. */}
-      <Route path="/video-hosting">{() => <Guard component={ClientVideoMarketing} section="video-hosting" />}</Route>
+      <Route path="/video-hosting">{() => <Guard component={V_ClientVideoMarketing} section="video-hosting" />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
@@ -448,7 +459,7 @@ function AppRoutes() {
       <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
-      <Route path="/tools/webinars">{() => <Guard component={WebinarFunnels} />}</Route>
+      <Route path="/tools/webinars">{() => <Guard component={V_WebinarFunnels} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
