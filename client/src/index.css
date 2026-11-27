@@ -409,7 +409,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
     --blue-hover:#2566d6; --blue-deep:#2566d6;
     --blue-tint:#eff5fb; --blue-tint2:#e6f0f9; --blue-border:#d6e4f5;
     --ink:#141414; --sub:#5b6675; --faint:#8a94a3;
-    --card:#f6f5f3; --line:#dedddb;
+    --card:#f3f7fd; --line:#dedddb;
     --ease:cubic-bezier(.22,1,.36,1);
     --ease-soft:cubic-bezier(.4,0,.2,1);
   }
@@ -426,7 +426,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
 .oravini-landing nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .oravini-landing .nav-in{display:flex;align-items:center;justify-content:space-between;height:66px}
-.oravini-landing .logo{display:flex;align-items:center;gap:8px;font-family:'Inter Display';font-weight:700;font-size:21px;letter-spacing:-0.02em;text-decoration:none;color:var(--ink)}
+.oravini-landing .logo{display:flex;align-items:center;gap:8px;font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:21px;letter-spacing:-0.02em;text-decoration:none;color:var(--ink)}
 .oravini-landing .logo-mark{width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,var(--blue) 0%,var(--blue-deep) 100%);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800}
 .oravini-landing .nav-links{display:flex;gap:30px;font-size:14.5px;font-weight:500;color:var(--sub)}
 .oravini-landing .nav-links a{color:inherit;text-decoration:none}
@@ -454,13 +454,13 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .side-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2;padding:12px 10px 5px}
 .oravini-landing .app-main{padding:22px 24px 0}
 .oravini-landing .app-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-.oravini-landing .app-greet{font-family:'Inter Display';font-weight:700;font-size:17px;letter-spacing:-0.02em}
+.oravini-landing .app-greet{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:-0.02em}
 .oravini-landing .app-greet span{display:block;font-family:'Inter';font-weight:500;font-size:11.5px;color:#8a94a3;margin-top:2px}
 .oravini-landing .app-pillbtn{background:linear-gradient(180deg,var(--blue-bright),var(--blue-strong));color:#fff;font-size:11.5px;font-weight:600;padding:8px 14px;border-radius:999px}
 .oravini-landing .app-grid{display:grid;grid-template-columns:1.7fr 1fr;gap:12px}
 .oravini-landing .mini{background:#fff;border:1px solid #e9edf3;border-radius:14px;padding:14px 16px}
 .oravini-landing .mini .lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa4b2}
-.oravini-landing .mini .big{font-family:'Inter Display';font-weight:700;font-size:24px;letter-spacing:-0.03em;margin-top:3px}
+.oravini-landing .mini .big{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.03em;margin-top:3px}
 .oravini-landing .mini .delta{display:inline-block;font-size:10.5px;font-weight:600;color:#157f3d;background:#e6f6ec;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
 .oravini-landing .chart{margin-top:10px}
 .oravini-landing .app-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
@@ -480,7 +480,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .tile{background:var(--card);border-radius:24px;padding:26px 26px 22px;overflow:hidden;position:relative;min-height:390px;display:flex;flex-direction:column}
 .oravini-landing .tile.wide{grid-column:span 2}
 .oravini-landing .tile-stage{flex:1;position:relative;display:grid;place-items:center;min-height:225px}
-.oravini-landing .tile-cap{font-family:'Inter Display';font-weight:600;font-size:17.5px;letter-spacing:-0.02em;margin-top:18px}
+.oravini-landing .tile-cap{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:600;font-size:17.5px;letter-spacing:-0.02em;margin-top:18px}
 .oravini-landing .tile-sub{font-size:13.5px;color:var(--sub);margin-top:3px}
 .oravini-landing .mock{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 38px -18px rgba(15,23,42,.22)}
 .oravini-landing /* ============ DM AUTOMATION — 12s, .oravini-landing 5 beats ============ */
@@ -556,7 +556,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 @keyframes lp-stoast{0%,52%{opacity:0;transform:translate(-50%,12px)}60%,84%{opacity:1;transform:translate(-50%,0)}92%{opacity:0;transform:translate(-50%,-8px)}}
 .oravini-landing /* ============ VSL — 12s, .oravini-landing 4 beats ============ */
   .vsl{width:290px;padding:14px 16px}
-.oravini-landing .vsl-screen{height:112px;border-radius:10px;background:linear-gradient(160deg,#101828,#1d2b45);position:relative;margin-bottom:12px;overflow:hidden}
+.oravini-landing .vsl-screen{height:112px;border-radius:10px;background:linear-gradient(160deg,#3b82f0,#1d4ba8);position:relative;margin-bottom:12px;overflow:hidden}
 .oravini-landing .vsl-screen::after{content:"▶";position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.92);font-size:26px}
 .oravini-landing .vsl-gate{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);background:#fff;border-radius:11px;padding:10px 14px;
     font-size:10.5px;font-weight:600;display:flex;gap:8px;align-items:center;box-shadow:0 12px 28px -10px rgba(0,0,0,.5);opacity:0;animation:lp-vgate 12s infinite}
@@ -578,7 +578,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .live-pill{display:inline-flex;align-items:center;gap:5px;background:#ffe9e9;color:#d33535;font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:999px}
 .oravini-landing .live-pill i{width:6px;height:6px;border-radius:50%;background:#d33535;animation:lp-blink 1.2s infinite}
 @keyframes lp-blink{50%{opacity:.25}}
-.oravini-landing .web-count{font-family:'Inter Display';font-weight:700;font-size:26px;letter-spacing:-0.03em}
+.oravini-landing .web-count{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:26px;letter-spacing:-0.03em}
 .oravini-landing .web-count small{font-family:'Inter';font-size:11px;font-weight:600;color:var(--faint);display:block;letter-spacing:.05em;text-transform:uppercase}
 .oravini-landing .reg{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #f0f2f6;font-size:12px;font-weight:500;opacity:0;animation:lp-reg2 12s var(--ease) infinite}
 .oravini-landing .reg .avatar{width:24px;height:24px}
@@ -594,7 +594,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .streak-top{display:flex;align-items:center;gap:14px}
 .oravini-landing .streak .flame{animation:lp-flamePulse 2.4s ease-in-out infinite;display:inline-block}
 @keyframes lp-flamePulse{50%{transform:scale(1.1) rotate(-3deg)}}
-.oravini-landing .streak .num{font-family:'Inter Display';font-weight:700;font-size:22px;letter-spacing:-0.02em}
+.oravini-landing .streak .num{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.02em}
 .oravini-landing .streak .of{font-size:11.5px;color:var(--faint);font-weight:500}
 .oravini-landing .streak .goal{margin-top:10px;height:6px;border-radius:99px;background:#e9edf3;overflow:hidden}
 .oravini-landing .streak .goal i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--blue-strong));border-radius:99px;animation:lp-goal2 10s var(--ease-soft) infinite}
@@ -607,7 +607,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .room{min-height:430px}
 .oravini-landing .room-stage{padding:0;display:grid;place-items:center}
 .oravini-landing .room-mock{width:100%;max-width:430px;border-radius:16px;overflow:hidden}
-.oravini-landing .room-video{height:190px;background:linear-gradient(150deg,#101828,#243655);position:relative}
+.oravini-landing .room-video{height:190px;background:linear-gradient(150deg,#3b82f0,#1d4ba8);position:relative}
 .oravini-landing .room-video .you{position:absolute;top:12px;left:12px;background:rgba(255,255,255,.12);color:#fff;font-size:10px;font-weight:600;padding:4px 10px;border-radius:999px}
 .oravini-landing .room-video .viewers{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.35);color:#fff;font-size:10px;font-weight:600;padding:4px 10px;border-radius:999px}
 .oravini-landing .room-offer{width:max-content;max-width:94%;position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:#fff;border-radius:12px;
@@ -640,7 +640,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 @keyframes lp-clipd{0%,52%{opacity:0}60%,82%{opacity:1}92%{opacity:0}}
 .oravini-landing .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
 .oravini-landing .step{background:var(--card);border-radius:22px;padding:26px 24px}
-.oravini-landing .step .n{font-family:'Inter Display';font-weight:700;font-size:15px;color:var(--blue-deep);background:var(--blue-tint2);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:18px}
+.oravini-landing .step .n{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:700;font-size:15px;color:var(--blue-deep);background:var(--blue-tint2);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:18px}
 .oravini-landing .step h3{font-size:17px;font-weight:600;letter-spacing:-0.02em;margin-bottom:8px}
 .oravini-landing .step p{font-size:13.5px;color:var(--sub)}
 .oravini-landing .dash-cta{background:linear-gradient(180deg,var(--blue-deep) 0%,var(--blue-hover) 60%,var(--blue-strong) 100%);border-radius:30px;padding:70px 60px;color:#fff;display:grid;grid-template-columns:1.1fr 1fr;gap:44px;align-items:center;overflow:hidden;position:relative}
@@ -669,8 +669,8 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .dm *{box-sizing:border-box}
 .oravini-landing .demo{position:relative;height:100%;width:100%;overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 0 42.8px rgba(43,47,65,.10);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .oravini-landing .demo .bar{height:30px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid #f0efed;font-size:10px;font-weight:600;color:#141414}
-.oravini-landing .demo .bar i{width:6px;height:6px;border-radius:50%;background:#dedddb}
-.oravini-landing .cur{position:absolute;z-index:9;color:#141414;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));opacity:0}
+.oravini-landing .demo .bar i{width:6px;height:6px;border-radius:50%;background:#dbe5f3}
+.oravini-landing .cur{position:absolute;z-index:9;color:#2e78ef;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));opacity:0}
 .oravini-landing .a{opacity:0}
 .oravini-landing /* 1 DM automation */
 @keyframes lp-d1a{0.00%{opacity:0;transform:translateY(10px) scale(.97);animation-timing-function:cubic-bezier(.16,1,.3,1)}4.17%{opacity:0;transform:translateY(10px) scale(.97);animation-timing-function:cubic-bezier(.16,1,.3,1)}10.00%{opacity:1;transform:none}91.67%{opacity:1;transform:none;animation-timing-function:ease-in}96.67%{opacity:0;transform:translateY(10px) scale(.97)}100.00%{opacity:0;transform:translateY(10px) scale(.97)}}
@@ -787,15 +787,15 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .foot-links a{font-size:13px;color:#6b7280;text-decoration:none}
 .oravini-landing .foot-links a:hover{color:#141414}
 .oravini-landing .lead-strip{padding:40px 24px 20px}
-.oravini-landing .lead-card{max-width:680px;margin:0 auto;background:#f6f5f3;border:1px solid #dedddb;border-radius:24px;padding:44px 40px;text-align:center}
+.oravini-landing .lead-card{max-width:680px;margin:0 auto;background:#f1f5fb;border:1px solid #dbe5f3;border-radius:24px;padding:44px 40px;text-align:center}
 .oravini-landing .lead-eyebrow{font-size:12px;font-weight:700;color:#2e78ef;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
-.oravini-landing .lead-input{background:#fff;border:1px solid #dedddb;border-radius:12px;padding:12px 16px;color:#141414;font-size:14px;outline:none;font-family:inherit}
+.oravini-landing .lead-input{background:#fff;border:1px solid #dbe5f3;border-radius:12px;padding:12px 16px;color:#141414;font-size:14px;outline:none;font-family:inherit}
 .oravini-landing .lead-input:focus{border-color:#88c0fd}
 .oravini-landing .lead-btn{background:#2e78ef;color:#fff;font-weight:800;font-size:14px;padding:12px 24px;border-radius:12px;border:none;cursor:pointer;flex-shrink:0;font-family:inherit}
 .oravini-landing .lead-btn:hover{background:#2566d6}
 .oravini-landing .lead-btn:disabled{opacity:.55;cursor:default}
 .oravini-landing .lpopup-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:0 16px;background:rgba(20,20,20,.45);backdrop-filter:blur(6px)}
-.oravini-landing .lpopup-card{position:relative;background:#fff;border:1px solid #dedddb;border-radius:24px;padding:40px 36px;max-width:460px;width:100%;box-shadow:0 30px 80px rgba(20,20,20,.18)}
+.oravini-landing .lpopup-card{position:relative;background:#fff;border:1px solid #dbe5f3;border-radius:24px;padding:40px 36px;max-width:460px;width:100%;box-shadow:0 30px 80px rgba(20,20,20,.18)}
 .oravini-landing .lpopup-close{position:absolute;top:16px;right:16px;background:none;border:none;color:#9aa3ad;cursor:pointer;font-size:20px}
 .oravini-landing .lpopup-pill{display:inline-block;background:#eff5fb;border:1px solid #88c0fd44;border-radius:100px;padding:5px 14px;margin-bottom:16px;font-size:11px;font-weight:700;color:#2e78ef;letter-spacing:.08em;text-transform:uppercase}
 @media (max-width:520px){.oravini-landing .lead-card{padding:32px 20px}}
