@@ -876,3 +876,8 @@ html.calm-light [style*="color: rgb(255, 255, 255)"][style*="rgb(46, 120, 239)"]
 html.calm-light [style*="color: rgb(255, 255, 255)"][style*="linear-gradient"][style*="46, 120, 239"],
 html.calm-light [style*="color: rgb(255, 255, 255)"][style*="#2e78ef"] { color: #fff !important; }
 html.calm-light a[style*="rgb(46, 120, 239)"] { color: #fff; }
+
+/* CRM suite: dark inline surfaces become white glass in the light theme. */
+html.calm-light [style*="background: rgb(10, 10, 12)"] { background: #ffffff !important; box-shadow: 0 10px 40px rgba(46,120,239,0.12); }
+html.calm-light [style*="solid rgba(255, 255, 255, 0.0"], html.calm-light [style*="solid rgba(255, 255, 255, 0.1"] { border-color: hsl(225 14% 91%) !important; }
+html.calm-light [style*="color: rgba(255, 255, 255, 0.7"], html.calm-light [style*="color: rgba(255, 255, 255, 0.55"], html.calm-light [style*="color: rgba(255, 255, 255, 0.45"] { color: hsl(225 8% 38%) !important; }
