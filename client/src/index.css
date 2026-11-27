@@ -858,3 +858,6 @@ html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow
 @keyframes gl-bar{from{opacity:.6}to{opacity:1}}
 @media(max-width:1150px){.oravini-landing .gl{display:none}}
 @media (prefers-reduced-motion:reduce){.oravini-landing .gl,.oravini-landing .gl i u{animation:none}}
+
+.oravini-landing .eyebrow:has(.dot):before{content:none!important;display:none!important}
+.oravini-landing .tile .dwrap{height:230px}
