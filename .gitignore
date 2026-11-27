@@ -84,3 +84,7 @@ free-claude-code/
 /Oravini/
 /projects/Oravini/
 /projects/tier5-project-tracker/
+
+# Runtime uploads are ephemeral on Render (no persistent disk); media goes to Cloudinary via saveMedia().
+uploads/*
+!uploads/.gitkeep
