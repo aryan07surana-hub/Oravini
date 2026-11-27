@@ -81,7 +81,6 @@ const V_Community = withToolVideo(Community, "community");
 const V_ClientProgress = withToolVideo(ClientProgress, "streaks");
 const V_PagesHub = withToolVideo(PagesHub, ["funnels", "aicrm"]);
 const V_AIContentPlanner = withToolVideo(AIContentPlanner, "ideas");
-const V_AIContentCoach = withToolVideo(AIContentCoach, "coach");
 const V_ContentCalendar = withToolVideo(ContentCalendar, "sched");
 const V_TwitterScheduler = withToolVideo(TwitterScheduler, "sched");
 const V_LinkedInScheduler = withToolVideo(LinkedInScheduler, "sched");
@@ -411,7 +410,7 @@ function AppRoutes() {
       <Route path="/audience-psychology-map">{() => <Guard component={AudiencePsychologyMap} />}</Route>
       <Route path="/sop-generator">{() => <Guard component={SOPGenerator} />}</Route>
       <Route path="/ai-content-planner">{() => <Guard component={V_AIContentPlanner} />}</Route>
-      <Route path="/ai-coach">{() => <Guard component={V_AIContentCoach} />}</Route>
+      <Route path="/ai-coach">{() => <Guard component={AIContentCoach} />}</Route>
       <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
       <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
