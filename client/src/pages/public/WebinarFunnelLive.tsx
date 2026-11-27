@@ -9,6 +9,7 @@ import {
 import { ViewerChatPanel, readChatName, useWebinarChat } from "@/components/webinar-funnel/LiveChat";
 import { HOST_TIME_ZONE, formatInZone, viewerLocalStart, viewerTimeZone } from "@/components/webinar-funnel/eventTime";
 import { btn, focusRing } from "@/components/webinar-funnel/ui";
+import { PayBanner } from "@/components/webinar-funnel/PayBanner";
 
 const HEARTBEAT_MS = 15_000;
 type Tab = "chat" | "qa" | "slides";
@@ -357,6 +358,7 @@ function Sidebar({ tabs, tab, setTab, chat, webinar, phase, defaultName, registr
           );
         })}
       </div>
+      <PayBanner slug={webinar.slug} registrationId={registrationId} />
       <div className="flex-1 min-h-0" role="tabpanel" id={`${idp}-panel`} aria-labelledby={`${idp}-tab-${tab}`}>
         {tab === "slides" ? (
           <SlidesPanel deckUrl={webinar.deckUrl} />
@@ -375,3 +377,4 @@ function Sidebar({ tabs, tab, setTab, chat, webinar, phase, defaultName, registr
     </div>
   );
 }
+
