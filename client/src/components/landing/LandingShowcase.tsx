@@ -8,16 +8,24 @@ export const PROMOS = [
   { id: "web", tag: "Webinars", title: "Webinars that sell while you present.", body: "Run it live. The offer sits inside the room, and every attendee lands in your CRM." },
   { id: "ideas", tag: "Content Ideas", title: "Never stare at a blank page again.", body: "Hooks, scripts and a 30-day series built around your niche, in seconds." },
   { id: "sched", tag: "Content Scheduler", title: "Posting on autopilot.", body: "Queue reels, photos and carousels. Oravini publishes on time, every time." },
+  { id: "dashboard", tag: "Your dashboard", title: "Your whole business at a glance.", body: "Credits, leads, registrations and your next step, all on one calm screen." },
+  { id: "video", tag: "Video Hosting", title: "Host videos that look like you.", body: "Upload once, share a clean player link or embed it anywhere, with views tracked." },
+  { id: "funnels", tag: "Funnels and CRM", title: "From first click to paying client.", body: "Build the page, capture the lead and follow up, all inside the same place." },
+  { id: "live", tag: "Webinar live room", title: "A live room built to convert.", body: "Present, chat and show your offer at the right moment while attendees stay in the room." },
+  { id: "community", tag: "Community", title: "Grow with people on the same path.", body: "Share wins, ask questions and learn from other creators inside the app." },
+  { id: "streaks", tag: "Streaks and goals", title: "Stay consistent, hit the goal.", body: "Set an income target, build a daily streak and watch your progress add up." },
   { id: "hero", tag: "Your dashboard", title: "One place for everything.", body: "Ideas, posts, leads and webinars share the same data, so nothing gets copied between apps." },
 ];
 
+const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const clamp = (n: number, a = 0, b = 1) => Math.min(b, Math.max(a, n));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
   const [mobile, setMobile] = useState(false);
   useEffect(() => { const m = window.matchMedia("(max-width: 640px)"); const f = () => setMobile(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
-  const shape = mobile ? "9x16" : "16x9";
+  const tall = mobile && VERTICAL.has(promo.id);
+  const shape = tall ? "9x16" : "16x9";
   const vref = useRef<HTMLVideoElement>(null);
   const [sound, setSound] = useState(false);
   const toggleSound = () => { const v = vref.current; if (!v) return; v.muted = sound; setSound(!sound); if (!sound) v.play().catch(() => {}); };
@@ -50,9 +58,9 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
       <div className="copy" style={{ opacity: copy, transform: `translateY(${(1 - copy) * 26}px)` }}>
         <p className="body">{promo.body}</p>
       </div>
-      <div className={"frame" + (mobile ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
+      <div className={"frame" + (tall ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
         <video ref={vref} key={shape} poster={`${MEDIA}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
-          <source src={`${MEDIA}${promo.id}_${shape}.webm`} type="video/webm" />
+          {!tall && <source src={`${MEDIA}${promo.id}_${shape}.webm`} type="video/webm" />}
           <source src={`${MEDIA}${promo.id}_${shape}.mp4`} type="video/mp4" />
         </video>
         <button type="button" className="snd" onClick={toggleSound} aria-label={sound ? "Mute" : "Turn sound on"}>{sound ? "Sound on" : "Tap for sound"}</button>
