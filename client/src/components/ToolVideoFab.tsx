@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 
 const MEDIA = "https://oravini-media.pages.dev/";
+// Only the original five have vertical cuts (mp4 only). Newer videos are 16:9 and used on every screen size.
+const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const TITLES: Record<string, string> = {
   dm: "DM Automation in 30 seconds",
   web: "Webinars that sell while you present",
   ideas: "Never stare at a blank page again",
   sched: "Posting on autopilot",
   hero: "Your dashboard at a glance",
+  dashboard: "Your dashboard at a glance",
+  video: "Host and share your videos",
+  community: "Learn and grow with the community",
+  streaks: "Streaks and goals that keep you going",
+  funnels: "Funnels and CRM in one place",
+  live: "Inside the webinar live room",
 };
 
 // Small blue "Watch how it works" button (bottom-right) that opens the matching promo video in a modal.
@@ -27,7 +35,8 @@ export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [open]);
-  const shape = mobile ? "9x16" : "16x9";
+  const tall = mobile && VERTICAL.has(id);
+  const shape = tall ? "9x16" : "16x9";
   return (
     <>
       <button
@@ -43,13 +52,13 @@ export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
       </button>
       {open && (
         <div role="dialog" aria-modal="true" aria-label={TITLES[id]} onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(16,24,40,.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: mobile ? "min(340px,100%)" : "min(960px,100%)", background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px -30px rgba(46,120,239,.6)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: tall ? "min(340px,100%)" : "min(960px,100%)", background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px -30px rgba(46,120,239,.6)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e3e9f3" }}>
               <strong style={{ fontSize: 14, color: "#101828" }}>{TITLES[id]}</strong>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" style={{ border: 0, background: "#eff5fd", color: "#2e78ef", width: 28, height: 28, borderRadius: "50%", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
             </div>
-            <video key={shape} poster={`${MEDIA}${id}.jpg`} autoPlay muted loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: mobile ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
-              <source src={`${MEDIA}${id}_${shape}.webm`} type="video/webm" />
+            <video key={shape} poster={`${MEDIA}${id}.jpg`} autoPlay loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
+              {!tall && <source src={`${MEDIA}${id}_${shape}.webm`} type="video/webm" />}
               <source src={`${MEDIA}${id}_${shape}.mp4`} type="video/mp4" />
             </video>
           </div>
