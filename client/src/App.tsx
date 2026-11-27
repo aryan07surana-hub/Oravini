@@ -73,7 +73,7 @@ import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
 const V_ClientDashboard = withToolVideo(ClientDashboard, "dashboard");
 const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
 const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
-const V_DMAutomation = withToolVideo(DMAutomation, ["dm", "aisetter"]);
+const V_DMAutomation = withToolVideo(DMAutomation, ["aisetter", "dm"]);
 const V_WebinarFunnels = withToolVideo(WebinarFunnels, ["web", "webstream"]);
 const V_WebinarStudio = withToolVideo(WebinarStudio, "live");
 const V_ClientCRM = withToolVideo(ClientCRM, "aicrm");
