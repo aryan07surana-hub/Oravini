@@ -2,20 +2,22 @@ import { useEffect, useRef, useState } from "react";
 
 // Scroll-driven product showcase for /new-home.
 // To swap or add promo videos, edit PROMOS only.
+export const MEDIA = "https://oravini-media.pages.dev/";
 export const PROMOS = [
-  {
-    src: "/promo/dm_16x9.mp4",
-    poster: "/promo/dm_poster.jpg",
-    tag: "See it in action",
-    title: "Watch Oravini work.",
-    body: "Someone comments on your reel, Oravini sends the guide to their DMs and saves the lead to your CRM, with no manual work.",
-  },
+  { id: "dm", tag: "DM Automation", title: "Every comment gets a reply.", body: "Someone comments on your reel and Oravini sends the guide to their DMs, then saves the lead to your CRM. No manual work." },
+  { id: "web", tag: "Webinars", title: "Webinars that sell while you present.", body: "Run it live. The offer sits inside the room, and every attendee lands in your CRM." },
+  { id: "ideas", tag: "Content Ideas", title: "Never stare at a blank page again.", body: "Hooks, scripts and a 30-day series built around your niche, in seconds." },
+  { id: "sched", tag: "Content Scheduler", title: "Posting on autopilot.", body: "Queue reels, photos and carousels. Oravini publishes on time, every time." },
+  { id: "hero", tag: "Your dashboard", title: "One place for everything.", body: "Ideas, posts, leads and webinars share the same data, so nothing gets copied between apps." },
 ];
 
 const clamp = (n: number, a = 0, b = 1) => Math.min(b, Math.max(a, n));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { const m = window.matchMedia("(max-width: 640px)"); const f = () => setMobile(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
+  const shape = mobile ? "9x16" : "16x9";
   const ref = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(0);
   const [bad, setBad] = useState(false);
@@ -47,8 +49,11 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
         <h2>{promo.title}</h2>
         <p className="body">{promo.body}</p>
       </div>
-      <div className="frame" style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
-        <video src={promo.src} poster={promo.poster} autoPlay muted loop playsInline preload="auto" onError={() => setBad(true)} />
+      <div className={"frame" + (mobile ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
+        <video key={shape} poster={`${MEDIA}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
+          <source src={`${MEDIA}${promo.id}_${shape}.webm`} type="video/webm" />
+          <source src={`${MEDIA}${promo.id}_${shape}.mp4`} type="video/mp4" />
+        </video>
       </div>
     </div>
   );
@@ -67,10 +72,11 @@ export function LandingShowcase() {
 .lp-show h2{font-size:clamp(30px,4.2vw,48px);font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:16px 0 12px;color:#101828}
 .lp-show p.body{font-size:16px;line-height:1.65;color:#5b6575;margin:0 auto;max-width:560px}
 .lp-show .frame{position:relative;width:100%;aspect-ratio:16/9;background:#fff;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 40px 80px -30px rgba(46,120,239,.45),0 12px 30px -12px rgba(16,24,40,.12);overflow:hidden;will-change:transform,opacity}
+.lp-show .frame.m{aspect-ratio:9/16;max-width:340px;margin:0 auto}
 .lp-show video{display:block;width:100%;height:100%;object-fit:cover}
 @media(max-width:640px){.lp-show{padding:20px 16px 56px}.lp-show .copy{margin-bottom:26px}.lp-show p.body{font-size:14px}}
       `}</style>
-      {PROMOS.map((p) => <Reveal key={p.src} promo={p} />)}
+      {PROMOS.map((p) => <Reveal key={p.id} promo={p} />)}
     </section>
   );
 }
