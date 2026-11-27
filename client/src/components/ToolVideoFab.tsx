@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const MEDIA = "https://oravini-media.pages.dev/";
-const mediaFor = (id: string) => (["coach", "webinar", "ytlive"].includes(id) ? "https://oravini-media2.pages.dev/" : MEDIA);
+const mediaFor = (id: string) => (["coach", "webinar", "ytlive"].includes(id) ? "https://oravini-media2.pages.dev/" : ["tracking", "documents", "competitor", "design", "analyser", "aivideo", "editor", "recorder", "projecttracker", "tools"].includes(id) ? "https://oravini-media3.pages.dev/" : MEDIA);
 // Only the original five have vertical cuts (mp4 only). Newer videos are 16:9 and used on every screen size.
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const TITLES: Record<string, string> = {
@@ -30,6 +30,7 @@ const INTRO: Record<string, { name: string; sub: string; bullets: string[] }> = 
   dm: { name: "DM Automation", sub: "Watch this short walkthrough, then set up your first automation.", bullets: ["Reply to every comment with a DM", "Send your guide or link instantly", "Save each lead to your CRM", "Works on reels, posts and stories"] },
   aisetter: { name: "AI Setter", sub: "See how the AI handles your DMs, then switch it on.", bullets: ["Answers new DMs in seconds", "Asks the right qualifying questions", "Shares your booking link", "Hands hot leads to you"] },
   webinar: { name: "Webinars", sub: "A quick tour of building and running a webinar.", bullets: ["Registration page built for you", "Reminders sent automatically", "Offer pinned inside the room", "Replay and follow-up included"] },
+  tracking: { name: "Tracking", sub: "See how your content, followers and competitors add up in one place.", bullets: ["Sync your recent Instagram posts with AI analysis", "Watch follower growth over time", "Import YouTube and plan on the calendar", "Follow competitors and your DM pipeline"] },
   ytlive: { name: "YouTube Live webinars", sub: "See how to go live on YouTube and still sell inside Oravini.", bullets: ["Stream to YouTube in one click", "Attendees register on your page", "Chat and offer in your own room", "Every attendee lands in your CRM"] },
   live: { name: "Webinar live room", sub: "A quick look at presenting from the live room.", bullets: ["Present slides and video", "Pin your offer at the right moment", "Watch sales land in the chat", "Invite panelists"] },
   webstream: { name: "Webinar streaming", sub: "Stream once and reach everyone.", bullets: ["Go live from the browser", "Stream to your audience", "Keep the replay ready to sell", "Track attendance"] },
