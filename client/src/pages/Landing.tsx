@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ToolGrid, FeatureRows, Faq } from "@/components/landing/LandingMore";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingFlows } from "@/components/landing/LandingFlows";
+import TermPricingPreview from "@/components/video-marketing/TermPricingPreview";
 import { LandingCursor } from "@/components/landing/LandingCursor";
 import { DMDemo, IdeasDemo, SchedulerDemo, VideoDemo, WebinarDemo, StreakDemo } from "@/components/landing/LandingDemos";
 
@@ -161,7 +162,7 @@ export default function Landing() {
   <div className="wrap nav-in">
     <Link href="/" className="logo"><span className="logo-mark">O</span>oravini</Link>
     <div className="nav-links">
-      <a href="#features">Product</a><a href="#tools">Tools</a><a href="#webinars">Webinars</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
+      <a href="#features">Product</a><a href="#tools">Tools</a><a href="#webinars">Webinars</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
     </div>
     <div className="nav-cta">
       <Link href="/login" className="login">Login</Link>
@@ -267,15 +268,15 @@ export default function Landing() {
         <div className="tile-cap">Posting on autopilot</div>
         <div className="tile-sub">Queue reels, photos and carousels. Oravini publishes on time, every time.</div>
       </div>
-      <div className="tile">
-        <div className="tile-stage"><div className="dwrap"><VideoDemo /></div></div>
-        <div className="tile-cap">Videos that convert</div>
-        <div className="tile-sub">VSL pages with a progress bar you control, and offers that appear at the perfect second.</div>
-      </div>
       <div className="tile wide">
         <div className="tile-stage"><div className="dwrap"><WebinarDemo /></div></div>
         <div className="tile-cap">Webinars that fill themselves</div>
         <div className="tile-sub">Registration pages built automatically, reminders handled, every attendee lands in your CRM.</div>
+      </div>
+      <div className="tile wide">
+        <div className="tile-stage"><div className="dwrap"><VideoDemo /></div></div>
+        <div className="tile-cap">Videos that convert</div>
+        <div className="tile-sub">VSL pages with a progress bar you control, and offers that appear at the perfect second.</div>
       </div>
       <div className="tile">
         <div className="tile-stage"><div className="dwrap"><StreakDemo /></div></div>
@@ -431,6 +432,8 @@ export default function Landing() {
 <Faq />
 
 <EmailCaptureStrip onCapture={() => setPopupDismissed(true)} />
+
+<section id="pricing" style={{"background":"#fff","borderTop":"1px solid var(--line)"}}><TermPricingPreview /></section>
 
 <section className="final">
   <div className="wrap">
