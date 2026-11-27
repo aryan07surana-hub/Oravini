@@ -3,10 +3,13 @@ import { useEffect, useRef, useState } from "react";
 // Scroll-driven product showcase for /new-home.
 // To swap or add promo videos, edit PROMOS only.
 export const MEDIA = "https://oravini-media.pages.dev/";
+// The Coach walkthrough lives on a second Pages project.
+export const mediaFor = (id: string) => (id === "coach" ? "https://oravini-media2.pages.dev/" : MEDIA);
 export const PROMOS = [
   { id: "dm", tag: "DM Automation", title: "Every comment gets a reply.", body: "Someone comments on your reel and Oravini sends the guide to their DMs, then saves the lead to your CRM. No manual work." },
   { id: "web", tag: "Webinars", title: "Webinars that sell while you present.", body: "Run it live. The offer sits inside the room, and every attendee lands in your CRM." },
   { id: "ideas", tag: "Content Ideas", title: "Never stare at a blank page again.", body: "Hooks, scripts and a 30-day series built around your niche, in seconds." },
+  { id: "coach", tag: "AI Content Coach", title: "A coach that learns from your reels.", body: "It studies what already works for you, finds your winning hooks and plans what to post next." },
   { id: "sched", tag: "Content Scheduler", title: "Posting on autopilot.", body: "Queue reels, photos and carousels. Oravini publishes on time, every time." },
   { id: "dashboard", tag: "Your dashboard", title: "Your whole business at a glance.", body: "Credits, leads, registrations and your next step, all on one calm screen." },
   { id: "video", tag: "Video Hosting", title: "Host videos that look like you.", body: "Upload once, share a clean player link or embed it anywhere, with views tracked." },
@@ -62,9 +65,9 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
         <p className="body">{promo.body}</p>
       </div>
       <div className={"frame" + (tall ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
-        <video ref={vref} key={shape} poster={`${MEDIA}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
-          {!tall && <source src={`${MEDIA}${promo.id}_${shape}.webm`} type="video/webm" />}
-          <source src={`${MEDIA}${promo.id}_${shape}.mp4`} type="video/mp4" />
+        <video ref={vref} key={shape} poster={`${mediaFor(promo.id)}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
+          {!tall && <source src={`${mediaFor(promo.id)}${promo.id}_${shape}.webm`} type="video/webm" />}
+          <source src={`${mediaFor(promo.id)}${promo.id}_${shape}.mp4`} type="video/mp4" />
         </video>
         <button type="button" className="snd" onClick={toggleSound} aria-label={sound ? "Mute" : "Turn sound on"}>{sound ? "Sound on" : "Tap for sound"}</button>
       </div>
