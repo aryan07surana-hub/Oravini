@@ -3,6 +3,7 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { aiChatJson, aiFeature } from "./aiService";
+import { registerCoachIgSync } from "./coachIgSync";
 
 const STATE_TOOL = "coach-lab-state";
 
@@ -74,6 +75,7 @@ const brief = (r: any) => `- hook: "${r.hook || ""}" | views ${r.views || 0}, sa
 const SYS = "You are a short-form video strategist. Be specific and concrete, never generic. Return ONLY valid JSON.";
 
 export function registerCoachLab(app: Express) {
+  registerCoachIgSync(app);
   const gate = [requireAuth, aiFeature("content-coach", { critical: true })];
 
   // State document (reels, hooks, reports, calendars). Free.
