@@ -861,3 +861,6 @@ html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow
 
 .oravini-landing .eyebrow:has(.dot):before{content:none!important;display:none!important}
 .oravini-landing .tile .dwrap{height:230px}
+
+.oravini-landing .tile .dwrap{height:276px}
+.oravini-landing .tile.wide .dwrap{width:min(100%,520px)}
