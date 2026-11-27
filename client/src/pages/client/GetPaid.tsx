@@ -5,10 +5,11 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const GOLD = "#d4b461";
+// Brand blue. Surfaces below use theme tokens (bg-card, text-foreground, border-border...) so they follow whichever theme is active.
+const GOLD = "#2e78ef";
 const KEY = "/api/whop-platform/status";
-const card = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" };
-const input = "w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500";
+const card = { background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" };
+const input = "w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary";
 
 type CheckoutRow = {
   id: string; code: string; title: string; description: string | null; price: number; currency: string;
@@ -34,10 +35,10 @@ async function post(method: string, url: string, body?: unknown) {
 
 export function FeeNotice({ compact }: { compact?: boolean }) {
   return (
-    <div className="rounded-xl p-3 text-xs leading-relaxed text-zinc-300" style={{ background: "rgba(212,180,97,0.08)", border: `1px solid ${GOLD}40` }} data-testid="fee-notice">
-      <p className="font-semibold text-white mb-0.5">Fees, in plain words</p>
+    <div className="rounded-xl p-3 text-xs leading-relaxed text-foreground/80" style={{ background: "rgba(46,120,239,0.08)", border: `1px solid ${GOLD}40` }} data-testid="fee-notice">
+      <p className="font-semibold text-foreground mb-0.5">Fees, in plain words</p>
       <p>
-        Oravini takes <b>1.5%</b> of every sale. Whop also charges its own card fee (about 2.7% + $0.30 in the US), paid from the seller's side.
+        Oravini takes <b>1.5%</b> of every sale. Whop also charges its own card fee (about 2.7% + $0.30 in the US), paid from the seller's side. The 1.5% is not refunded if you refund a buyer.
         {!compact && " Buyers pay the price you set. The money goes straight to your Whop account. Oravini never holds it."}
       </p>
     </div>
@@ -50,7 +51,7 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [redirectUrl, setRedirectUrl] = useState("");
-  const [buttonColor, setButtonColor] = useState("#d4b461");
+  const [buttonColor, setButtonColor] = useState("#2e78ef");
   const [funnelId, setFunnelId] = useState("");
   const p = Number(price);
   const valid = title.trim().length >= 2 && Number.isFinite(p) && p >= 1 && p <= 5000;
@@ -72,28 +73,28 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
   });
   return (
     <div className="rounded-2xl p-5 space-y-4" style={card} data-testid="new-checkout">
-      <p className="text-sm font-bold text-white">New checkout link</p>
+      <p className="text-sm font-bold text-foreground">New checkout link</p>
       <div className="grid sm:grid-cols-2 gap-3">
-        <label className="text-xs text-zinc-400 space-y-1">Product name
+        <label className="text-xs text-muted-foreground space-y-1">Product name
           <input className={input} value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="VIP coaching call" data-testid="input-checkout-title" />
         </label>
-        <label className="text-xs text-zinc-400 space-y-1">Price (USD, one-time)
+        <label className="text-xs text-muted-foreground space-y-1">Price (USD, one-time)
           <input className={input} value={price} onChange={e => setPrice(e.target.value)} inputMode="decimal" placeholder="97" data-testid="input-checkout-price" />
         </label>
       </div>
-      <label className="text-xs text-zinc-400 space-y-1 block">Description (shown to the buyer)
+      <label className="text-xs text-muted-foreground space-y-1 block">Description (shown to the buyer)
         <textarea className={input} rows={2} value={description} onChange={e => setDescription(e.target.value)} maxLength={500} />
       </label>
       <div className="grid sm:grid-cols-3 gap-3">
-        <label className="text-xs text-zinc-400 space-y-1 sm:col-span-2">After payment, send buyers to (optional https link)
+        <label className="text-xs text-muted-foreground space-y-1 sm:col-span-2">After payment, send buyers to (optional https link)
           <input className={input} value={redirectUrl} onChange={e => setRedirectUrl(e.target.value)} placeholder="https://yourpage.com/thanks" />
         </label>
-        <label className="text-xs text-zinc-400 space-y-1">Button colour
-          <input type="color" className="w-full h-10 rounded-xl bg-zinc-900 border border-zinc-700" value={buttonColor} onChange={e => setButtonColor(e.target.value)} />
+        <label className="text-xs text-muted-foreground space-y-1">Button colour
+          <input type="color" className="w-full h-10 rounded-xl bg-background border border-border" value={buttonColor} onChange={e => setButtonColor(e.target.value)} />
         </label>
       </div>
       {funnels.length > 0 && (
-        <label className="text-xs text-zinc-400 space-y-1 block">Show as an offer banner in this webinar's live room (optional)
+        <label className="text-xs text-muted-foreground space-y-1 block">Show as an offer banner in this webinar's live room (optional)
           <select className={input} value={funnelId} onChange={e => setFunnelId(e.target.value)} data-testid="select-checkout-webinar">
             <option value="">Not attached to a webinar</option>
             {funnels.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
@@ -101,16 +102,16 @@ function NewCheckout({ funnels, onDone }: { funnels: { id: string; title: string
         </label>
       )}
       {valid && (
-        <div className="rounded-xl p-3 text-xs text-zinc-300 space-y-1" style={{ background: "rgba(255,255,255,0.03)" }} data-testid="fee-breakdown">
-          <div className="flex justify-between"><span>Buyer pays</span><b className="text-white">{usd(Math.round(p * 100))}</b></div>
+        <div className="rounded-xl p-3 text-xs text-foreground/80 space-y-1" style={{ background: "hsl(var(--card))" }} data-testid="fee-breakdown">
+          <div className="flex justify-between"><span>Buyer pays</span><b className="text-foreground">{usd(Math.round(p * 100))}</b></div>
           <div className="flex justify-between"><span>Oravini fee (1.5%)</span><span>-{usd(fee)}</span></div>
           <div className="flex justify-between"><span>Whop card fee (estimate)</span><span>-{usd(whop)}</span></div>
-          <div className="flex justify-between border-t border-zinc-800 pt-1"><span>You keep about</span><b className="text-emerald-400">{usd(Math.round(p * 100) - fee - whop)}</b></div>
+          <div className="flex justify-between border-t border-border pt-1"><span>You keep about</span><b className="text-emerald-500">{usd(Math.round(p * 100) - fee - whop)}</b></div>
         </div>
       )}
       <FeeNotice compact />
       <button disabled={!valid || create.isPending} onClick={() => create.mutate()} data-testid="button-create-checkout"
-        className="px-4 py-2.5 rounded-xl text-sm font-semibold text-black disabled:opacity-40" style={{ background: GOLD }}>
+        className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40" style={{ background: GOLD }}>
         {create.isPending ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Create checkout link"}
       </button>
     </div>
@@ -129,18 +130,18 @@ function Row({ c, funnels }: { c: CheckoutRow; funnels: { id: string; title: str
     <div className={`rounded-xl p-4 space-y-2 ${c.active ? "" : "opacity-60"}`} style={card} data-testid={`checkout-${c.code}`}>
       <div className="flex items-start gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{c.title} <span className="text-zinc-500 font-normal">· ${c.price.toFixed(2)}</span></p>
-          <p className="text-[11px] text-zinc-500">{c.sales} sale{c.sales === 1 ? "" : "s"} · fee to Oravini {usd(c.feeCents)} each · you receive {usd(c.sellerReceivesCents)} before Whop's fee</p>
+          <p className="text-sm font-semibold text-foreground truncate">{c.title} <span className="text-muted-foreground font-normal">· ${c.price.toFixed(2)}</span></p>
+          <p className="text-[11px] text-muted-foreground">{c.sales} sale{c.sales === 1 ? "" : "s"} · fee to Oravini {usd(c.feeCents)} each · you receive {usd(c.sellerReceivesCents)} before Whop's fee</p>
         </div>
-        <button onClick={copy} className="text-xs px-3 h-8 rounded-lg border border-zinc-700 text-zinc-200 flex items-center gap-1.5" data-testid={`copy-${c.code}`}><Copy className="w-3.5 h-3.5" />Copy link</button>
-        <button onClick={() => patch.mutate({ active: !c.active })} className="text-xs px-3 h-8 rounded-lg border border-zinc-700 text-zinc-300 flex items-center gap-1.5">
+        <button onClick={copy} className="text-xs px-3 h-8 rounded-lg border border-border text-foreground/80 flex items-center gap-1.5" data-testid={`copy-${c.code}`}><Copy className="w-3.5 h-3.5" />Copy link</button>
+        <button onClick={() => patch.mutate({ active: !c.active })} className="text-xs px-3 h-8 rounded-lg border border-border text-foreground/80 flex items-center gap-1.5">
           {c.active ? <><PauseCircle className="w-3.5 h-3.5" />Pause</> : <><PlayCircle className="w-3.5 h-3.5" />Resume</>}
         </button>
       </div>
-      <p className="text-[11px] text-zinc-500 break-all flex items-center gap-1"><Link2 className="w-3 h-3" />{c.link}</p>
+      <p className="text-[11px] text-muted-foreground break-all flex items-center gap-1"><Link2 className="w-3 h-3" />{c.link}</p>
       {funnels.length > 0 && (
-        <label className="text-[11px] text-zinc-500 flex items-center gap-2">Webinar banner:
-          <select className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white" value={c.webinarFunnelId ?? ""}
+        <label className="text-[11px] text-muted-foreground flex items-center gap-2">Webinar banner:
+          <select className="bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground" value={c.webinarFunnelId ?? ""}
             onChange={e => patch.mutate({ webinarFunnelId: e.target.value })}>
             <option value="">None</option>
             {funnels.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
@@ -183,12 +184,12 @@ export default function GetPaid() {
     <ClientLayout>
       <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-5" data-testid="get-paid-page">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Wallet className="w-6 h-6" style={{ color: GOLD }} />Get paid</h1>
-          <p className="text-sm text-zinc-400 mt-1">Connect your own Whop account, make checkout links, and sell inside your webinars.</p>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Wallet className="w-6 h-6" style={{ color: GOLD }} />Get paid</h1>
+          <p className="text-sm text-muted-foreground mt-1">Connect your own Whop account, make checkout links, and sell inside your webinars.</p>
         </div>
-        {isLoading && <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />}
+        {isLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         {data && !data.enabled && (
-          <div className="rounded-xl p-4 text-sm text-zinc-300" style={card}>Payments are not switched on yet. This page works as soon as Oravini turns them on.</div>
+          <div className="rounded-xl p-4 text-sm text-foreground/80" style={card}>Payments are not switched on yet. This page works as soon as Oravini turns them on.</div>
         )}
         {data?.sandbox && data.enabled && (
           <div className="rounded-xl p-3 text-xs text-amber-300 border border-amber-500/30 bg-amber-500/10">Test mode: no real money moves. Use Whop's test cards.</div>
@@ -197,20 +198,20 @@ export default function GetPaid() {
 
         <div className="rounded-2xl p-5 space-y-3" style={card} data-testid="connect-card">
           <div className="flex items-center gap-2">
-            {acct ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <ShieldCheck className="w-5 h-5 text-zinc-400" />}
-            <p className="text-sm font-bold text-white">{acct ? "Your Whop account is connected" : "Connect your Whop account"}</p>
+            {acct ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <ShieldCheck className="w-5 h-5 text-muted-foreground" />}
+            <p className="text-sm font-bold text-foreground">{acct ? "Your Whop account is connected" : "Connect your Whop account"}</p>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-foreground">
             {acct ? "Buyers pay your Whop account directly. Finish identity checks and add your payout method on Whop so you can withdraw."
               : "Whop opens a secure page to verify your identity and add a payout method. Oravini never sees your card or bank details."}
           </p>
           <div className="flex gap-2 flex-wrap">
             <button disabled={busy || !data?.enabled} onClick={() => go("/api/whop-platform/connect")} data-testid="button-connect-whop"
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-black disabled:opacity-40" style={{ background: GOLD }}>
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40" style={{ background: GOLD }}>
               {busy ? <Loader2 className="w-4 h-4 animate-spin inline" /> : acct ? "Finish setup on Whop" : "Connect with Whop"}
             </button>
             {acct && (
-              <button disabled={busy} onClick={() => go("/api/whop-platform/payouts-link")} className="px-4 py-2.5 rounded-xl text-sm text-zinc-200 border border-zinc-700 flex items-center gap-1.5">
+              <button disabled={busy} onClick={() => go("/api/whop-platform/payouts-link")} className="px-4 py-2.5 rounded-xl text-sm text-foreground/80 border border-border flex items-center gap-1.5">
                 Payouts and balance <ExternalLink className="w-3.5 h-3.5" />
               </button>
             )}
@@ -219,9 +220,9 @@ export default function GetPaid() {
 
         {data && (
           <div className="grid grid-cols-3 gap-3" data-testid="totals">
-            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-zinc-500 uppercase">Sales</p><p className="text-xl font-bold text-white">{data.totals.sales}</p></div>
-            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-zinc-500 uppercase">Gross</p><p className="text-xl font-bold text-white">{usd(data.totals.grossCents)}</p></div>
-            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-zinc-500 uppercase">Oravini fee (1.5%)</p><p className="text-xl font-bold text-white">{usd(data.totals.feeCents)}</p></div>
+            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-muted-foreground uppercase">Sales</p><p className="text-xl font-bold text-foreground">{data.totals.sales}</p></div>
+            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-muted-foreground uppercase">Gross</p><p className="text-xl font-bold text-foreground">{usd(data.totals.grossCents)}</p></div>
+            <div className="rounded-xl p-3" style={card}><p className="text-[10px] text-muted-foreground uppercase">Oravini fee (1.5%)</p><p className="text-xl font-bold text-foreground">{usd(data.totals.feeCents)}</p></div>
           </div>
         )}
 
@@ -229,7 +230,7 @@ export default function GetPaid() {
 
         {data && data.checkouts.length > 0 && (
           <div className="space-y-3">
-            <p className="text-sm font-bold text-white">Your checkout links</p>
+            <p className="text-sm font-bold text-foreground">Your checkout links</p>
             {data.checkouts.map(c => <Row key={c.id} c={c} funnels={funnels} />)}
           </div>
         )}
