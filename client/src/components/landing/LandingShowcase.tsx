@@ -29,22 +29,44 @@ const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 
 function LaunchVideo() {
   const ref = useRef<HTMLVideoElement>(null);
-  const box = useRef<HTMLDivElement>(null);
-  const [sound, setSound] = useState(false);
-  useEffect(() => {
-    const v = ref.current, b = box.current; if (!v || !b) return;
-    const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) v.play().catch(() => {}); else v.pause(); }, { threshold: 0.35 });
-    io.observe(b); return () => io.disconnect();
-  }, []);
-  const toggle = () => { const v = ref.current; if (!v) return; v.muted = sound; setSound(!sound); if (!sound) { v.currentTime = 0; v.play().catch(() => {}); } };
+  const [started, setStarted] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [t, setT] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [vol, setVol] = useState(1);
   const base = mediaFor("launch");
+  const fmt = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
+  const start = () => { const v = ref.current; if (!v) return; v.muted = false; v.volume = vol; v.currentTime = 0; v.play().catch(() => {}); setStarted(true); };
+  const toggle = () => { const v = ref.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); };
+  const full = () => { const f = ref.current?.parentElement as any; if (!f) return; if (document.fullscreenElement) document.exitFullscreen(); else (f.requestFullscreen || f.webkitRequestFullscreen)?.call(f); };
   return (
-    <div ref={box} className="lp-frame">
-      <video ref={ref} poster={`${base}launch.jpg`} muted loop playsInline preload="auto">
+    <div className="lp-frame">
+      <video ref={ref} poster={`${base}launch.jpg`} playsInline preload="auto"
+        onClick={() => started && toggle()}
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onEnded={() => { setStarted(false); setPlaying(false); }}
+        onTimeUpdate={e => setT(e.currentTarget.currentTime)}
+        onLoadedMetadata={e => setDur(e.currentTarget.duration)}>
         <source src={`${base}launch_16x9.mp4`} type="video/mp4" />
         <source src={`${base}launch_16x9.webm`} type="video/webm" />
       </video>
-      <button type="button" className="lp-snd" onClick={toggle}>{sound ? "Sound on" : "Tap for sound"}</button>
+      {!started && (
+        <button type="button" className="lp-bigplay" onClick={start} aria-label="Play the Oravini video">
+          <span className="lp-bigplay-btn"><i /></span>
+        </button>
+      )}
+      {started && (
+        <div className="lp-ctl">
+          <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className="lp-cb">{playing ? <b className="lp-pause" /> : <b className="lp-tri" />}</button>
+          <span className="lp-time">{fmt(t)}</span>
+          <input className="lp-seek" type="range" min={0} max={dur || 1} step={0.1} value={t}
+            style={{ ["--p" as any]: `${dur ? (t / dur) * 100 : 0}%` }}
+            onChange={e => { const v = ref.current; if (v) v.currentTime = Number(e.target.value); }} aria-label="Seek" />
+          <input className="lp-vol" type="range" min={0} max={1} step={0.05} value={vol}
+            onChange={e => { const x = Number(e.target.value); setVol(x); if (ref.current) { ref.current.volume = x; ref.current.muted = x === 0; } }} aria-label="Volume" />
+          <button type="button" onClick={full} aria-label="Fullscreen" className="lp-cb"><b className="lp-fs" /></button>
+        </div>
+      )}
     </div>
   );
 }
@@ -62,6 +84,21 @@ export function LandingShowcase() {
 .lp-show .sub{font-size:16px;line-height:1.6;color:#5b6575;margin:0}
 .lp-frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:22px;overflow:hidden;background:#eef4fe;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 36px 70px -32px rgba(46,120,239,.45),0 10px 26px -12px rgba(16,24,40,.12)}
 .lp-frame video{display:block;width:100%;height:100%;object-fit:cover}
+.lp-bigplay{position:absolute;inset:0;border:0;background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
+.lp-bigplay-btn{width:96px;height:68px;border-radius:16px;background:#2e78ef;display:grid;place-items:center;box-shadow:0 18px 36px -10px rgba(46,120,239,.7);transition:transform .2s,background .2s}
+.lp-bigplay:hover .lp-bigplay-btn{transform:scale(1.08);background:#2468d8}
+.lp-bigplay-btn i{border-left:24px solid #fff;border-top:14px solid transparent;border-bottom:14px solid transparent;margin-left:6px}
+.lp-ctl{position:absolute;left:0;right:0;bottom:0;height:44px;background:#2e78ef;display:flex;align-items:center;gap:12px;padding:0 14px;color:#fff;font:600 13px Inter,system-ui,sans-serif}
+.lp-cb{border:0;background:transparent;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;padding:0}
+.lp-tri{border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
+.lp-pause{width:11px;height:13px;border-left:4px solid #fff;border-right:4px solid #fff}
+.lp-fs{width:14px;height:14px;border:2px solid #fff;border-radius:2px}
+.lp-time{min-width:34px}
+.lp-seek,.lp-vol{-webkit-appearance:none;appearance:none;height:4px;border-radius:99px;background:rgba(255,255,255,.35);outline:none;cursor:pointer}
+.lp-seek{flex:1;background:linear-gradient(90deg,#fff var(--p),rgba(255,255,255,.35) var(--p))}
+.lp-vol{width:72px}
+.lp-seek::-webkit-slider-thumb,.lp-vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff}
+.lp-seek::-moz-range-thumb,.lp-vol::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:#fff}
 .lp-snd{position:absolute;right:14px;bottom:14px;border:0;cursor:pointer;background:rgba(255,255,255,.94);color:#2e78ef;font:600 12px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px rgba(16,24,40,.15)}
 .lp-show h3{font-size:20px;font-weight:700;letter-spacing:-.02em;color:#101828;text-align:center;margin:64px 0 6px}
 .lp-show .sub2{text-align:center;color:#6b7686;font-size:14px;margin:0 0 22px}
