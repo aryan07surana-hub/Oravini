@@ -9,7 +9,7 @@ const TITLES: Record<string, string> = {
   hero: "Your dashboard at a glance",
 };
 
-// Small blue "Watch how it works" button (bottom-left) that opens the matching promo video in a modal.
+// Small blue "Watch how it works" button (bottom-right) that opens the matching promo video in a modal.
 // It sits over the page, so it never changes a tool's own layout.
 export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
   const [open, setOpen] = useState(false);
@@ -34,7 +34,7 @@ export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Watch: ${TITLES[id]}`}
-        style={{ position: "fixed", left: 20, bottom: 20, zIndex: 60, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px 10px 12px", borderRadius: 999, border: "1px solid #d6e4f5", background: "#fff", color: "#2e78ef", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 10px 28px -12px rgba(46,120,239,.55)" }}
+        style={{ position: "fixed", right: 84, bottom: 22, zIndex: 60, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px 10px 12px", borderRadius: 999, border: "1px solid #d6e4f5", background: "#fff", color: "#2e78ef", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 10px 28px -12px rgba(46,120,239,.55)" }}
       >
         <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#2e78ef", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="#fff"><path d="M6 4l14 8-14 8z" /></svg>
