@@ -149,6 +149,21 @@ function TypingDots() {
   );
 }
 
+// Offline hook scorer: used when the AI scorer is unavailable so the live score never shows a dead 0.
+function localHookScore(hook: string) {
+  const h = hook.trim(); const words = h.split(/\s+/).filter(Boolean).length; const low = h.toLowerCase();
+  let score = 40; let weakness = "";
+  if (words >= 5 && words <= 14) score += 14; else if (words > 20) { score -= 8; weakness = "Shorten it to under 14 words"; } else if (words < 5) { score -= 6; weakness = "Add a few more words of context"; }
+  if (/\d/.test(h)) score += 10;
+  if (/\?$/.test(h) || /^(why|how|what|did|do|are|is|can|stop|never|don't|dont)\b/.test(low)) score += 10;
+  if (/\b(you|your|you're)\b/.test(low)) score += 10;
+  if (/\b(mistake|secret|truth|stuck|nobody|wrong|fail|stop|never|only|free|without)\b/.test(low)) score += 12;
+  if (/^(hey|hi|hello|so|today|in this video)\b/.test(low)) { score -= 14; weakness = "Skip the greeting, start with the claim"; }
+  score = Math.max(12, Math.min(94, score));
+  if (!weakness) weakness = score >= 75 ? "Strong opening" : /\d/.test(h) ? "Add a bold claim or contrast" : "Add a number or a bold claim";
+  const label = score >= 85 ? "Viral" : score >= 70 ? "Strong" : score >= 50 ? "Okay" : "Weak";
+  return { score, label, weakness };
+}
 function ScoreRing({ score }: { score: number }) {
   const radius = 36, circ = 2*Math.PI*radius, offset = circ-(score/100)*circ;
   const color = score>=75?"#34d399":score>=55?GOLD:score>=35?"#fb923c":"#f87171";
@@ -961,14 +976,15 @@ export default function AIContentCoach() {
     const timer = setTimeout(async () => {
       setHookScoring(true);
       try {
-        const d = await apiRequest("POST", "/api/coach/score-hook", { hook: firstSentence, platform });
+        let d = await apiRequest("POST", "/api/coach/score-hook", { hook: firstSentence, platform });
+        if (!d || (!d.score && (!d.label || d.label === "—"))) d = localHookScore(firstSentence);
         setHookScore({
           score: d.score,
           label: d.label,
           color: d.score >= 75 ? "#34d399" : d.score >= 50 ? GOLD : "#f87171",
           weakness: d.weakness || "",
         });
-      } catch {} finally { setHookScoring(false); }
+      } catch { const d = localHookScore(firstSentence); setHookScore({ score: d.score, label: d.label, color: d.score >= 75 ? "#16a34a" : d.score >= 50 ? GOLD : "#ef4444", weakness: d.weakness }); } finally { setHookScoring(false); }
     }, 900);
     return () => clearTimeout(timer);
   }, [script, platform]);
