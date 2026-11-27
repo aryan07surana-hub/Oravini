@@ -213,6 +213,10 @@ export default function Payments() {
           </div>
         </div>
 
+        <a href="/get-paid" className="block rounded-2xl p-4 text-sm text-zinc-200 hover:bg-white/[0.04]" style={cardStyle} data-testid="link-get-paid">
+          <span className="font-bold text-white">Sell with Oravini checkout.</span> Connect your Whop account, make checkout links and sell inside your webinars. Oravini takes 1.5% per sale.
+        </a>
+
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-zinc-500 py-10 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading revenue…</div>
         ) : error ? (
@@ -260,3 +264,4 @@ export default function Payments() {
     </ClientLayout>
   );
 }
+
