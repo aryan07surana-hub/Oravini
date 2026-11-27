@@ -31,6 +31,21 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
   const [cur, setCur] = useState(0);
   const id = list[Math.min(cur, list.length - 1)] as keyof typeof TITLES;
   const [open, setOpen] = useState(false);
+  const [auto, setAuto] = useState(false);
+  const [never, setNever] = useState(false);
+  const key = `oravini_toolvideo_seen:${list[0]}`;
+  // First visit to a tool: show its intro once. "Don't show again" is remembered per tool, plain Skip for this session.
+  useEffect(() => {
+    if (list[0] === "coach") return; // Content Coach has its own intro popup
+    try { if (localStorage.getItem(key) || sessionStorage.getItem(key)) return; } catch { return; }
+    const t = setTimeout(() => { setAuto(true); setOpen(true); }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const close = () => {
+    setOpen(false);
+    try { if (never) localStorage.setItem(key, "1"); else sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
+  };
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
     const m = window.matchMedia("(max-width: 640px)");
@@ -51,7 +66,7 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setAuto(false); setOpen(true); }}
         aria-label={`Watch: ${TITLES[id]}`}
         style={{ position: "fixed", right: 84, bottom: 22, zIndex: 60, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px 10px 12px", borderRadius: 999, border: "1px solid #d6e4f5", background: "#fff", color: "#2e78ef", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 10px 28px -12px rgba(46,120,239,.55)" }}
       >
@@ -61,7 +76,7 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
         How it works
       </button>
       {open && (
-        <div role="dialog" aria-modal="true" aria-label={TITLES[id]} onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(16,24,40,.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div role="dialog" aria-modal="true" aria-label={TITLES[id]} onClick={close} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(16,24,40,.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: tall ? "min(340px,100%)" : "min(960px,100%)", background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px -30px rgba(46,120,239,.6)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e3e9f3" }}>
               <strong style={{ fontSize: 14, color: "#101828" }}>{TITLES[id]}</strong>
@@ -72,12 +87,19 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
                   ))}
                 </span>
               )}
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close" style={{ border: 0, background: "#eff5fd", color: "#2e78ef", width: 28, height: 28, borderRadius: "50%", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+              <button type="button" onClick={close} aria-label="Close" style={{ border: 0, background: "#eff5fd", color: "#2e78ef", width: 28, height: 28, borderRadius: "50%", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
             </div>
-            <video key={shape} poster={`${mediaFor(id)}${id}.jpg`} autoPlay loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
+            <video key={shape} poster={`${mediaFor(id)}${id}.jpg`} autoPlay muted={auto} loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
               {!tall && <source src={`${mediaFor(id)}${id}_${shape}.webm`} type="video/webm" />}
               <source src={`${mediaFor(id)}${id}_${shape}.mp4`} type="video/mp4" />
             </video>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 18px", borderTop: "1px solid #e3e9f3", flexWrap: "wrap" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: "#5b6675", cursor: "pointer" }}>
+                <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} style={{ accentColor: "#2e78ef", width: 16, height: 16 }} />
+                Don't show this again
+              </label>
+              <button type="button" onClick={close} style={{ border: "1px solid #d6e4f5", background: "#fff", color: "#2e78ef", borderRadius: 999, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{auto ? "Skip" : "Close"}</button>
+            </div>
           </div>
         </div>
       )}
