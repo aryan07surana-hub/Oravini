@@ -1,3 +1,4 @@
+import { useCalmLight } from "@/hooks/use-calm-light";
 import { Link, useLocation } from "wouter";
 import { trackPageView } from "@/hooks/use-track-activity";
 import { useAuth, useLogout } from "@/hooks/use-auth";
@@ -208,6 +209,7 @@ const bottomNavItems = [
 
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  useCalmLight();
   const { user } = useAuth();
   const logout = useLogout();
   const [location] = useLocation();
