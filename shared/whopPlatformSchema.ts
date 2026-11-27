@@ -25,6 +25,8 @@ export const whopPlatformCheckouts = pgTable("whop_platform_checkouts", {
   redirectUrl: varchar("redirect_url", { length: 500 }),
   buttonColor: varchar("button_color", { length: 7 }),
   webinarFunnelId: varchar("webinar_funnel_id"),
+  buttonLabel: varchar("button_label", { length: 40 }),
+  offerLive: boolean("offer_live").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
