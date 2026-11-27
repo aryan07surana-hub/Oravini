@@ -1,12 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { ToolGrid, FeatureRows, Faq } from "@/components/landing/LandingMore";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
+import { LandingFlows } from "@/components/landing/LandingFlows";
 import { LandingCursor } from "@/components/landing/LandingCursor";
 import { DMDemo, IdeasDemo, SchedulerDemo, VideoDemo, WebinarDemo, StreakDemo } from "@/components/landing/LandingDemos";
 
 const CALENDLY = "https://calendly.com/brandversee/30min";
+
+
+// ── Scroll-triggered dashboard mock: line draws, numbers tick up, ring fills, checklist ticks off ──
+function useSeq() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [t, setT] = useState(0); // 0..1 progress of the whole sequence
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setT(1); return; }
+    let raf = 0, started = false;
+    const run = () => {
+      const t0 = performance.now(), DUR = 4200;
+      const step = (n: number) => { const p = Math.min(1, (n - t0) / DUR); setT(p); if (p < 1) raf = requestAnimationFrame(step); };
+      raf = requestAnimationFrame(step);
+    };
+    const io = new IntersectionObserver(([en]) => { if (en.isIntersecting && !started) { started = true; run(); io.disconnect(); } }, { threshold: 0.45 });
+    io.observe(el);
+    return () => { io.disconnect(); cancelAnimationFrame(raf); };
+  }, []);
+  return { ref, t };
+}
+const seg = (t: number, a: number, b: number) => Math.min(1, Math.max(0, (t - a) / (b - a)));
+const eo = (x: number) => 1 - Math.pow(1 - x, 3);
 
 // Renders the hero promo video only when the file actually loads. Missing file -> nothing renders.
 function HeroVideo() {
@@ -110,6 +134,8 @@ function EmailCaptureStrip({ onCapture }: { onCapture: () => void }) {
 
 export default function Landing() {
   const { user } = useAuth();
+  const { ref: seqRef, t: T } = useSeq();
+  const num = (to: number, a: number, b: number, fmt = true) => { const v = Math.round(to * eo(seg(T, a, b))); return fmt ? v.toLocaleString("en-US") : String(v); };
   const needsPlan = user && !(user as any).planConfirmed && (user as any).role !== "admin";
   const [showPopup, setShowPopup] = useState(false);
   const [popupDismissed, setPopupDismissed] = useState(false);
@@ -164,7 +190,7 @@ export default function Landing() {
   <div className="wrap">
     <div className="hero-stage">
       <HeroVideo />
-      <div className="app">
+      <div className="app" ref={seqRef}>
         <div className="app-side">
           <div className="brand"><span className="logo-mark">O</span>oravini</div>
           <div className="side-item active"><span className="ic"></span>Dashboard</div>
@@ -183,31 +209,31 @@ export default function Landing() {
           <div className="app-grid">
             <div className="mini">
               <span className="lbl">Followers</span>
-              <div className="big">128,430<span className="delta">+12.4%</span></div>
+              <div className="big">{num(128430, 0.05, 0.5)}<span className="delta" style={{ opacity: seg(T, 0.45, 0.6) }}>+12.4%</span></div>
               <svg className="chart" width="100%" height="72" viewBox="0 0 300 72" preserveAspectRatio="none">
                 <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor="#2e78ef" stopOpacity=".28"/><stop offset="1" stopColor="#2e78ef" stopOpacity="0"/>
                 </linearGradient></defs>
-                <path d="M0,58 C40,54 60,46 90,44 C120,42 140,34 170,28 C200,22 230,20 260,12 L300,8 L300,72 L0,72 Z" fill="url(#cg)"/>
-                <path d="M0,58 C40,54 60,46 90,44 C120,42 140,34 170,28 C200,22 230,20 260,12 L300,8" fill="none" stroke="#2e78ef" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M0,58 C40,54 60,46 90,44 C120,42 140,34 170,28 C200,22 230,20 260,12 L300,8 L300,72 L0,72 Z" fill="url(#cg)" style={{ opacity: seg(T, 0.2, 0.6) }}/>
+                <path d="M0,58 C40,54 60,46 90,44 C120,42 140,34 170,28 C200,22 230,20 260,12 L300,8" fill="none" stroke="#2e78ef" strokeWidth="2.2" strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - eo(seg(T, 0.05, 0.55))}/>
               </svg>
             </div>
             <div className="mini">
               <span className="lbl">Income goal</span>
               <div className="ring-wrap">
-                <svg width="52" height="52" viewBox="0 0 52 52"><circle className="ring-bg" cx="26" cy="26" r="21" fill="none" strokeWidth="6"/><circle className="ring-fg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" strokeDasharray="132" strokeDashoffset="42"/></svg>
-                <div><div className="big" style={{"fontSize":"19px"}}>68%</div><div style={{"fontSize":"11px","color":"#8a94a3"}}>of $100K in 6 months</div></div>
+                <svg width="52" height="52" viewBox="0 0 52 52"><circle className="ring-bg" cx="26" cy="26" r="21" fill="none" strokeWidth="6"/><circle className="ring-fg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" strokeDasharray="132" strokeDashoffset={132 - 90 * eo(seg(T, 0.2, 0.65))}/></svg>
+                <div><div className="big" style={{"fontSize":"19px"}}>{num(68, 0.2, 0.65, false)}%</div><div style={{"fontSize":"11px","color":"#8a94a3"}}>of $100K in 6 months</div></div>
               </div>
             </div>
           </div>
           <div className="app-row">
             <div className="mini"><span className="lbl">My big 3 today</span>
-              <div className="todo done"><span className="box"></span>Post 3 reels</div>
-              <div className="todo"><span className="box"></span>Record webinar</div>
-              <div className="todo"><span className="box"></span>Reply to DMs</div>
+              <div className={"todo" + (T > 0.55 ? " done" : "")}><span className="box"></span>Post 3 reels</div>
+              <div className={"todo" + (T > 0.68 ? " done" : "")}><span className="box"></span>Record webinar</div>
+              <div className={"todo" + (T > 0.81 ? " done" : "")}><span className="box"></span>Reply to DMs</div>
             </div>
-            <div className="mini"><span className="lbl">Creator score</span><div className="big">847</div><div style={{"fontSize":"11px","color":"#8a94a3"}}>Elite · top tier</div></div>
-            <div className="mini"><span className="lbl">Streak</span><div className="big">21 <svg width="18" height="18" viewBox="0 0 24 24" style={{"verticalAlign":"-3px"}}><path d="M12 2c1.2 3.2-1.8 4.6-1.8 7 0 1.4 1 2.4 2.3 2.4 1.8 0 2.6-1.6 2.2-3.4 2.3 1.6 3.6 4 3.6 6.3 0 4-3.1 7.2-6.8 7.2s-6.7-3.2-6.7-7.2C4.8 8.9 9.6 6 12 2z" fill="#2e78ef"/></svg></div><div style={{"fontSize":"11px","color":"#8a94a3"}}>days posting</div></div>
+            <div className="mini"><span className="lbl">Creator score</span><div className="big">{num(847, 0.5, 0.9, false)}</div><div style={{"fontSize":"11px","color":"#8a94a3"}}>Elite · top tier</div></div>
+            <div className="mini"><span className="lbl">Streak</span><div className="big">{num(21, 0.6, 0.95, false)} <svg width="18" height="18" viewBox="0 0 24 24" style={{"verticalAlign":"-3px"}}><path d="M12 2c1.2 3.2-1.8 4.6-1.8 7 0 1.4 1 2.4 2.3 2.4 1.8 0 2.6-1.6 2.2-3.4 2.3 1.6 3.6 4 3.6 6.3 0 4-3.1 7.2-6.8 7.2s-6.7-3.2-6.7-7.2C4.8 8.9 9.6 6 12 2z" fill="#2e78ef"/></svg></div><div style={{"fontSize":"11px","color":"#8a94a3"}}>days posting</div></div>
           </div>
         </div>
       </div>
@@ -216,6 +242,7 @@ export default function Landing() {
 </header>
 
 <LandingShowcase />
+<LandingFlows />
 
 <section id="features">
   <div className="wrap">
