@@ -27,6 +27,20 @@ async function ai(system: string, user: string, maxTokens = 2200): Promise<any> 
   return JSON.parse(raw || "{}");
 }
 
+const KEY_MISSING = /API key not configured/i;
+/** Run the AI call first and charge only when it worked. When no AI key is configured on this server (for example a
+ *  preview environment) return clearly flagged sample output instead of an error, and charge nothing. */
+async function ai2(req: Request, res: Response, amount: number, label: string, system: string, user: string, maxTokens: number, demo: () => any): Promise<any | null> {
+  let out: any;
+  try { out = await ai(system, user, maxTokens); }
+  catch (e: any) {
+    if (KEY_MISSING.test(String(e?.message))) { res.json({ ...demo(), demo: true }); return null; }
+    throw e;
+  }
+  if (!(await charge(req, res, amount, label))) return null;
+  return out;
+}
+
 const num = (v: any) => { const n = Number(String(v ?? "").replace(/[, ]/g, "")); return Number.isFinite(n) && n > 0 ? n : 0; };
 const clip = (s: any, n: number) => String(s ?? "").slice(0, n);
 
@@ -86,9 +100,9 @@ export function registerCoachLab(app: Express) {
     try {
       const reels = cleanReels(req.body?.reels);
       if (reels.length < 3) return res.status(400).json({ message: "Add at least 3 reels so the coach can compare winners and flops." });
-      if (!(await charge(req, res, 3, "Coach Lab: winner analysis"))) return;
       const { scored, winners, flops } = rank(reels);
-      const out = await ai(SYS, `Here are a creator's reels.\n\nWINNERS:\n${winners.map(brief).join("\n")}\n\nFLOPS:\n${flops.map(brief).join("\n")}\n\nALL REELS COUNT: ${reels.length}\n\nFind what the winners share that the flops do not. Return JSON: {"headline": string (one sentence), "formula": {"hookStyles": string[] (2-4 named hook patterns with a short example from their own reels), "idealLengthSec": [min,max], "openers": string[] (3 opening lines they use that work), "topics": string[], "structure": string[] (3-5 beats in order), "doMore": string[] (3), "stopDoing": string[] (3)}, "winnerNotes": [{"hook": string, "why": string}]}`, 2400);
+      const out = await ai2(req, res, 3, "Coach Lab: winner analysis", SYS, `Here are a creator's reels.\n\nWINNERS:\n${winners.map(brief).join("\n")}\n\nFLOPS:\n${flops.map(brief).join("\n")}\n\nALL REELS COUNT: ${reels.length}\n\nFind what the winners share that the flops do not. Return JSON: {"headline": string (one sentence), "formula": {"hookStyles": string[] (2-4 named hook patterns with a short example from their own reels), "idealLengthSec": [min,max], "openers": string[] (3 opening lines they use that work), "topics": string[], "structure": string[] (3-5 beats in order), "doMore": string[] (3), "stopDoing": string[] (3)}, "winnerNotes": [{"hook": string, "why": string}]}`, 2400, () => demoWinners(reels));
+      if (!out) return;
       return res.json({ ranked: scored.map((r) => ({ id: r.id, hook: r.hook, views: r.views, saves: r.saves, shares: r.shares, score: r.score })), winnerIds: winners.map((w) => w.id), ...out });
     } catch (e: any) { return res.status(500).json({ message: e.message || "Winner analysis failed" }); }
   });
@@ -98,10 +112,10 @@ export function registerCoachLab(app: Express) {
     try {
       const script = clip(req.body?.script, 3000);
       if (script.trim().length < 20) return res.status(400).json({ message: "Paste a script of at least a couple of sentences." });
-      if (!(await charge(req, res, 1, "Coach Lab: score vs winners"))) return;
       const formula = JSON.stringify(req.body?.formula || {}).slice(0, 3500);
       const winners = cleanReels(req.body?.winners).slice(0, 5).map(brief).join("\n");
-      const out = await ai(SYS, `The creator's winning formula:\n${formula}\n\nTheir winning reels:\n${winners}\n\nNEW SCRIPT:\n"""${script}"""\n\nScore how closely it matches what already works for THIS creator (not generic virality). Return JSON: {"score": 0-100, "verdict": string, "matches": string[] (what it does like the winners), "gaps": string[] (what winners do that this misses), "fixHook": string (rewritten opening line in their winning style), "fixes": string[] (3 concrete edits)}`, 1500);
+      const out = await ai2(req, res, 1, "Coach Lab: score vs winners", SYS, `The creator's winning formula:\n${formula}\n\nTheir winning reels:\n${winners}\n\nNEW SCRIPT:\n"""${script}"""\n\nScore how closely it matches what already works for THIS creator (not generic virality). Return JSON: {"score": 0-100, "verdict": string, "matches": string[] (what it does like the winners), "gaps": string[] (what winners do that this misses), "fixHook": string (rewritten opening line in their winning style), "fixes": string[] (3 concrete edits)}`, 1500, () => demoScore());
+      if (!out) return;
       return res.json(out);
     } catch (e: any) { return res.status(500).json({ message: e.message || "Scoring failed" }); }
   });
@@ -112,8 +126,8 @@ export function registerCoachLab(app: Express) {
       const reel = cleanReels([req.body?.reel])[0];
       if (!reel) return res.status(400).json({ message: "Paste the reel's hook or script text so the coach can break it down." });
       const niche = clip(req.body?.niche, 200) || "the creator's niche";
-      if (!(await charge(req, res, 2, "Coach Lab: viral breakdown"))) return;
-      const out = await ai(SYS, `Break down this viral reel and rewrite it for a creator in: ${niche}.\n\nREEL:\n${brief(reel)}\n\nReturn JSON: {"breakdown": {"hook": {"type": string, "why": string}, "pacing": string, "structure": [{"beat": string, "detail": string}], "whyItWorked": string[] (3), "triggers": string[] (emotions or curiosity gaps used)}, "rewrite": {"hook": string, "script": string (full spoken script, same structure, new topic for the niche, 45-60s), "caption": string, "cta": string}}`, 2600);
+      const out = await ai2(req, res, 2, "Coach Lab: viral breakdown", SYS, `Break down this viral reel and rewrite it for a creator in: ${niche}.\n\nREEL:\n${brief(reel)}\n\nReturn JSON: {"breakdown": {"hook": {"type": string, "why": string}, "pacing": string, "structure": [{"beat": string, "detail": string}], "whyItWorked": string[] (3), "triggers": string[] (emotions or curiosity gaps used)}, "rewrite": {"hook": string, "script": string (full spoken script, same structure, new topic for the niche, 45-60s), "caption": string, "cta": string}}`, 2600, () => demoViral(niche));
+      if (!out) return;
       return res.json(out);
     } catch (e: any) { return res.status(500).json({ message: e.message || "Breakdown failed" }); }
   });
@@ -124,9 +138,9 @@ export function registerCoachLab(app: Express) {
       const hook = clip(req.body?.hook, 300);
       const topic = clip(req.body?.topic, 200);
       if (!hook && !topic) return res.status(400).json({ message: "Add a hook or a topic." });
-      if (!(await charge(req, res, 1, "Coach Lab: hook variations"))) return;
       const formula = JSON.stringify(req.body?.formula || {}).slice(0, 2000);
-      const out = await ai(SYS, `${hook ? `Base hook: "${hook}"` : `Topic: ${topic}`}\n${topic && hook ? `Topic: ${topic}\n` : ""}Creator winning formula (use it if present): ${formula}\n\nWrite 6 variations using different angles (curiosity gap, contrarian, number, story, direct callout, pain point). Predict a 0-100 score for each and give the weak spot. Return JSON: {"variations": [{"hook": string, "angle": string, "score": number, "weakness": string}], "best": number (index of the strongest)}`, 1500);
+      const out = await ai2(req, res, 1, "Coach Lab: hook variations", SYS, `${hook ? `Base hook: "${hook}"` : `Topic: ${topic}`}\n${topic && hook ? `Topic: ${topic}\n` : ""}Creator winning formula (use it if present): ${formula}\n\nWrite 6 variations using different angles (curiosity gap, contrarian, number, story, direct callout, pain point). Predict a 0-100 score for each and give the weak spot. Return JSON: {"variations": [{"hook": string, "angle": string, "score": number, "weakness": string}], "best": number (index of the strongest)}`, 1500, () => demoHooks(hook || topic));
+      if (!out) return;
       return res.json(out);
     } catch (e: any) { return res.status(500).json({ message: e.message || "Hook test failed" }); }
   });
@@ -136,7 +150,6 @@ export function registerCoachLab(app: Express) {
     try {
       const reels = cleanReels(req.body?.reels);
       if (reels.length < 2) return res.status(400).json({ message: "Add at least 2 reels to build a report." });
-      if (!(await charge(req, res, 2, "Coach Lab: weekly report"))) return;
       const cutoff = Date.now() - 7 * 86400000;
       const recent = reels.filter((r) => r.postedAt && new Date(r.postedAt).getTime() >= cutoff);
       const period = recent.length >= 2 ? recent : reels;
@@ -144,7 +157,8 @@ export function registerCoachLab(app: Express) {
       const sum = (k: "views" | "saves" | "shares" | "likes") => period.reduce((a, r) => a + (r[k] || 0), 0);
       const metrics = { reels: period.length, views: sum("views"), saves: sum("saves"), shares: sum("shares"), likes: sum("likes"), usedLast7Days: recent.length >= 2 };
       const formula = JSON.stringify(req.body?.formula || {}).slice(0, 2000);
-      const out = await ai(SYS, `Weekly report for a creator. Metrics: ${JSON.stringify(metrics)}\n\nTOP:\n${winners.map(brief).join("\n")}\n\nWEAKEST:\n${flops.map(brief).join("\n")}\n\nTheir formula: ${formula}\n\nReturn JSON: {"headline": string, "worked": [{"title": string, "why": string}] (max 3), "flopped": [{"title": string, "why": string}] (max 3), "nextPosts": [{"hook": string, "format": string, "why": string}] (exactly 3), "oneChange": string (the single biggest change for next week)}`, 1800);
+      const out = await ai2(req, res, 2, "Coach Lab: weekly report", SYS, `Weekly report for a creator. Metrics: ${JSON.stringify(metrics)}\n\nTOP:\n${winners.map(brief).join("\n")}\n\nWEAKEST:\n${flops.map(brief).join("\n")}\n\nTheir formula: ${formula}\n\nReturn JSON: {"headline": string, "worked": [{"title": string, "why": string}] (max 3), "flopped": [{"title": string, "why": string}] (max 3), "nextPosts": [{"hook": string, "format": string, "why": string}] (exactly 3), "oneChange": string (the single biggest change for next week)}`, 1800, () => demoReport());
+      if (!out) return;
       return res.json({ metrics, ...out, generatedAt: new Date().toISOString() });
     } catch (e: any) { return res.status(500).json({ message: e.message || "Report failed" }); }
   });
@@ -156,11 +170,75 @@ export function registerCoachLab(app: Express) {
       if (!niche) return res.status(400).json({ message: "Add your niche first." });
       const perWeek = Math.min(7, Math.max(2, num(req.body?.perWeek) || 4));
       const weeks = Math.min(4, Math.max(1, num(req.body?.weeks) || 2));
-      if (!(await charge(req, res, 3, "Coach Lab: content calendar"))) return;
       const formula = JSON.stringify(req.body?.formula || {}).slice(0, 2500);
       const winners = cleanReels(req.body?.winners).slice(0, 5).map(brief).join("\n");
-      const out = await ai(SYS, `Build a ${weeks}-week reel calendar, ${perWeek} posts per week, for: ${niche}. Base it on what already works for this creator.\n\nWinning formula: ${formula}\nWinning reels:\n${winners}\n\nReturn JSON: {"posts": [{"week": number, "day": string (Mon-Sun), "topic": string, "hook": string, "format": string (talking head, b-roll voiceover, carousel-to-reel, etc.), "goal": "reach" | "trust" | "sales", "basedOn": string (which winner pattern it repeats)}]} with exactly ${weeks * perWeek} posts. Vary goals, put one sales post per week.`, 3200);
+      const out = await ai2(req, res, 3, "Coach Lab: content calendar", SYS, `Build a ${weeks}-week reel calendar, ${perWeek} posts per week, for: ${niche}. Base it on what already works for this creator.\n\nWinning formula: ${formula}\nWinning reels:\n${winners}\n\nReturn JSON: {"posts": [{"week": number, "day": string (Mon-Sun), "topic": string, "hook": string, "format": string (talking head, b-roll voiceover, carousel-to-reel, etc.), "goal": "reach" | "trust" | "sales", "basedOn": string (which winner pattern it repeats)}]} with exactly ${weeks * perWeek} posts. Vary goals, put one sales post per week.`, 3200, () => demoCalendar(niche, weeks, perWeek));
+      if (!out) return;
       return res.json(out);
     } catch (e: any) { return res.status(500).json({ message: e.message || "Calendar failed" }); }
   });
+}
+
+// ── Sample output, only used when no AI key is configured on the server ──────────────────────────────
+function demoWinners(reels: Reel[]) {
+  const { scored, winners } = rank(reels);
+  return {
+    ranked: scored.map((r) => ({ id: r.id, hook: r.hook, views: r.views, saves: r.saves, shares: r.shares, score: r.score })),
+    winnerIds: winners.map((w) => w.id),
+    headline: "Your winners open with a personal result or a specific promise, and stay under 45 seconds.",
+    formula: {
+      hookStyles: ["Personal loss or mistake: \"I lost 14 clients before I learned this\"", "Specific promise with a number: \"3 DM scripts that book calls\"", "Insider reveal: \"Nobody tells you this about...\""],
+      idealLengthSec: [33, 44],
+      openers: ["I lost... before I learned...", "3 ... that ...", "Nobody tells you this about..."],
+      topics: ["Client acquisition", "DM scripts", "Offers"],
+      structure: ["Bold claim in the first second", "One proof or story beat", "The method in 2-3 steps", "Single call to action"],
+      doMore: ["Lead with a result or a mistake", "Use numbers in the first line", "Keep it under 45 seconds"],
+      stopDoing: ["Starting with \"Hey guys\"", "Updates with no promise", "Videos over 60 seconds"],
+    },
+    winnerNotes: winners.slice(0, 3).map((w) => ({ hook: w.hook, why: "High saves and shares relative to views." })),
+  };
+}
+function demoScore() {
+  return { score: 72, verdict: "Close to your winners, but the opening is soft.", matches: ["Short and direct", "Ends with one call to action"], gaps: ["No number or personal result in the first line", "Runs longer than your 33-44s sweet spot"], fixHook: "I lost 14 clients before I learned this one rule", fixes: ["Lead with the result", "Cut the intro sentence", "Add one proof beat"] };
+}
+function demoViral(niche: string) {
+  return {
+    breakdown: { hook: { type: "Curiosity gap with a personal stake", why: "It promises a hidden rule and shows a cost, so people stay to find out." }, pacing: "A cut every 2-3 seconds, payoff at the 20 second mark.", structure: [{ beat: "Hook", detail: "Bold claim in one line" }, { beat: "Proof", detail: "A quick story with a number" }, { beat: "Method", detail: "Three short steps" }, { beat: "CTA", detail: "Comment a keyword" }], whyItWorked: ["Specific number", "Clear payoff", "Easy to save"], triggers: ["Curiosity", "Fear of loss"] },
+    rewrite: { hook: `The one mistake that costs ${niche || "coaches"} their best clients`, script: "The one mistake that costs you your best clients. I made it for two years. Here is what to do instead: first, reply within the hour. Second, ask one question. Third, send one next step. Comment GUIDE and I will send the script.", caption: "Save this for your next client call.", cta: "Comment GUIDE" },
+  };
+}
+function demoHooks(base: string) {
+  const b = (base || "this").slice(0, 60);
+  const v = [
+    ["Curiosity gap", `Nobody tells you this about ${b}`, 88, "Vague about the payoff"],
+    ["Number", `3 things I wish I knew about ${b}`, 84, "Common format"],
+    ["Story", `I lost a client over ${b}. Here is what changed`, 81, "Needs a clear result"],
+    ["Contrarian", `Stop doing ${b} the way everyone says`, 78, "Risk of sounding preachy"],
+    ["Direct callout", `If you struggle with ${b}, watch this`, 70, "Less curiosity"],
+    ["Pain point", `Why ${b} keeps failing for you`, 66, "Negative framing"],
+  ];
+  return { variations: v.map(([angle, hook, score, weakness]) => ({ angle, hook, score, weakness })), best: 0 };
+}
+function demoReport() {
+  return {
+    metrics: { reels: 8, views: 645000, saves: 22000, shares: 12000, likes: 32000, usedLast7Days: false },
+    headline: "Reels with a number or a personal result in the first line got 20x the views of generic updates.",
+    worked: [{ title: "I lost 14 clients before I learned this one rule", why: "Personal stake, short, strong saves." }, { title: "3 DM scripts that book calls while you sleep", why: "Specific promise, most saved reel." }],
+    flopped: [{ title: "Hey guys, quick update on my week", why: "No promise in the first second and 74s long." }, { title: "Today I want to talk about content strategy", why: "Generic opener, no payoff." }],
+    nextPosts: [{ hook: "I lost a client over one missed DM. Here is the fix", format: "Talking head, 35s", why: "Repeats your best personal-loss hook." }, { hook: "3 follow-up messages that win back cold leads", format: "Screen recording voiceover, 40s", why: "Numbered promise like your top saved reel." }, { hook: "The offer I stopped selling and why", format: "Talking head, 38s", why: "Insider reveal, your third winning style." }],
+    oneChange: "Open every reel with a number or a personal result, and keep it under 45 seconds.",
+    generatedAt: new Date().toISOString(),
+  };
+}
+function demoCalendar(niche: string, weeks: number, perWeek: number) {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const goals = ["reach", "trust", "reach", "sales", "trust", "reach", "trust"];
+  const hooks = ["I lost 14 clients before I learned this", "3 DM scripts that book calls", "Nobody tells you this about your first 1,000", "The $0 offer that got me 9 clients", "Stop posting every day, do this", "The follow-up that doubled replies", "What my best clients have in common"];
+  const w = Math.min(4, Math.max(1, weeks || 2)), p = Math.min(7, Math.max(2, perWeek || 4));
+  const posts: any[] = [];
+  for (let i = 0; i < w; i++) for (let j = 0; j < p; j++) {
+    const k = (i * p + j) % hooks.length;
+    posts.push({ week: i + 1, day: days[Math.floor((j * 7) / p)], topic: niche || "Client acquisition", hook: hooks[k], format: j % 2 ? "Screen recording voiceover" : "Talking head", goal: j === p - 1 ? "sales" : goals[k], basedOn: "Personal result or numbered promise" });
+  }
+  return { posts };
 }
