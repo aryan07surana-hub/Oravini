@@ -346,9 +346,9 @@ function AppRoutes() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={Landing} />
       <Route path="/new-home" component={Landing} />
-      <Route path="/lusion" component={LusionInspired} />
+      <Route path="/lusion" component={Landing} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
-      <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
+      <Route path="/video-marketing-landing" component={Landing} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
