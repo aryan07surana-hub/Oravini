@@ -5,6 +5,7 @@ import {
   Target, BarChart2, Crown, Flame, CalendarDays, Copy, Check, Users,
 } from "lucide-react";
 import { useState } from "react";
+import { DEMO_CSS, DmDemo, WebinarDemo, CalendarDemo, IdeasDemo, VideoDemo, StreakDemo } from "./DashboardDemos";
 
 const ACC = "var(--c-accent)";
 
@@ -51,6 +52,15 @@ const QUICK = [
   { href: "/video-hosting", label: "Video Hosting", desc: "Host and share videos", icon: Video },
 ];
 
+const DEMOS = [
+  { href: "/dm-automation", label: "DM Automation", desc: "A comment turns into a DM, on its own.", Demo: DmDemo },
+  { href: "/tools/webinars", label: "Webinars", desc: "Register, host live and follow up in one flow.", Demo: WebinarDemo },
+  { href: "/ai-ideas", label: "Content Ideas", desc: "Hooks and scripts built for your niche.", Demo: IdeasDemo },
+  { href: "/tracking/content/instagram/scheduler", label: "Content Scheduler", desc: "Plan the week and let posts go out.", Demo: CalendarDemo },
+  { href: "/video-hosting", label: "Video Hosting", desc: "Host and share videos anywhere.", Demo: VideoDemo },
+  { href: "/tracking", label: "Streak and goals", desc: "Stay consistent and watch your goal fill.", Demo: StreakDemo },
+];
+
 const MORE = [
   { href: "/ai-coach", label: "Content Coach" }, { href: "/tracking/competitor", label: "Competitor Study" },
   { href: "/ai-design", label: "Design Studio" }, { href: "/video-editor", label: "Video Editor" },
@@ -85,9 +95,10 @@ export default function DashboardOverview(props: Props) {
   const isFree = props.plan === "free";
 
   return (
-    <div className="calm space-y-9" data-testid="dashboard-overview">
+    <div className="calm dm space-y-9" data-testid="dashboard-overview">
+      <style>{DEMO_CSS}</style>
       <style>{`
-        .calm{--c-accent:#3d62d9;--c-text:#14161c;--c-muted:#5f6573;--c-faint:#9aa0ad;--c-card:#ffffff;--c-card2:#f5f6f8;--c-border:#e7e9ee;--c-tint:rgba(61,98,217,0.07);--c-line-a:rgba(61,98,217,0.28);--c-bar:#c9d3f3}
+        .calm{--c-accent:#2e78ef;--c-text:#141414;--c-muted:rgba(20,20,20,0.6);--c-faint:rgba(20,20,20,0.4);--c-card:#ffffff;--c-card2:#f6f5f3;--c-border:rgba(0,0,0,0.07);--c-tint:rgba(46,120,239,0.08);--c-line-a:rgba(46,120,239,0.3);--c-bar:#b9d4fb;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
         .ct{color:var(--c-text)}.cm{color:var(--c-muted)}.cf{color:var(--c-faint)}
         .calm{box-shadow:none}.calm a>div,.calm .calm-card{box-shadow:0 1px 2px rgba(20,30,60,0.04)}
         @keyframes calmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -113,7 +124,7 @@ export default function DashboardOverview(props: Props) {
         <h2 className="text-2xl lg:text-[32px] font-medium ct leading-[1.15] tracking-tight text-balance">{step.title}</h2>
         <p className="text-[15px] cm mt-3 max-w-[460px] leading-relaxed">{step.why}</p>
         <Link href={step.href}>
-          <button className="mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90" style={{ background: ACC, boxShadow: "0 1px 2px rgba(20,30,60,0.15)" }} data-testid="button-next-step">
+          <button className="mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-[#ffffff] transition-opacity hover:opacity-90" style={{ background: ACC, color: "#fff", boxShadow: "0 1px 2px rgba(20,30,60,0.15)" }} data-testid="button-next-step">
             {step.cta} <ArrowRight className="w-4 h-4" />
           </button>
         </Link>
@@ -127,21 +138,20 @@ export default function DashboardOverview(props: Props) {
         <Stat label="Webinar registrations" value={webinars ? regTotal : "..."} sub={webinars ? `across ${webinars.length} webinar${webinars.length === 1 ? "" : "s"}` : "loading"} icon={Radio} href="/tools/webinars" />
       </div>
 
-      {/* Quick start */}
+      {/* Product mini-demos */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[15px] font-medium ct">Quick start</h3>
+          <h3 className="text-[15px] font-medium ct">Your toolkit</h3>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {QUICK.map(t => (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {DEMOS.map(t => (
             <Link key={t.href} href={t.href}>
-              <div className="cursor-pointer rounded-[20px] p-5 h-full transition-all hover:-translate-y-0.5" style={{ background: "var(--c-card)", border: "1px solid var(--c-border)" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = `var(--c-line-a)`)} onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--c-border)")}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `var(--c-tint)`, border: `1px solid var(--c-line-a)` }}>
-                  <t.icon className="w-4 h-4" style={{ color: ACC }} />
+              <div className="calm-card cursor-pointer rounded-[24px] p-3 h-full group" style={{ background: "var(--c-card)", border: "1px solid var(--c-border)" }}>
+                <div className="h-[190px] rounded-[18px] p-3" style={{ background: "linear-gradient(160deg,#e6f0f9 0%,#f4f8fd 100%)" }}><t.Demo /></div>
+                <div className="flex items-end justify-between gap-3 px-2 pt-4 pb-2">
+                  <div><p className="text-[15px] font-medium ct">{t.label}</p><p className="text-[13px] cm mt-1 leading-snug">{t.desc}</p></div>
+                  <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors group-hover:bg-[#2e78ef] group-hover:text-white" style={{ background: "var(--c-card2)" }}><ArrowRight className="w-4 h-4 -rotate-45" /></span>
                 </div>
-                <p className="text-sm font-bold ct">{t.label}</p>
-                <p className="text-xs cm mt-0.5">{t.desc}</p>
               </div>
             </Link>
           ))}
@@ -239,7 +249,15 @@ export default function DashboardOverview(props: Props) {
               );
             })}
           </div>
-          {totalWeek === 0 && <p className="text-xs cm mt-3">Nothing yet. Use any tool and this fills in.</p>}
+          {totalWeek === 0 && (
+            <div className="relative -mt-28 mb-2 flex justify-center">
+              <div className="rounded-2xl bg-white px-5 py-4 text-center" style={{ boxShadow: "0px 0px 42.8px rgba(43,47,65,0.12)" }}>
+                <p className="text-sm font-medium ct">Your results will show up here</p>
+                <p className="text-xs cm mt-1">Use any tool and the week starts filling in.</p>
+                <Link href="/ai-ideas"><span className="cursor-pointer mt-3 inline-block rounded-full px-4 py-1.5 text-xs font-semibold" style={{ background: "var(--c-accent)", color: "#fff" }}>Try Content Ideas</span></Link>
+              </div>
+            </div>
+          )}
         </div>
 
         {isFree ? (
