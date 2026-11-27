@@ -37,16 +37,35 @@ export function LaunchVideo() {
   const [vol, setVol] = useState(1);
   const base = mediaFor("launch");
   const fmt = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
-  const start = () => { const v = ref.current; if (!v) return; v.muted = false; v.volume = vol; setStarted(true); setWait(true); v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); };
+  const start = () => {
+    const v = ref.current; if (!v) return;
+    v.loop = false; v.currentTime = 0; v.muted = false; v.volume = vol;
+    setStarted(true); setWait(v.readyState < 3);
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    // Watchdog: if nothing moves after 4s, reload the source and try again once.
+    window.setTimeout(() => { const x = ref.current; if (x && !x.paused && x.currentTime === 0) { x.load(); x.muted = false; x.play().catch(() => { x.muted = true; x.play().catch(() => {}); }); } }, 4000);
+  };
+  const startedRef = useRef(false); startedRef.current = started;
+  // Muted looping preview that plays whenever the video is on screen.
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    v.muted = true; v.loop = true;
+    const io = new IntersectionObserver(([e]) => {
+      if (startedRef.current) return;
+      if (e.isIntersecting) { v.muted = true; v.loop = true; v.play().catch(() => {}); } else v.pause();
+    }, { threshold: 0.35 });
+    io.observe(v); return () => io.disconnect();
+  }, []);
+  const backToPreview = () => { const v = ref.current; setStarted(false); if (!v) return; v.muted = true; v.loop = true; v.currentTime = 0; v.play().catch(() => {}); };
   const toggle = () => { const v = ref.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); };
   const full = () => { const f = ref.current?.parentElement as any; if (!f) return; if (document.fullscreenElement) document.exitFullscreen(); else (f.requestFullscreen || f.webkitRequestFullscreen)?.call(f); };
   return (
     <div className="lp-frame">
      <div className="lp-stage">
-      <video ref={ref} poster={`${base}launch.jpg`} playsInline preload="auto"
+      <video ref={ref} poster={`${base}launch.jpg`} playsInline muted loop preload="auto"
         onClick={() => started && toggle()}
-        onPlay={() => setPlaying(true)} onWaiting={() => setWait(true)} onPlaying={() => setWait(false)} onCanPlay={() => setWait(false)} onSeeked={() => setWait(false)} onPause={() => setPlaying(false)}
-        onEnded={() => { setStarted(false); setPlaying(false); }}
+        onPlay={() => setPlaying(true)} onLoadStart={() => {}} onWaiting={() => setWait(true)} onPlaying={() => setWait(false)} onCanPlay={() => setWait(false)} onSeeked={() => setWait(false)} onPause={() => setPlaying(false)}
+        onEnded={backToPreview}
         onTimeUpdate={e => { setT(e.currentTarget.currentTime); if (e.currentTarget.currentTime > 0) setWait(false); }}
         onLoadedMetadata={e => setDur(e.currentTarget.duration)} onDurationChange={e => setDur(e.currentTarget.duration)}>
         <source src={`${base}launch_16x9.mp4`} type="video/mp4" />
