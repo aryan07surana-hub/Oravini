@@ -29,7 +29,7 @@ const GOLD = "#d4b461";
 // Intro walkthrough slot: hosted on the promo media host. Change the id once the real walkthrough is uploaded
 // ({id}_16x9.webm / .mp4 and {id}.jpg).
 const COACH_INTRO_VIDEO_ID = "coach";
-const COACH_MEDIA = "https://oravini-media.pages.dev/";
+const COACH_MEDIA = "https://oravini-media2.pages.dev/";
 function CoachIntroVideo() {
   const [bad, setBad] = useState(false);
   if (bad) return (
