@@ -311,6 +311,7 @@ function AppRoutes() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/new-home" component={Landing} />
       <Route path="/lusion" component={LusionInspired} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
       <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
