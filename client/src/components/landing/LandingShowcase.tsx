@@ -40,9 +40,9 @@ function LaunchVideo() {
   const base = mediaFor("launch");
   return (
     <div ref={box} className="lp-frame">
-      <video ref={ref} poster={`${base}launch.jpg`} muted loop playsInline preload="metadata">
-        <source src={`${base}launch_16x9.webm`} type="video/webm" />
+      <video ref={ref} poster={`${base}launch.jpg`} muted loop playsInline preload="auto">
         <source src={`${base}launch_16x9.mp4`} type="video/mp4" />
+        <source src={`${base}launch_16x9.webm`} type="video/webm" />
       </video>
       <button type="button" className="lp-snd" onClick={toggle}>{sound ? "Sound on" : "Tap for sound"}</button>
     </div>
