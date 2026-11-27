@@ -51,3 +51,9 @@ export const whopPlatformEvents = pgTable("whop_platform_events", {
   type: varchar("type", { length: 64 }).notNull(),
   receivedAt: timestamp("received_at").notNull().defaultNow(),
 });
+
+export const whopLogins = pgTable("whop_logins", {
+  whopUserId: varchar("whop_user_id", { length: 64 }).primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
