@@ -38,7 +38,7 @@ import OraviniLanding from "@/pages/PricingV2Landing";
 import {
   ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage,
   DmCoachesPage, DmRealEstatePage, DmFitnessPage, DmSalonsPage,
-  WebinarCoachesPage, WebinarCourseCreatorsPage,
+  WebinarCoachesPage, WebinarCourseCreatorsPage, AutomatedWebinarPage, CommentToDmPage,
   VsChatfuelPage, VsKajabiPage, VsWebinarjamPage,
 } from "@/pages/seoPages";
 import { BlogIndexPage, BlogPostPage } from "@/pages/blogPages";
@@ -329,6 +329,8 @@ function AppRoutes() {
       <Route path="/dm-automation-for-real-estate-agents" component={DmRealEstatePage} />
       <Route path="/dm-automation-for-fitness-coaches" component={DmFitnessPage} />
       <Route path="/dm-automation-for-salons" component={DmSalonsPage} />
+      <Route path="/automated-webinar-platform" component={AutomatedWebinarPage} />
+      <Route path="/comment-to-dm-automation" component={CommentToDmPage} />
       <Route path="/webinar-platform-for-coaches" component={WebinarCoachesPage} />
       <Route path="/webinar-platform-for-course-creators" component={WebinarCourseCreatorsPage} />
       <Route path="/vs/chatfuel" component={VsChatfuelPage} />
