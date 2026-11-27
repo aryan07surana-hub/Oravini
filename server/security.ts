@@ -75,6 +75,7 @@ function applyHelmet(app: Express) {
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com", "https://www.facebook.com", "https://connect.facebook.net"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+          mediaSrc: ["'self'", "blob:", "https://oravini-media.pages.dev", "https://res.cloudinary.com"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           connectSrc: ["'self'", "https://api.anthropic.com", "https://graph.facebook.com", "https://api.linkedin.com", "https://api.twitter.com", "wss:", "ws:"],
           frameSrc: [
