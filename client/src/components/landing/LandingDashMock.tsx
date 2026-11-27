@@ -49,8 +49,9 @@ const TARGETS = [150000, 86000, 112000, 71000, 128000, 94000, 165000, 78000];
 function DashView({ p, t }: { p: number; t: number }) {
   // Continuous: the follower count eases toward a new target every cycle, starting from wherever it is.
   const st = useRef({ v: 60000, last: t, hist: [] as number[], lastPush: t });
-  const S = st.current; const cyc = Math.floor(t / 7); const target = TARGETS[cyc % TARGETS.length];
+  const S = st.current; const cyc = Math.floor(t / 7); const target = TARGETS[((cyc % TARGETS.length) + TARGETS.length) % TARGETS.length];
   const dt = Math.max(0, Math.min(0.1, t - S.last)); S.last = t;
+  if (!Number.isFinite(S.v)) S.v = 60000;
   S.v += (target - S.v) * (1 - Math.exp(-dt / 1.6));
   if (t - S.lastPush > 0.3) { S.lastPush = t; S.hist.push(S.v); if (S.hist.length > 30) S.hist.shift(); }
   const followers = Math.round(S.v);
@@ -273,7 +274,7 @@ export function DashMock() {
   useEffect(() => {
     if (!vis) return;
     let raf = 0; const base = performance.now() - t0.current * 1000;
-    const loop = (n: number) => { t0.current = (n - base) / 1000; setT(t0.current); raf = requestAnimationFrame(loop); };
+    const loop = (n: number) => { t0.current = Math.max(0, (n - base) / 1000); setT(t0.current); raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [vis]);
