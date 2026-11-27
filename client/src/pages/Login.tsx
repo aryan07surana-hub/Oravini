@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { OraviniMark } from "@/components/OraviniLogo";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -257,7 +258,7 @@ export default function Login() {
         <span style={{ letterSpacing: "0.04em" }} className="group-hover:text-white transition-colors">Back to Oravini</span>
       </button>
       <div className="relative z-10 flex flex-col items-center gap-6 text-center px-12">
-        <img src={oraviniLogoPath} alt="Oravini" style={{ width: 110, height: 110, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 16, filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.25))" }} />
+        <OraviniMark size={84} />
         <div>
           <div style={{ fontSize: "clamp(36px, 4vw, 52px)", fontWeight: 900, letterSpacing: "0.1em", color: "#fff", textTransform: "uppercase", lineHeight: 1 }}>
             ORAVINI
@@ -286,7 +287,7 @@ export default function Login() {
 
           {/* Mobile top */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-            <img src={oraviniLogoPath} alt="Oravini" className="w-16 h-16" style={{ objectFit: "cover", objectPosition: "50% 32%", borderRadius: 10, filter: "drop-shadow(0 6px 16px rgba(46,120,239,0.25))" }} />
+            <OraviniMark size={52} />
             <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.1em", color: "#2e78ef", textTransform: "uppercase" }}>ORAVINI</div>
             <div style={{ fontSize: 11, color: "#98a2b3", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Oravini</div>
           </div>
