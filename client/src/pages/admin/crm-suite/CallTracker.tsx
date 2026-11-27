@@ -20,9 +20,11 @@ const STEPS: { key: "called" | "followedUp" | "replied" | "booked"; label: strin
 ];
 
 const trackerOf = (c: CrmContact): Tracker => ((c.customFields || {}) as any).tracker || {};
+const parseDay = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v); };
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-const isDue = (t: Tracker) => !!t.nextFollowUp && dayStart(new Date(t.nextFollowUp)) <= dayStart(new Date());
-const isOverdue = (t: Tracker) => !!t.nextFollowUp && dayStart(new Date(t.nextFollowUp)) < dayStart(new Date());
+const isDue = (t: Tracker) => !!t.nextFollowUp && dayStart(parseDay(t.nextFollowUp)) <= dayStart(new Date());
+const isOverdue = (t: Tracker) => !!t.nextFollowUp && dayStart(parseDay(t.nextFollowUp)) < dayStart(new Date());
 const fmt = (iso?: string) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 
 function script(c: CrmContact) {
@@ -65,7 +67,7 @@ export function CallTracker({ onOpenContact }: { onOpenContact: (id: string) => 
     const label = STEPS.find(s => s.key === key)!.label;
     const patch: any = { [key]: { at: new Date().toISOString(), by: rep } };
     if ((key === "called" || key === "followedUp") && !t.nextFollowUp) {
-      const d = new Date(); d.setDate(d.getDate() + 2); patch.nextFollowUp = d.toISOString().slice(0, 10);
+      const d = new Date(); d.setDate(d.getDate() + 2); patch.nextFollowUp = ymd(d);
     }
     save.mutate({ c, patch, log: { title: `${label} by ${rep}`, type: key === "called" ? "call" : "system" } });
   };
@@ -80,7 +82,7 @@ export function CallTracker({ onOpenContact }: { onOpenContact: (id: string) => 
     return true;
   };
   const list = useMemo(() => contacts.filter(matches), [contacts, q, tagFilter]);
-  const today = useMemo(() => list.filter(c => isDue(trackerOf(c))).sort((a, b) => +new Date(trackerOf(a).nextFollowUp!) - +new Date(trackerOf(b).nextFollowUp!)), [list]);
+  const today = useMemo(() => list.filter(c => isDue(trackerOf(c))).sort((a, b) => +parseDay(trackerOf(a).nextFollowUp!) - +parseDay(trackerOf(b).nextFollowUp!)), [list]);
   const fresh = useMemo(() => list.filter(c => !trackerOf(c).called && !trackerOf(c).nextFollowUp && c.status !== "customer"), [list]);
   const queue = useMemo(() => [...today, ...fresh], [today, fresh]);
   const cur = queue[Math.min(qi, Math.max(queue.length - 1, 0))];
@@ -92,7 +94,7 @@ export function CallTracker({ onOpenContact }: { onOpenContact: (id: string) => 
       const r: any = await apiRequest("POST", "/api/crm-suite/ai/clean-note", { contactId: c.id, note });
       const d = new Date(); d.setDate(d.getDate() + Math.max(1, Math.min(30, Number(r.followUpDays) || 3)));
       await save.mutateAsync({
-        c, patch: { note, summary: r.summary, nextStep: r.nextStep, nextFollowUp: d.toISOString().slice(0, 10), called: { at: new Date().toISOString(), by: rep } },
+        c, patch: { note, summary: r.summary, nextStep: r.nextStep, nextFollowUp: ymd(d), called: { at: new Date().toISOString(), by: rep } },
         log: { title: `Call by ${rep}: ${r.summary}`, body: `Next step: ${r.nextStep}\n\nRaw note: ${note}` },
       });
       setNote("");
