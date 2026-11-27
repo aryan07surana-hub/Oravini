@@ -31,13 +31,13 @@ function nextStep(p: Props, webinarCount: number) {
 function Stat({ label, value, sub, icon: Icon, href }: { label: string; value: string | number; sub: string; icon: any; href: string }) {
   return (
     <Link href={href}>
-      <div className="group cursor-pointer rounded-2xl p-4 transition-colors" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}
-        onMouseEnter={e => (e.currentTarget.style.borderColor = `${GOLD}40`)} onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)")}>
+      <div className="group cursor-pointer rounded-[20px] p-5 transition-colors" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}
+        onMouseEnter={e => (e.currentTarget.style.borderColor = `${GOLD}40`)} onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{label}</span>
           <Icon className="w-3.5 h-3.5" style={{ color: GOLD }} />
         </div>
-        <p className="text-2xl font-black text-white leading-none tabular-nums" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, "-")}`}>{value}</p>
+        <p className="text-[28px] font-medium text-white leading-none tabular-nums tracking-tight" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, "-")}`}>{value}</p>
         <p className="text-[11px] text-zinc-500 mt-1.5">{sub}</p>
       </div>
     </Link>
@@ -85,9 +85,19 @@ export default function DashboardOverview(props: Props) {
   const isFree = props.plan === "free";
 
   return (
-    <div className="space-y-5" data-testid="dashboard-overview">
+    <div className="calm space-y-9" data-testid="dashboard-overview">
+      <style>{`
+        @keyframes calmIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+        .calm>*{animation:calmIn 600ms cubic-bezier(0.16,1,0.3,1) both}
+        .calm>*:nth-child(2){animation-delay:70ms}.calm>*:nth-child(3){animation-delay:140ms}
+        .calm>*:nth-child(4){animation-delay:210ms}.calm>*:nth-child(5){animation-delay:280ms}
+        .calm>*:nth-child(6){animation-delay:350ms}.calm>*:nth-child(7){animation-delay:420ms}
+        .calm a>div,.calm button{transition:border-color 200ms ease-in-out,background-color 200ms ease-in-out,transform 300ms cubic-bezier(0.16,1,0.3,1),opacity 200ms}
+        .calm-bar{transition:height 700ms cubic-bezier(0.16,1,0.3,1)}
+        @media (prefers-reduced-motion:reduce){.calm>*{animation:none}.calm *{transition:none!important}}
+      `}</style>
       {/* Do this next */}
-      <div className="relative overflow-hidden rounded-3xl p-6 lg:p-7" style={{ background: `linear-gradient(135deg, ${GOLD}1c 0%, rgba(212,180,97,0.03) 70%)`, border: `1px solid ${GOLD}33` }}>
+      <div className="relative overflow-hidden rounded-[28px] p-8 lg:p-10" style={{ background: `linear-gradient(135deg, ${GOLD}12 0%, rgba(212,180,97,0.02) 70%)`, border: `1px solid ${GOLD}26` }}>
         <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.08 }} />
         <div className="flex items-center justify-between mb-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Do this next</p>
@@ -97,17 +107,17 @@ export default function DashboardOverview(props: Props) {
             <span className="text-[11px] text-zinc-500">{streak === 1 ? "day streak" : "day streak"}</span>
           </div>
         </div>
-        <h2 className="text-xl lg:text-2xl font-black text-white leading-tight">{step.title}</h2>
-        <p className="text-sm text-zinc-400 mt-1.5 max-w-xl">{step.why}</p>
+        <h2 className="text-2xl lg:text-[32px] font-medium text-white leading-[1.15] tracking-tight text-balance">{step.title}</h2>
+        <p className="text-[15px] text-zinc-400 mt-3 max-w-[460px] leading-relaxed">{step.why}</p>
         <Link href={step.href}>
-          <button className="mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-black transition-opacity hover:opacity-90" style={{ background: GOLD }} data-testid="button-next-step">
+          <button className="mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90" style={{ background: GOLD }} data-testid="button-next-step">
             {step.cta} <ArrowRight className="w-4 h-4" />
           </button>
         </Link>
       </div>
 
       {/* Live numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Credits left" value={credits ? (credits.total ?? 0).toLocaleString() : "..."} sub={credits ? `of ${(credits.planAllowance ?? 0).toLocaleString()} this month` : "loading"} icon={Zap} href="/credits" />
         <Stat label="Posts tracked" value={props.contentPostCount} sub="across your platforms" icon={Eye} href="/tracking/content" />
         <Stat label="DM leads" value={leads ? leads.length : "..."} sub="captured by DM automation" icon={MessageCircle} href="/dm-automation" />
@@ -116,14 +126,14 @@ export default function DashboardOverview(props: Props) {
 
       {/* Quick start */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-white">Quick start</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[15px] font-medium text-white">Quick start</h3>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK.map(t => (
             <Link key={t.href} href={t.href}>
-              <div className="cursor-pointer rounded-2xl p-4 h-full transition-all hover:-translate-y-0.5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = `${GOLD}45`)} onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)")}>
+              <div className="cursor-pointer rounded-[20px] p-5 h-full transition-all hover:-translate-y-0.5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = `${GOLD}45`)} onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}30` }}>
                   <t.icon className="w-4 h-4" style={{ color: GOLD }} />
                 </div>
@@ -144,12 +154,12 @@ export default function DashboardOverview(props: Props) {
       </div>
 
       {/* Content calendar strip */}
-      <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="content-calendar">
+      <div className="rounded-[20px] p-6" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }} data-testid="content-calendar">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2"><CalendarDays className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-sm font-bold text-white">Scheduled posts, next 7 days</h3></div>
+          <div className="flex items-center gap-2"><CalendarDays className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-[15px] font-medium text-white">Scheduled posts, next 7 days</h3></div>
           <Link href="/tracking/content/instagram/scheduler"><span className="cursor-pointer text-xs font-semibold" style={{ color: GOLD }}>Open scheduler</span></Link>
         </div>
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-3">
           {days.map((d, i) => {
             const ps = postsOn(d);
             return (
@@ -165,9 +175,9 @@ export default function DashboardOverview(props: Props) {
       </div>
 
       {/* Upcoming webinar + recent DM leads */}
-      <div className="grid lg:grid-cols-2 gap-3">
-        <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="upcoming-webinar">
-          <div className="flex items-center gap-2 mb-3"><Radio className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-sm font-bold text-white">Upcoming webinar</h3></div>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="rounded-[20px] p-6" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }} data-testid="upcoming-webinar">
+          <div className="flex items-center gap-2 mb-3"><Radio className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-[15px] font-medium text-white">Upcoming webinar</h3></div>
           {nextWebinar ? (
             <>
               <p className="text-base font-bold text-white leading-snug">{nextWebinar.title}</p>
@@ -185,9 +195,9 @@ export default function DashboardOverview(props: Props) {
           )}
         </div>
 
-        <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="recent-dm-leads">
+        <div className="rounded-[20px] p-6" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }} data-testid="recent-dm-leads">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Users className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-sm font-bold text-white">Recent DM leads</h3></div>
+            <div className="flex items-center gap-2"><Users className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-[15px] font-medium text-white">Recent DM leads</h3></div>
             <Link href="/dm-automation"><span className="cursor-pointer text-xs font-semibold" style={{ color: GOLD }}>View all</span></Link>
           </div>
           {recentLeads.length === 0 ? (
@@ -207,20 +217,20 @@ export default function DashboardOverview(props: Props) {
       </div>
 
       {/* Results this week + upgrade */}
-      <div className="grid lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2 rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-[20px] p-6" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2"><BarChart2 className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-sm font-bold text-white">Results this week</h3></div>
+            <div className="flex items-center gap-2"><BarChart2 className="w-4 h-4" style={{ color: GOLD }} /><h3 className="text-[15px] font-medium text-white">Results this week</h3></div>
             <span className="text-xs text-zinc-500">{totalWeek} {totalWeek === 1 ? "action" : "actions"} in 7 days</span>
           </div>
-          <div className="flex items-end gap-2 h-32">
+          <div className="flex items-end gap-3 h-36">
             {week.map((d, i) => {
               const h = d.actions === 0 ? 4 : Math.max(10, Math.round((d.actions / max) * 100));
               const label = d.date ? new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }) : "";
               const today = i === week.length - 1;
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                  <div className="w-full rounded-md" title={`${d.actions} actions`} style={{ height: `${h}%`, background: d.actions === 0 ? "rgba(255,255,255,0.06)" : today ? GOLD : `${GOLD}70` }} />
+                  <div className="w-full rounded-lg calm-bar" title={`${d.actions} actions`} style={{ height: `${h}%`, background: d.actions === 0 ? "rgba(255,255,255,0.06)" : today ? GOLD : `${GOLD}70` }} />
                   <span className="text-[10px] text-zinc-600">{label}</span>
                 </div>
               );
@@ -231,7 +241,7 @@ export default function DashboardOverview(props: Props) {
 
         {isFree ? (
           <Link href="/settings/plan">
-            <div className="cursor-pointer rounded-2xl p-5 h-full flex flex-col justify-between" style={{ background: "rgba(129,140,248,0.06)", border: "1px solid rgba(129,140,248,0.2)" }}>
+            <div className="cursor-pointer rounded-[20px] p-6 h-full flex flex-col justify-between" style={{ background: "rgba(129,140,248,0.06)", border: "1px solid rgba(129,140,248,0.2)" }}>
               <div>
                 <Crown className="w-4 h-4 mb-3" style={{ color: "#a5b4fc" }} />
                 <p className="text-sm font-bold text-white">Need more credits?</p>
@@ -241,7 +251,7 @@ export default function DashboardOverview(props: Props) {
             </div>
           </Link>
         ) : (
-          <div className="rounded-2xl p-5 flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="rounded-[20px] p-6 flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div><Target className="w-4 h-4 mb-3" style={{ color: GOLD }} /><p className="text-sm font-bold text-white">Income goal</p>
               <p className="text-xs text-zinc-400 mt-1">{props.goal ? "Tracking toward your target." : "Not set yet."}</p></div>
             <Link href="/#goal"><span className="cursor-pointer text-xs font-semibold mt-4 inline-flex items-center gap-1" style={{ color: GOLD }}>{props.goal ? "Review" : "Set goal"} <ArrowRight className="w-3 h-3" /></span></Link>
