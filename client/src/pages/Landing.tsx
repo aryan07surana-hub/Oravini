@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { ToolGrid, FeatureRows, Faq } from "@/components/landing/LandingMore";
+import { LandingCursor } from "@/components/landing/LandingCursor";
 import { DMDemo, IdeasDemo, SchedulerDemo, VideoDemo, WebinarDemo, StreakDemo } from "@/components/landing/LandingDemos";
 
 const CALENDLY = "https://calendly.com/brandversee/30min";
@@ -124,6 +126,7 @@ export default function Landing() {
 
   return (
     <div className="oravini-landing">
+      <LandingCursor />
       {showPopup && <AuditPopup onClose={() => { setShowPopup(false); setPopupDismissed(true); }} />}
 
 
@@ -131,7 +134,7 @@ export default function Landing() {
   <div className="wrap nav-in">
     <Link href="/" className="logo"><span className="logo-mark">O</span>oravini</Link>
     <div className="nav-links">
-      <a href="#features">Product</a><a href="#webinars">Webinars</a><a href="#how">How it works</a><a href="#community">Community</a>
+      <a href="#features">Product</a><a href="#tools">Tools</a><a href="#webinars">Webinars</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
     </div>
     <div className="nav-cta">
       <Link href="/login" className="login">Login</Link>
@@ -253,6 +256,8 @@ export default function Landing() {
   </div>
 </section>
 
+<ToolGrid />
+
 <section id="webinars" style={{"background":"#f7fafe","borderTop":"1px solid var(--line)","borderBottom":"1px solid var(--line)"}}>
   <div className="wrap">
     <div className="sec-head">
@@ -334,6 +339,8 @@ export default function Landing() {
   </div>
 </section>
 
+<FeatureRows />
+
 <section id="dash" style={{"paddingTop":"0"}}>
   <div className="wrap">
     <div className="dash-cta">
@@ -390,6 +397,8 @@ export default function Landing() {
     </div>
   </div>
 </section>
+
+<Faq />
 
 <EmailCaptureStrip onCapture={() => setPopupDismissed(true)} />
 
