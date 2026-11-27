@@ -45,8 +45,6 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
   return (
     <div ref={ref} className="blk">
       <div className="copy" style={{ opacity: copy, transform: `translateY(${(1 - copy) * 26}px)` }}>
-        <span className="tag">{promo.tag}</span>
-        <h2>{promo.title}</h2>
         <p className="body">{promo.body}</p>
       </div>
       <div className={"frame" + (mobile ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
@@ -66,7 +64,7 @@ export function LandingShowcase() {
 .lp-show{position:relative;background:linear-gradient(180deg,#fff 0,#f4f8fe 55%,#fff 100%);padding:40px 24px 90px;overflow:hidden}
 .lp-show .blk{position:relative;max-width:1040px;margin:0 auto;padding:40px 0}
 .lp-show .blk:before{content:"";position:absolute;width:820px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(46,120,239,.13),transparent 65%);left:50%;top:60%;transform:translate(-50%,-50%);pointer-events:none}
-.lp-show .copy{position:relative;text-align:center;max-width:680px;margin:0 auto 40px;will-change:transform,opacity}
+.lp-show .copy{position:relative;text-align:center;max-width:680px;margin:0 auto 28px;will-change:transform,opacity}
 .lp-show .tag{display:inline-flex;align-items:center;gap:7px;color:#2e78ef;background:#eaf2fe;border-radius:99px;padding:6px 13px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .lp-show .tag:before{content:"";width:6px;height:6px;border-radius:50%;background:#2e78ef}
 .lp-show h2{font-size:clamp(30px,4.2vw,48px);font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:16px 0 12px;color:#101828}
