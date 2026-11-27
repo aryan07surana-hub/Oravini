@@ -45,32 +45,36 @@ const Card = ({ children, style }: { children: ReactNode; style?: React.CSSPrope
 const Lbl = ({ children }: { children: ReactNode }) => <span className="lbl">{children}</span>;
 
 /* ---------- views (p advances every 900ms) ---------- */
-function DashView({ p }: { p: number }) {
-  const series = [60000, 64210, 69880, 75430, 82100, 91560];
-  const followers = useTween(series[Math.floor(p / 2) % series.length]);
-  const goal = useTween([48, 52, 57, 61, 64, 68][Math.floor(p / 2) % 6]);
-  const cyc = p % 10;
-  const done = cyc < 2 ? 0 : cyc < 4 ? 1 : cyc < 6 ? 2 : cyc < 9 ? 3 : 0;
-  const score = useTween(780 + (p % 12) * 6);
-  const streak = useTween(18 + (p % 12 >= 6 ? 3 : 0));
-  const pts = [20, 26, 24, 34, 40, 38, 52, 60, 58, 70, 76, 88].slice(0, 6 + (p % 7));
-  const path = pts.map((y, i) => `${i ? "L" : "M"}${(i / 11) * 300},${72 - y * 0.7}`).join(" ");
+function DashView({ p, t }: { p: number; t: number }) {
+  // Everything here is a continuous function of time t (seconds): no resets, no seams.
+  const followers = Math.round(60000 + 31000 * (1 - Math.exp(-t / 70)) + 90 * Math.sin(t * 1.3));
+  const goal = Math.round(58 + 10 * Math.sin(t / 7));
+  const seq = [0, 0, 1, 2, 3, 3, 3, 3, 2, 1, 0, 0];
+  const done = seq[Math.floor(t / 0.9) % seq.length];
+  const score = Math.round(810 + 22 * Math.sin(t / 3.1));
+  const N = 28;
+  const ys = Array.from({ length: N }, (_, i) => {
+    const x = i / (N - 1);
+    return 40 - 22 * x + 7 * Math.sin(t * 0.7 + i * 0.5) + 4 * Math.sin(t * 0.43 + i * 1.3);
+  });
+  const path = ys.map((y, i) => `${i ? "L" : "M"}${(i / (N - 1)) * 300},${y.toFixed(1)}`).join(" ");
+  const delta = (3.4 + 0.9 * Math.sin(t / 2.4)).toFixed(1);
   return (
     <>
       <div className="app-grid">
         <Card>
           <Lbl>Followers</Lbl>
-          <div className="big">{fmt(followers)}<span className="delta">+{(2 + (p % 6) * 1.6).toFixed(1)}%</span></div>
+          <div className="big" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(followers)}<span className="delta">+{delta}%</span></div>
           <svg width="100%" height="72" viewBox="0 0 300 72" preserveAspectRatio="none" style={{ marginTop: 10 }}>
             <defs><linearGradient id="dmg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={BLUE} stopOpacity=".28" /><stop offset="1" stopColor={BLUE} stopOpacity="0" /></linearGradient></defs>
-            <path d={`${path} L${((pts.length - 1) / 11) * 300},72 L0,72 Z`} fill="url(#dmg)" />
-            <path d={path} fill="none" stroke={BLUE} strokeWidth="2.2" strokeLinecap="round" />
+            <path d={`${path} L300,72 L0,72 Z`} fill="url(#dmg)" />
+            <path d={path} fill="none" stroke={BLUE} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Card>
         <Card>
           <Lbl>Income goal</Lbl>
           <div className="ring-wrap">
-            <svg width="52" height="52" viewBox="0 0 52 52"><circle className="ring-bg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" /><circle className="ring-fg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" strokeDasharray="132" strokeDashoffset={132 - (132 * goal) / 100} /></svg>
+            <svg width="52" height="52" viewBox="0 0 52 52"><circle className="ring-bg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" /><circle className="ring-fg" cx="26" cy="26" r="21" fill="none" strokeWidth="6" strokeDasharray="132" strokeDashoffset={132 - (132 * goal) / 100} style={{ transition: "none" }} /></svg>
             <div><div className="big" style={{ fontSize: 19 }}>{goal}%</div><div style={{ fontSize: 11, color: "#8a94a3" }}>of $100K in 6 months</div></div>
           </div>
         </Card>
@@ -78,12 +82,12 @@ function DashView({ p }: { p: number }) {
       <div className="app-row">
         <Card>
           <Lbl>My big 3 today</Lbl>
-          {["Post 3 reels", "Record webinar", "Reply to DMs"].map((t, i) => (
-            <div key={t} className={"todo" + (done > i ? " done" : "")} style={{ transition: "color .3s" }}><span className="box" style={{ transition: "all .3s" }}></span>{t}</div>
+          {["Post 3 reels", "Record webinar", "Reply to DMs"].map((x, i) => (
+            <div key={x} className={"todo" + (done > i ? " done" : "")} style={{ transition: "color .5s ease, opacity .5s ease" }}><span className="box" style={{ transition: "all .5s ease" }}></span>{x}</div>
           ))}
         </Card>
-        <Card><Lbl>Creator score</Lbl><div className="big">{score}</div><div style={{ fontSize: 11, color: "#8a94a3" }}>Elite · top tier</div></Card>
-        <Card><Lbl>Streak</Lbl><div className="big">{streak} <Ic n="flame" s={18} c={BLUE} /></div><div style={{ fontSize: 11, color: "#8a94a3" }}>days posting</div></Card>
+        <Card><Lbl>Creator score</Lbl><div className="big" style={{ fontVariantNumeric: "tabular-nums" }}>{score}</div><div style={{ fontSize: 11, color: "#8a94a3" }}>Elite · top tier</div></Card>
+        <Card><Lbl>Streak</Lbl><div className="big">21 <Ic n="flame" s={18} c={BLUE} /></div><div style={{ fontSize: 11, color: "#8a94a3" }}>days posting</div></Card>
       </div>
     </>
   );
@@ -159,7 +163,7 @@ function CompView({ p }: { p: number }) {
 
 function DMView({ p }: { p: number }) {
   const q = p % 14;
-  const replies = useTween(112 + q * 3), leads = useTween(22 + Math.floor(q / 2));
+  const replies = useTween(112 + p * 3), leads = useTween(22 + Math.floor(p / 2));
   const msgs: [string, string, boolean][] = [["@marcus.k", "GUIDE", false], ["Auto reply", "Sent! What do you sell, Marcus?", true], ["@marcus.k", "Online coaching, $297 a month", false], ["Auto reply", "Great fit. Here is a link to book a call.", true]];
   return (
     <div className="app-grid" style={{ gridTemplateColumns: "1.5fr 1fr" }}>
@@ -185,7 +189,7 @@ function DMView({ p }: { p: number }) {
 
 function WebView({ p }: { p: number }) {
   const q = p % 14;
-  const reg = useTween(184 + q * 7), live = useTween(Math.min(96, 20 + q * 8));
+  const reg = useTween(184 + p * 7), live = useTween(76 + Math.round(12 * Math.sin(p / 2)));
   const chat = ["Joined from Instagram", "Can you share the slides?", "Offer is pinned in the room", "Just bought, thank you!"];
   return (
     <div className="app-grid" style={{ gridTemplateColumns: "1.4fr 1fr" }}>
@@ -207,7 +211,7 @@ function WebView({ p }: { p: number }) {
 
 function VidView({ p }: { p: number }) {
   const q = p % 14;
-  const v0 = useTween(12400 + q * 180), v1 = useTween(8920 + q * 120), v2 = useTween(5310 + q * 90);
+  const v0 = useTween(12400 + p * 180), v1 = useTween(8920 + p * 120), v2 = useTween(5310 + p * 90);
   const views = [v0, v1, v2];
   const rows = ["Launch walkthrough", "Offer explainer", "Client story"];
   const up = Math.min(100, q * 9);
@@ -235,7 +239,7 @@ function VidView({ p }: { p: number }) {
 }
 
 const TABS = [
-  { id: "dash", label: "Dashboard", ic: "dash", sub: "Friday · your brand is moving", V: DashView },
+  { id: "dash", label: "Dashboard", ic: "dash", sub: "Friday · your brand is moving", V: DashView as any },
   { id: "ideas", label: "AI Ideas", ic: "ideas", sub: "Hooks and scripts for your niche", V: IdeasView },
   { id: "comp", label: "Competitor Study", ic: "comp", sub: "What works in your niche", V: CompView },
   { id: "dm", label: "DM Automation", ic: "dm", sub: "Replies that send themselves", V: DMView },
@@ -249,8 +253,11 @@ export function DashMock() {
   const ref = useRef<HTMLDivElement>(null);
   const [vis, setVis] = useState(false);
   const [tab, setTab] = useState(0);
-  const [p, setP] = useState(0);
+  const [prev, setPrev] = useState<number | null>(null);
+  const [t, setT] = useState(0);
   const [manual, setManual] = useState(0);
+  const t0 = useRef(0);
+  const tabAt = useRef(0);
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const io = new IntersectionObserver(([e]) => setVis(e.isIntersecting), { threshold: 0.2 });
@@ -258,27 +265,34 @@ export function DashMock() {
   }, []);
   useEffect(() => {
     if (!vis) return;
-    const t = setInterval(() => setP(x => x + 1), 900);
-    return () => clearInterval(t);
+    let raf = 0; const base = performance.now() - t0.current * 1000;
+    const loop = (n: number) => { t0.current = (n - base) / 1000; setT(t0.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, [vis]);
-  // Auto-tour through the views until the visitor clicks one.
+  const go = (i: number) => { setPrev(tab); setTab(i); tabAt.current = t0.current; window.setTimeout(() => setPrev(null), 450); };
   useEffect(() => {
     if (!vis || manual) return;
-    const t = setInterval(() => { setTab(x => (x + 1) % TABS.length); setP(0); }, 12000);
-    return () => clearInterval(t);
-  }, [vis, manual]);
-  const pick = (i: number) => { setTab(i); setP(0); setManual(m => m + 1); };
-  const T = TABS[tab]; const V = T.V;
+    const id = setInterval(() => go((tab + 1) % TABS.length), 12000);
+    return () => clearInterval(id);
+  }, [vis, manual, tab]);
+  const pick = (i: number) => { if (i === tab) return; setManual(m => m + 1); go(i); };
+  const T = TABS[tab];
+  const p = Math.floor((t - tabAt.current) / 0.9);
+  const render = (i: number, pp: number, out: boolean) => {
+    const V = TABS[i].V as any;
+    return <div key={TABS[i].id + (out ? "o" : "i")} style={{ position: out ? "absolute" : "relative", inset: out ? "0 0 auto 0" : undefined, animation: (out ? "mockOut" : "mockIn") + " .45s ease both", pointerEvents: out ? "none" : undefined }}><V p={pp} t={t} /></div>;
+  };
   return (
     <div className="app" ref={ref}>
       <div className="app-side">
         <div className="brand"><OraviniMark size={16} />oravini</div>
-        {TABS.slice(0, 3).map((t, i) => (
-          <button key={t.id} type="button" onClick={() => pick(i)} className={"side-item" + (tab === i ? " active" : "")} style={sideBtn(tab === i)}><Ic n={t.ic} s={15} c={tab === i ? BLUE : "#8a94a3"} />{t.label}</button>
+        {TABS.slice(0, 3).map((x, i) => (
+          <button key={x.id} type="button" onClick={() => pick(i)} className={"side-item" + (tab === i ? " active" : "")} style={sideBtn(tab === i)}><Ic n={x.ic} s={15} c={tab === i ? BLUE : "#8a94a3"} />{x.label}</button>
         ))}
         <div className="side-label">Grow</div>
-        {TABS.slice(3).map((t, i) => (
-          <button key={t.id} type="button" onClick={() => pick(i + 3)} className={"side-item" + (tab === i + 3 ? " active" : "")} style={sideBtn(tab === i + 3)}><Ic n={t.ic} s={15} c={tab === i + 3 ? BLUE : "#8a94a3"} />{t.label}</button>
+        {TABS.slice(3).map((x, i) => (
+          <button key={x.id} type="button" onClick={() => pick(i + 3)} className={"side-item" + (tab === i + 3 ? " active" : "")} style={sideBtn(tab === i + 3)}><Ic n={x.ic} s={15} c={tab === i + 3 ? BLUE : "#8a94a3"} />{x.label}</button>
         ))}
       </div>
       <div className="app-main">
@@ -287,9 +301,12 @@ export function DashMock() {
           <div className="app-pillbtn">+ Create</div>
         </div>
         <div className="mock-tabs">
-          {TABS.map((t, i) => <button key={t.id} type="button" onClick={() => pick(i)} className={tab === i ? "on" : ""}>{t.label}</button>)}
+          {TABS.map((x, i) => <button key={x.id} type="button" onClick={() => pick(i)} className={tab === i ? "on" : ""}>{x.label}</button>)}
         </div>
-        <div key={T.id} style={{ minHeight: 330, paddingBottom: 22, animation: "mockIn .45s ease both" }}><V p={p} /></div>
+        <div style={{ position: "relative", minHeight: 330, paddingBottom: 22 }}>
+          {prev !== null && render(prev, p + 1, true)}
+          {render(tab, p, false)}
+        </div>
       </div>
     </div>
   );
