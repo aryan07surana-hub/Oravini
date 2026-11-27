@@ -191,7 +191,7 @@ export async function aiChat(
   const { result } = await completeWithFallback("aiChat", {
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
     temperature,
-    max_tokens: Math.min(maxTokens, 32768),
+    max_tokens: Math.min(maxTokens + (/gpt-oss/i.test(GROQ_DEFAULT_MODEL) ? 1500 : 0), 32768),
   }, options, pickText);
   return result;
 }
@@ -206,7 +206,7 @@ export async function aiChatJson(
     const { result } = await completeWithFallback("aiChatJson", {
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       temperature,
-      max_tokens: Math.min(maxTokens, 32768),
+      max_tokens: Math.min(maxTokens + (/gpt-oss/i.test(GROQ_DEFAULT_MODEL) ? 1500 : 0), 32768),
       response_format: { type: "json_object" },
     }, options, (data) => extractJson(pickText(data)));
     return result;
