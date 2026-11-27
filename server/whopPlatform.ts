@@ -67,6 +67,7 @@ export const checkoutInput = z.object({
   redirectUrl: z.union([httpsUrl, z.literal(""), z.null()]).optional(),
   buttonColor: z.union([z.string().regex(/^#[0-9a-fA-F]{6}$/), z.literal(""), z.null()]).optional(),
   webinarFunnelId: z.union([z.string().max(64), z.literal(""), z.null()]).optional(),
+  buttonLabel: z.union([z.string().trim().max(40), z.null()]).optional(),
   active: z.boolean().optional(),
 });
 export const priceToCents = (price: number) => Math.round(price * 100);
@@ -153,6 +154,8 @@ export async function ensureWhopPlatformTables(): Promise<void> {
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE whop_platform_checkouts ADD COLUMN IF NOT EXISTS button_label VARCHAR(40);
+    ALTER TABLE whop_platform_checkouts ADD COLUMN IF NOT EXISTS offer_live BOOLEAN NOT NULL DEFAULT FALSE;
     CREATE INDEX IF NOT EXISTS idx_whop_platform_checkouts_user ON whop_platform_checkouts(user_id);
     CREATE TABLE IF NOT EXISTS whop_platform_payments (
       whop_payment_id VARCHAR(64) PRIMARY KEY,
@@ -198,11 +201,12 @@ function noStore(_q: Request, res: Response, next: NextFunction) { res.setHeader
 const WHOP_HOST_RE = /^https:\/\/([a-z0-9-]+\.)*whop\.com\//i;
 const fmtUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+const DEFAULT_BUTTON_LABEL = "Click here to buy";
 function publicCheckout(r: any, appUrl: string) {
   return {
     id: r.id, code: r.code, title: r.title, description: r.description, price: r.amount_cents / 100, currency: r.currency,
     feeCents: computeFeeCents(r.amount_cents), sellerReceivesCents: r.amount_cents - computeFeeCents(r.amount_cents),
-    redirectUrl: r.redirect_url, buttonColor: r.button_color, webinarFunnelId: r.webinar_funnel_id, active: r.active,
+    redirectUrl: r.redirect_url, buttonColor: r.button_color, buttonLabel: r.button_label || DEFAULT_BUTTON_LABEL, offerLive: !!r.offer_live, webinarFunnelId: r.webinar_funnel_id, active: r.active,
     link: `${appUrl}/pay/${r.code}`, sales: Number(r.sales ?? 0), createdAt: r.created_at,
   };
 }
@@ -342,9 +346,9 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
       const count = await pool.query(`SELECT COUNT(*)::int AS n FROM whop_platform_checkouts WHERE user_id = $1`, [u]);
       if (count.rows[0].n >= 100) return res.status(400).json({ message: "Checkout limit reached." });
       const { rows } = await pool.query(
-        `INSERT INTO whop_platform_checkouts (code, user_id, title, description, amount_cents, redirect_url, button_color, webinar_funnel_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [newCode(), u, d.title, d.description || null, priceToCents(d.price), d.redirectUrl || null, d.buttonColor || null, d.webinarFunnelId || null]);
+        `INSERT INTO whop_platform_checkouts (code, user_id, title, description, amount_cents, redirect_url, button_color, webinar_funnel_id, button_label)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [newCode(), u, d.title, d.description || null, priceToCents(d.price), d.redirectUrl || null, d.buttonColor || null, d.webinarFunnelId || null, d.buttonLabel || null]);
       res.json({ checkout: publicCheckout(rows[0], cfg.appUrl) });
     } catch { res.status(500).json({ message: "Could not save the checkout." }); }
   });
@@ -360,16 +364,32 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
       if (!cur.rows[0]) return res.status(404).json({ message: "Not found" });
       const c = cur.rows[0];
       const { rows } = await pool.query(
-        `UPDATE whop_platform_checkouts SET title=$3, description=$4, amount_cents=$5, redirect_url=$6, button_color=$7, webinar_funnel_id=$8, active=$9, updated_at=NOW()
+        `UPDATE whop_platform_checkouts SET title=$3, description=$4, amount_cents=$5, redirect_url=$6, button_color=$7, webinar_funnel_id=$8, active=$9, button_label=$10, updated_at=NOW()
           WHERE id=$1 AND user_id=$2 RETURNING *`,
         [c.id, u, d.title ?? c.title, d.description !== undefined ? d.description || null : c.description,
          d.price !== undefined ? priceToCents(d.price) : c.amount_cents,
          d.redirectUrl !== undefined ? d.redirectUrl || null : c.redirect_url,
          d.buttonColor !== undefined ? d.buttonColor || null : c.button_color,
          d.webinarFunnelId !== undefined ? d.webinarFunnelId || null : c.webinar_funnel_id,
-         d.active ?? c.active]);
+         d.active ?? c.active,
+         d.buttonLabel !== undefined ? d.buttonLabel || null : c.button_label]);
       res.json({ checkout: publicCheckout(rows[0], cfg.appUrl) });
     } catch { res.status(500).json({ message: "Could not update the checkout." }); }
+  });
+
+  // Presenter control: show or hide this offer in the live room. Owner only; at most one live offer per webinar.
+  app.post("/api/whop-platform/checkouts/:id/push", requireAuth, async (req, res) => {
+    const u = uid(req);
+    const live = req.body?.live === true;
+    try {
+      const cur = await pool.query(`SELECT id, webinar_funnel_id FROM whop_platform_checkouts WHERE id = $1 AND user_id = $2`, [p(req.params.id), u]);
+      const c = cur.rows[0];
+      if (!c) return res.status(404).json({ message: "Not found" });
+      if (live && !c.webinar_funnel_id) return res.status(400).json({ message: "Attach this offer to a webinar first." });
+      if (live) await pool.query(`UPDATE whop_platform_checkouts SET offer_live = FALSE WHERE user_id = $1 AND webinar_funnel_id = $2 AND id <> $3`, [u, c.webinar_funnel_id, c.id]);
+      const { rows } = await pool.query(`UPDATE whop_platform_checkouts SET offer_live = $3, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`, [c.id, u, live]);
+      res.json({ checkout: publicCheckout(rows[0], cfg.appUrl) });
+    } catch { res.status(500).json({ message: "Could not update the offer." }); }
   });
 
   app.delete("/api/whop-platform/checkouts/:id", requireAuth, async (req, res) => {
@@ -415,15 +435,15 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
   app.get("/api/public/webinars/:slug/pay-offer", async (req, res) => {
     try {
       const { rows } = await pool.query(
-        `SELECT c.code, c.title, c.description, c.amount_cents, c.currency, c.button_color
+        `SELECT c.code, c.title, c.description, c.amount_cents, c.currency, c.button_color, c.button_label
            FROM whop_platform_checkouts c JOIN webinar_funnels f ON f.id = c.webinar_funnel_id
            JOIN whop_platform_accounts a ON a.user_id = c.user_id AND a.environment = $2
-          WHERE f.slug = $1 AND f.status IN ('published','ended') AND c.active = TRUE
+          WHERE f.slug = $1 AND f.status IN ('published','ended') AND c.active = TRUE AND c.offer_live = TRUE
           ORDER BY c.updated_at DESC LIMIT 1`, [p(req.params.slug).toLowerCase(), cfg.environment]);
       if (!cfg.enabled || !rows[0]) return res.json({ offer: null });
       const c = rows[0];
-      res.setHeader("Cache-Control", "public, max-age=15");
-      res.json({ offer: { code: c.code, title: c.title, description: c.description, price: fmtUsd(c.amount_cents), buttonColor: c.button_color } });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ offer: { code: c.code, title: c.title, description: c.description, price: fmtUsd(c.amount_cents), buttonColor: c.button_color, buttonLabel: c.button_label || DEFAULT_BUTTON_LABEL } });
     } catch { res.json({ offer: null }); }
   });
 
