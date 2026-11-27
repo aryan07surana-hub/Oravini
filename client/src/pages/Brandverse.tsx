@@ -1,6 +1,7 @@
 import { OraviniMark } from "@/components/OraviniLogo";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { LaunchVideo } from "@/components/landing/LandingShowcase";
 const oraviniLogoPath = "/oravini-logo.png";
 
 const EP: Record<string, string> = {
@@ -1158,14 +1159,7 @@ export default function Brandverse() {
       {/* ── VSL ─────────────────────────── */}
       <section style={{ padding: "40px 24px 80px" }}>
         <Anim>
-          <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 24, overflow: "hidden", aspectRatio: "16/9", maxWidth: 860, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(46,120,239,0.08) 0%, transparent 60%)" }} />
-            <div style={{ textAlign: "center", zIndex: 1 }}>
-              <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${GOLD}22`, border: `2px solid ${GOLD}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 30, cursor: "pointer", animation: "bvPulse 2.5s ease-in-out infinite" }}>▶</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(16,24,40,0.72)", marginBottom: 6 }}>The Oravini Story</div>
-              <div style={{ fontSize: 13, color: "rgba(16,24,40,0.25)" }}>Video coming soon</div>
-            </div>
-          </div>
+          <div style={{ maxWidth: 860, margin: "0 auto" }}><LaunchVideo /></div>
         </Anim>
       </section>
 
