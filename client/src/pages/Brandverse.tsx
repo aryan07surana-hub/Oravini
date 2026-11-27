@@ -3,6 +3,34 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 const oraviniLogoPath = "/oravini-logo.png";
 
+const EP: Record<string, string> = {
+  "🎯": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>',
+  "🤝": '<path d="M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1"/><circle cx="10" cy="8" r="3.5"/><path d="M20 19v-1a4 4 0 0 0-3-3.8M16 4.3a3.5 3.5 0 0 1 0 6.4"/>',
+  "📱": '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  "📞": '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  "🛡️": '<path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  "⚡": '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  "🏗️": '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  "🤖": '<rect x="4" y="8" width="16" height="11" rx="3.5"/><path d="M12 8V4.5M9 13.5v1M15 13.5v1"/><circle cx="12" cy="3.5" r="1"/>',
+  "💰": '<circle cx="12" cy="12" r="9"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.8-2.5 1.9 0 2.7 5 1.3 5 4 0 1.1-1.1 2-2.5 2-1.1 0-2.1-.4-2.6-1.3M12 6.5V8m0 8v1.5"/>',
+  "💵": '<rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/>',
+  "📊": '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+  "📈": '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  "⏰": '<circle cx="12" cy="13" r="8"/><path d="M12 8.5V13l3 2M5 3.5L3 5.5M19 3.5l2 2"/>',
+  "🚀": '<circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-7"/>',
+  "💬": '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4A8 8 0 1 1 20 12z"/>',
+};
+function Ico({ k, size = 18 }: { k: string; size?: number }) {
+  const d = EP[k];
+  if (!d) return <span>{k}</span>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: "block" }} dangerouslySetInnerHTML={{ __html: d }} />;
+}
+function IcoTile({ k, size = 40 }: { k: string; size?: number }) {
+  return <div style={{ width: size, height: size, borderRadius: size * 0.3, background: "linear-gradient(135deg,#eaf2ff,#dbe8ff)", color: "#2e78ef", display: "grid", placeItems: "center", flexShrink: 0, boxShadow: "0 8px 18px -10px rgba(46,120,239,.6)" }}><Ico k={k} size={Math.round(size * 0.5)} /></div>;
+}
+const lab = (t: string) => { const m = t.match(/^(\S+)\s+(.*)$/); return m && EP[m[1]] ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><Ico k={m[1]} size={15} />{m[2]}</span> : t; };
+
+
 const GOLD = "#2e78ef";
 const GOLD_BRIGHT = "#4f93ff";
 const CALENDLY = "https://calendly.com/brandversee/30min";
@@ -58,7 +86,7 @@ function StrategyModal({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 20, background: "none", border: "none", color: "rgba(16,24,40,0.47)", fontSize: 22, cursor: "pointer" }}>✕</button>
         {done ? (
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 42, marginBottom: 16 }}>🚀</div>
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center", color: "#2e78ef" }}><Ico k="🚀" size={46} /></div>
             <div style={{ fontSize: 24, fontWeight: 800, color: GOLD, marginBottom: 10 }}>
               {softwareInterest ? "You're pre-qualified for Scale Your Software!" : "You're pre-qualified!"}
             </div>
@@ -512,7 +540,7 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       from: "bot",
-      text: "Hey 👋 I'm your Tier 5 assistant. Ask me anything — pricing, what's included, Scale Your Software, timelines, anything.",
+      text: "Hi, I'm your Tier 5 assistant. Ask me anything — pricing, what's included, Scale Your Software, timelines, anything.",
       suggest: ["What's included?", "Pricing", "Scale Your Software", "Who is this for?"],
     },
   ]);
@@ -581,7 +609,7 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
       <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 7000, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
         {showBadge && !open && (
           <div style={{ background: "#ffffff", border: `1px solid ${GOLD}33`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "rgba(16,24,40,0.92)", boxShadow: "0 12px 40px rgba(0,0,0,0.6)", maxWidth: 230, animation: "bvFadeIn 0.5s ease" }}>
-            Ask me anything about Tier 5 👋
+            Ask me anything about Tier 5
           </div>
         )}
         <button
@@ -598,7 +626,7 @@ function Chatbot({ onBookStrategy }: { onBookStrategy: () => void }) {
           onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.08)")}
           onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
         >
-          {open ? "×" : "💬"}
+          {open ? "×" : <Ico k="💬" size={22} />}
         </button>
       </div>
 
@@ -728,7 +756,7 @@ function Slider({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(16,24,40,0.82)" }}>{label}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(16,24,40,0.82)" }}>{lab(label)}</div>
         <div style={{ fontSize: 15, fontWeight: 800, color: GOLD, fontVariantNumeric: "tabular-nums" }}>
           {prefix}{value.toLocaleString()}{suffix}
         </div>
@@ -791,7 +819,7 @@ function ROICalculator({ onBookStrategy }: { onBookStrategy: () => void }) {
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderBottom: "1px solid rgba(16,24,40,0.05)" }}>
-            <div style={{ fontSize: 13, color: "rgba(16,24,40,0.72)" }}>📈 Extra revenue from leads + close rate</div>
+            <div style={{ fontSize: 13, color: "rgba(16,24,40,0.72)" }}>{lab("📈 Extra revenue from leads + close rate")}</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#101828" }}>{formatMoney(extraRevenue)}</div>
           </div>
 
@@ -913,7 +941,7 @@ function Timeline() {
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
             {data.goals.map(g => (
               <div key={g} style={{ fontSize: 13, color: "rgba(16,24,40,0.97)", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ color: GOLD }}>✦</span>{g}
+                <span style={{ color: GOLD, display: "inline-flex", marginRight: 6 }}><Ico k="🎯" size={13} /></span>{g}
               </div>
             ))}
           </div>
@@ -1114,7 +1142,7 @@ export default function Brandverse() {
                 { icon: "📱", label: "Platform-First", desc: "Built for where your audience actually lives and converts" },
               ].map(({ icon, label, desc }) => (
                 <div key={label} style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 22 }}>
-                  <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{icon}</div>
+                  <div style={{ marginTop: 2 }}><IcoTile k={icon} size={38} /></div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: GOLD, marginBottom: 4 }}>{label}</div>
                     <div style={{ fontSize: 13, color: "rgba(16,24,40,0.52)", lineHeight: 1.6 }}>{desc}</div>
@@ -1184,7 +1212,7 @@ export default function Brandverse() {
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}33`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(46,120,239,0.12)"; }}>
                   <div style={{ position: "absolute", top: 16, right: 16, fontSize: 9, fontWeight: 700, color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}33`, borderRadius: 99, padding: "2px 8px", letterSpacing: "0.08em", textTransform: "uppercase" }}>{tag}</div>
-                  <div style={{ fontSize: 30, marginBottom: 14 }}>{icon}</div>
+                  <div style={{ marginBottom: 14 }}><IcoTile k={icon} size={46} /></div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#101828", marginBottom: 10 }}>{title}</div>
                   <div style={{ fontSize: 13.5, color: "rgba(16,24,40,0.57)", lineHeight: 1.75 }}>{desc}</div>
                 </div>
@@ -1262,7 +1290,7 @@ export default function Brandverse() {
                 <div style={{ background: "rgba(16,24,40,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 18, padding: "28px 24px", height: "100%", transition: "transform 0.3s, border-color 0.3s" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}55`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}22`; }}>
-                  <div style={{ fontSize: 28, marginBottom: 14 }}>{f.icon}</div>
+                  <div style={{ marginBottom: 14 }}><IcoTile k={f.icon} size={46} /></div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: "#101828", marginBottom: 10 }}>{f.title}</div>
                   <div style={{ fontSize: 13, color: "rgba(16,24,40,0.62)", lineHeight: 1.7 }}>{f.desc}</div>
                 </div>
