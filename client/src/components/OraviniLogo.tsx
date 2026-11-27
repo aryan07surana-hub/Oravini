@@ -10,9 +10,9 @@ export function OraviniMark({ size = 24, className }: { size?: number; className
         </linearGradient>
       </defs>
       <g fill={`url(#${id})`}>
-        <path transform="translate(30 0)" d="M18 41C8 41 3 35 8 29L26 11C30 7 35 5 42 4.5L128 0C139 0 143 6 138 12L120 31C116 36 111 38 104 38.5L30 41Z" />
-        <path transform="translate(14 46)" d="M18 41C8 41 3 35 8 29L26 11C30 7 35 5 42 4.5L128 0C139 0 143 6 138 12L120 31C116 36 111 38 104 38.5L30 41Z" />
-        <path transform="translate(0 91)" d="M18 41C8 41 3 35 8 29L26 11C30 7 35 5 42 4.5L128 0C139 0 143 6 138 12L120 31C116 36 111 38 104 38.5L30 41Z" />
+        <path transform="translate(30 0)" d="M0 39.3C25 39 70 37.5 103.7 32.5C124 29.5 133 15 140 3C141 1 140 0 137.5 0.3C110 2.5 70 4.5 38.7 6.8C18 8.5 6 22 0 39.3Z" />
+        <path transform="translate(14 46)" d="M0 39.3C25 39 70 37.5 103.7 32.5C124 29.5 133 15 140 3C141 1 140 0 137.5 0.3C110 2.5 70 4.5 38.7 6.8C18 8.5 6 22 0 39.3Z" />
+        <path transform="translate(0 92) scale(0.985 1)" d="M0 39.3C25 39 70 37.5 103.7 32.5C124 29.5 133 15 140 3C141 1 140 0 137.5 0.3C110 2.5 70 4.5 38.7 6.8C18 8.5 6 22 0 39.3Z" />
       </g>
     </svg>
   );
