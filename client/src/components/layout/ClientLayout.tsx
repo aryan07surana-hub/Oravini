@@ -1,4 +1,5 @@
 import { useCalmLight } from "@/hooks/use-calm-light";
+import { OraviniMark } from "@/components/OraviniLogo";
 import { Link, useLocation } from "wouter";
 import { trackPageView } from "@/hooks/use-track-activity";
 import { useAuth, useLogout } from "@/hooks/use-auth";
@@ -255,9 +256,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
           <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span aria-label="Oravini" style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: "#2e78ef", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>O</span>
+              <OraviniMark size={30} />
               <div>
-                <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
+                <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: "#101828", letterSpacing: "0.15em" }}>ORAVINI</p>
                 <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Creator Growth Platform</p>
               </div>
             </div>
@@ -431,8 +432,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
               <Menu className="w-5 h-5" />
             </button>
-            <span aria-label="Oravini" style={{ height: 30, width: 30, borderRadius: 9, flexShrink: 0, background: "#2e78ef", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16 }}>O</span>
-            <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
+            <OraviniMark size={26} />
+            <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: "#101828" }}>ORAVINI</span>
           </header>
 
           {!isAdmin && <LowCreditsBanner />}
