@@ -95,6 +95,10 @@ const V_WebinarAssistantPage = withToolVideo(WebinarAssistantPage, ["webinar", "
 const V_WebinarFunnelRegistrations = withToolVideo(WebinarFunnelRegistrations, ["webinar", "ytlive"]);
 const V_WebinarAnalytics = withToolVideo(WebinarAnalytics, "live");
 const V_ClientVideoMarketing = withToolVideo(ClientVideoMarketing, "video");
+const V_TrackingHome = withToolVideo(TrackingHome, "tracking");
+const V_ContentTrackingIndex = withToolVideo(ContentTrackingIndex, "tracking");
+const V_InstagramTracking = withToolVideo(InstagramTracking, "tracking");
+const V_YouTubeTracking = withToolVideo(YouTubeTracking, "tracking");
 
 function WebinarFunnelNew() {
   const advanced = new URLSearchParams(useSearch()).get("mode") === "advanced";
@@ -416,14 +420,14 @@ function AppRoutes() {
       <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
       <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={V_InstagramScheduler} />}</Route>
       <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
-      <Route path="/tracking/content/instagram">{() => <Guard component={InstagramTracking} />}</Route>
-      <Route path="/tracking/content/youtube">{() => <Guard component={YouTubeTracking} />}</Route>
+      <Route path="/tracking/content/instagram">{() => <Guard component={V_InstagramTracking} />}</Route>
+      <Route path="/tracking/content/youtube">{() => <Guard component={V_YouTubeTracking} />}</Route>
       <Route path="/tracking/content/calendar">{() => <Guard component={V_ContentCalendar} />}</Route>
-      <Route path="/tracking/content">{() => <Guard component={ContentTrackingIndex} />}</Route>
+      <Route path="/tracking/content">{() => <Guard component={V_ContentTrackingIndex} />}</Route>
       <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
       <Route path="/tracking/ads">{() => <Guard component={MetaAdsTracking} />}</Route>
-      <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
-      <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
+      <Route path="/tracking">{() => <Guard component={V_TrackingHome} />}</Route>
+      <Route path="/content-tracking">{() => <Guard component={V_TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={V_DMAutomation} />}</Route>
       <Route path="/pages-hub">{() => <Guard component={V_PagesHub} />}</Route>
       <Route path="/landing-pages">{() => <Redirect to="/pages-hub" />}</Route>
