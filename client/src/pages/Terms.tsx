@@ -25,7 +25,7 @@ export default function Terms() {
         </div>
 
         {/* TOC */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 mb-10">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 mb-10">
           <p className="text-sm font-bold text-slate-900 mb-3">Table of Contents</p>
           <ol className="space-y-1.5 text-sm" style={{ color: GOLD }}>
             {[
@@ -242,7 +242,7 @@ export default function Terms() {
 
           <Section num="18" title="Contact">
             <p>For questions about these Terms:</p>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 mt-2 space-y-1">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-2 space-y-1">
               <p><strong className="text-slate-900">Oravini</strong></p>
               <p>Email: <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a></p>
               <p className="text-slate-500 text-sm">Response time: within 48 hours.</p>
@@ -256,7 +256,7 @@ export default function Terms() {
 
         </div>
 
-        <div className="mt-12 pt-8 border-t border-zinc-800 text-center text-slate-500 text-sm">
+        <div className="mt-12 pt-8 border-t border-slate-200 text-center text-slate-500 text-sm">
           <p>© 2026 Oravini. All rights reserved.</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/privacy" className="hover:underline" style={{ color: GOLD }}>Privacy Policy</a>
