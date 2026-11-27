@@ -870,3 +870,9 @@ html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow
 @keyframes mockIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (max-width:900px){.oravini-landing .mock-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 10px;scrollbar-width:none}.oravini-landing .mock-tabs button{flex:none;border:1px solid #e3e9f3;background:#fff;border-radius:999px;padding:6px 12px;font:600 12px inherit;color:#5b6675}.oravini-landing .mock-tabs button.on{background:#2e78ef;border-color:#2e78ef;color:#fff}}
 @keyframes mockOut{from{opacity:1}to{opacity:0}}
+
+/* White text on brand-blue controls must stay white in the light theme. */
+html.calm-light [style*="color: rgb(255, 255, 255)"][style*="rgb(46, 120, 239)"],
+html.calm-light [style*="color: rgb(255, 255, 255)"][style*="linear-gradient"][style*="46, 120, 239"],
+html.calm-light [style*="color: rgb(255, 255, 255)"][style*="#2e78ef"] { color: #fff !important; }
+html.calm-light a[style*="rgb(46, 120, 239)"] { color: #fff; }
