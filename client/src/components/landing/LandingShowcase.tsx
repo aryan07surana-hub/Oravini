@@ -27,7 +27,7 @@ export const PROMOS = [
 
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 
-function LaunchVideo() {
+export function LaunchVideo() {
   const ref = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
