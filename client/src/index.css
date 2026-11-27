@@ -841,3 +841,20 @@ html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow
 .oravini-landing .demo{border:1px solid #e6edf8;box-shadow:0 18px 36px -18px rgba(46,120,239,.35),0 3px 8px -3px rgba(16,24,40,.08)}
 .oravini-landing .tile-cap{font-size:18px;font-weight:700;letter-spacing:-.025em;color:#101828;margin-top:20px}
 .oravini-landing .tile-sub{font-size:13.5px;line-height:1.5;color:#5b6575;margin-top:4px;max-width:46ch}
+
+/* Hero: soft gradient, accent underline, floating glass stat cards */
+.oravini-landing .hero{position:relative;background:radial-gradient(60% 50% at 50% 0%,#eaf2ff 0,rgba(255,255,255,0) 70%),linear-gradient(180deg,#f6f9ff 0,#fff 60%)}
+.oravini-landing .hero h1 em{position:relative;display:inline-block;color:#2e78ef}
+.oravini-landing .hero h1 em:after{content:"";position:absolute;left:2%;right:2%;bottom:-8px;height:10px;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 10' preserveAspectRatio='none'><path d='M2 7 C40 1 120 1 198 5' fill='none' stroke='%232e78ef' stroke-width='3.2' stroke-linecap='round'/></svg>") no-repeat center/100% 100%}
+.oravini-landing .gl{position:absolute;z-index:2;background:rgba(255,255,255,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 44px -20px rgba(46,120,239,.45),0 2px 6px rgba(16,24,40,.05);padding:16px 20px;text-align:left;animation:gl-float 7s ease-in-out infinite}
+.oravini-landing .gl b{display:block;font-size:26px;font-weight:800;letter-spacing:-.03em;color:#101828;line-height:1.1}
+.oravini-landing .gl small{display:block;font-size:12px;color:#5b6575;margin-top:3px}
+.oravini-landing .gl-l{left:max(24px,calc(50% - 560px));top:270px;transform:rotate(-6deg)}
+.oravini-landing .gl-r{right:max(24px,calc(50% - 560px));top:250px;transform:rotate(5deg);animation-delay:-3s}
+.oravini-landing .gl-ic{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#eaf2fe;margin-bottom:8px}
+.oravini-landing .gl i{display:flex;align-items:flex-end;gap:5px;height:34px;margin-top:10px}
+.oravini-landing .gl i u{width:9px;border-radius:4px;background:linear-gradient(180deg,#7db4ff,#2e78ef);animation:gl-bar 4s ease-in-out infinite alternate}
+@keyframes gl-float{0%,100%{translate:0 0}50%{translate:0 -10px}}
+@keyframes gl-bar{from{opacity:.6}to{opacity:1}}
+@media(max-width:1150px){.oravini-landing .gl{display:none}}
+@media (prefers-reduced-motion:reduce){.oravini-landing .gl,.oravini-landing .gl i u{animation:none}}
