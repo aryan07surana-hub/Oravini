@@ -1,3 +1,4 @@
+import { useCalmLight } from "@/hooks/use-calm-light";
 import { Link, useLocation } from "wouter";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ const mainNavItems = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  useCalmLight();
   const { user } = useAuth();
   const logout = useLogout();
   const [location] = useLocation();
