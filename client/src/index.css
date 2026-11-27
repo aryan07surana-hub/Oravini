@@ -825,3 +825,8 @@ html.calm-light [style*="linear-gradient"][style*="212, 180, 97"], html.calm-lig
 html.calm-light [style*="color: rgb(0, 0, 0)"], html.calm-light [style*="color: rgb(26, 18, 0)"] { color: #fff !important; }
 html.calm-light [style*="box-shadow"][style*="212, 180, 97"] { box-shadow: 0 6px 18px -8px rgba(46,120,239,0.35) !important; }
 html.calm-light canvas { background-color: transparent; }
+
+/* Calm-light: amber / orange / yellow utility tints become brand blue */
+html.calm-light [class*="bg-amber-"], html.calm-light [class*="bg-yellow-"], html.calm-light [class*="bg-orange-"] { background-color: rgba(46,120,239,.08) !important; }
+html.calm-light [class*="text-amber-"], html.calm-light [class*="text-yellow-"], html.calm-light [class*="text-orange-"] { color: #2e78ef !important; }
+html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow-"], html.calm-light [class*="border-orange-"] { border-color: rgba(46,120,239,.28) !important; }
