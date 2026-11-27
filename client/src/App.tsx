@@ -36,6 +36,7 @@ import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/PricingV2Landing";
 import { ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage } from "@/pages/seoPages";
+import { BlogIndexPage, BlogPostPage } from "@/pages/blogPages";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
@@ -319,6 +320,8 @@ function AppRoutes() {
       <Route path="/vs/manychat" component={VsManychatPage} />
       <Route path="/instagram-dm-automation" component={IgDmAutomationPage} />
       <Route path="/webinar-platform" component={WebinarPlatformPage} />
+      <Route path="/blog" component={BlogIndexPage} />
+      <Route path="/blog/:slug">{(params) => <BlogPostPage slug={params.slug} />}</Route>
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
       <Route path="/select-plan" component={SelectPlan} />
@@ -506,4 +509,4 @@ export default function App() {
       </TooltipProvider>
     </ErrorBoundary>
   );
-      }
+}

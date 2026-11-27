@@ -20,6 +20,7 @@ export interface SeoPageConfig {
   sections: { heading: string; body: string }[];
   table?: { head: [string, string, string]; rows: [string, string, string][] };
   faqs: SeoFaq[];
+  related?: { href: string; label: string }[]; // internal links, shown after the FAQs
 }
 
 const CTA = (
@@ -95,6 +96,19 @@ export function SEOPage({ config }: { config: SeoPageConfig }) {
           ))}
         </section>
 
+        {config.related && config.related.length > 0 && (
+          <section style={{ marginBottom: 24, padding: "22px 24px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, background: "rgba(255,255,255,0.02)" }}>
+            <div style={{ fontSize: 12, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>From the blog</div>
+            {config.related.map((r) => (
+              <div key={r.href} style={{ marginBottom: 10 }}>
+                <a href={r.href} style={{ color: "#fff", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
+                  {r.label} <span style={{ color: GOLD }}>→</span>
+                </a>
+              </div>
+            ))}
+          </section>
+        )}
+
         {CTA}
       </div>
     </main>
@@ -152,6 +166,10 @@ export const MANYCHAT_ALTERNATIVE: SeoPageConfig = {
       a: "Your Instagram followers stay on Instagram — switching DM tools never moves them. Rebuild your keyword and comment-to-DM rules in Oravini's setup wizard and you're live; most creators recreate their core flows in under an hour.",
     },
   ],
+  related: [
+    { href: "/blog/how-to-choose-manychat-alternative", label: "How to choose a ManyChat alternative in 2026" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
 };
 
 export const VS_MANYCHAT: SeoPageConfig = {
@@ -203,6 +221,10 @@ export const VS_MANYCHAT: SeoPageConfig = {
       a: "Oravini uses Meta's official Instagram messaging APIs with a reviewed app — the same sanctioned route every legitimate tool uses — not scraping or unofficial workarounds.",
     },
   ],
+  related: [
+    { href: "/blog/how-to-choose-manychat-alternative", label: "How to choose a ManyChat alternative in 2026" },
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+  ],
 };
 
 export const IG_DM_AUTOMATION: SeoPageConfig = {
@@ -245,6 +267,10 @@ export const IG_DM_AUTOMATION: SeoPageConfig = {
       a: "DM automation is included on Oravini plans, starting with the free tier (100 app credits a month, no card). Paid plans are prepaid — one payment for the term you choose, nothing auto-renews.",
     },
   ],
+  related: [
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+    { href: "/blog/how-to-choose-manychat-alternative", label: "How to choose a ManyChat alternative in 2026" },
+  ],
 };
 
 export const WEBINAR_PLATFORM: SeoPageConfig = {
@@ -286,6 +312,10 @@ export const WEBINAR_PLATFORM: SeoPageConfig = {
       q: "Can I charge for my webinars?",
       a: "You connect your own payment account (Stripe read-only or Whop) and keep your revenue; Oravini shows per-webinar revenue on the dashboard.",
     },
+  ],
+  related: [
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
   ],
 };
 

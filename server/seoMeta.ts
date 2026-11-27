@@ -2,6 +2,10 @@
 // Pure functions only, so this module is unit-testable without a server
 // and importable from build scripts.
 
+// Blog post metadata (slugs, titles, descriptions) is the source of truth
+// for the /blog routes below; rendering lives in client/src/pages/blogPages.tsx.
+import { BLOG_INDEX_META, BLOG_POSTS } from "../client/src/pages/blogData";
+
 export interface SeoMeta {
   title: string;
   description: string;
@@ -33,6 +37,8 @@ export const PRERENDERED_ROUTES: Record<string, string> = {
   "/vs/manychat": "vs-manychat.html",
   "/instagram-dm-automation": "instagram-dm-automation.html",
   "/webinar-platform": "webinar-platform.html",
+  "/blog": "blog.html",
+  ...Object.fromEntries(BLOG_POSTS.map((p) => [`/blog/${p.slug}`, `blog-${p.slug}.html`])),
 };
 
 // Per-route metadata for public pages served from the app shell.
@@ -72,6 +78,23 @@ export const SEO_ROUTES: Record<string, SeoMeta> = {
     canonical: `${SITE_URL}/webinar-platform`,
     ogImage: DEFAULT_OG_IMAGE,
   },
+  "/blog": {
+    title: BLOG_INDEX_META.title,
+    description: BLOG_INDEX_META.description,
+    canonical: BLOG_INDEX_META.canonical,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  ...Object.fromEntries(
+    BLOG_POSTS.map((p) => [
+      `/blog/${p.slug}`,
+      {
+        title: p.title,
+        description: p.description,
+        canonical: `${SITE_URL}/blog/${p.slug}`,
+        ogImage: DEFAULT_OG_IMAGE,
+      },
+    ]),
+  ),
   "/preview": {
     title: "Oravini Dashboard Preview — See the AI Growth Platform in Action",
     description:
@@ -183,4 +206,4 @@ export function injectSeoMeta(indexHtml: string, meta: SeoMeta): string {
     html = html.replace(/<head>/, `<head>\n    <title>${escapeAttr(meta.title)}</title>`);
   }
   return html.replace(/<\/head>/, `    ${renderMetaTags(meta)}\n  </head>`);
-}
+      }

@@ -24,6 +24,10 @@ const HOME_TITLE = "Oravini — AI-Powered Brand Growth Platform";
 const HOME_DESCRIPTION =
   "Oravini is the all-in-one AI platform for creators and personal brands: AI content ideas, competitor intelligence, webinars, video hosting, funnels and Instagram DM automation, tracked and optimized in one place.";
 
+const BLOG_INDEX_TITLE = "Oravini Blog: Instagram DM Automation, Webinars & Creator Growth";
+const BLOG_INDEX_DESCRIPTION =
+  "Practical guides for creators and personal brands: Instagram DM automation, choosing a webinar platform, ManyChat alternatives and growing with AI tools.";
+
 const BASE_JSON_LD = [
   {
     "@context": "https://schema.org",
@@ -175,8 +179,12 @@ export async function buildMarketingPages(publicDirectory, root = process.cwd())
         contents: `import React from 'react'; import {renderToStaticMarkup} from 'react-dom/server';
           import Landing from './client/src/pages/OraviniLanding';
           import {SEO_PAGES, SEOPage} from './client/src/pages/seoPages';
+          import {BLOG_POSTS} from './client/src/pages/blogData';
+          import {BlogIndexPage, BlogPostPage} from './client/src/pages/blogPages';
           export const home = renderToStaticMarkup(React.createElement(Landing));
-          export const seoPages = SEO_PAGES.map(c => ({slug: c.slug, title: c.title, description: c.description, faqs: c.faqs, html: renderToStaticMarkup(React.createElement(SEOPage, {config: c}))}));`,
+          export const seoPages = SEO_PAGES.map(c => ({slug: c.slug, title: c.title, description: c.description, faqs: c.faqs, html: renderToStaticMarkup(React.createElement(SEOPage, {config: c}))}));
+          export const blogIndex = renderToStaticMarkup(React.createElement(BlogIndexPage));
+          export const blogPosts = BLOG_POSTS.map(p => ({slug: p.slug, title: p.title, description: p.description, datePublished: p.datePublished, html: renderToStaticMarkup(React.createElement(BlogPostPage, {slug: p.slug}))}));`,
         resolveDir: root,
         loader: "tsx",
       },
@@ -192,7 +200,7 @@ export async function buildMarketingPages(publicDirectory, root = process.cwd())
       },
       logLevel: "silent",
     });
-    const { home, seoPages } = createRequire(import.meta.url)(output);
+    const { home, seoPages, blogIndex, blogPosts } = createRequire(import.meta.url)(output);
 
     const index = await readFile(path.join(publicDirectory, "index.html"), "utf8");
 
@@ -217,6 +225,50 @@ export async function buildMarketingPages(publicDirectory, root = process.cwd())
           canonical: `${SITE}/${page.slug}`,
           jsonLd: [...BASE_JSON_LD, faqJsonLd(page.faqs)],
           markup: page.html,
+        }),
+      );
+    }
+
+    await writeFile(
+      path.join(publicDirectory, "blog.html"),
+      composePage(index, {
+        title: BLOG_INDEX_TITLE,
+        description: BLOG_INDEX_DESCRIPTION,
+        canonical: `${SITE}/blog`,
+        jsonLd: [
+          ...BASE_JSON_LD,
+          {
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            name: "Oravini Blog",
+            url: `${SITE}/blog`,
+            description: BLOG_INDEX_DESCRIPTION,
+          },
+        ],
+        markup: blogIndex,
+      }),
+    );
+
+    for (const post of blogPosts) {
+      await writeFile(
+        path.join(publicDirectory, `blog-${post.slug}.html`),
+        composePage(index, {
+          title: post.title,
+          description: post.description,
+          canonical: `${SITE}/blog/${post.slug}`,
+          jsonLd: [
+            ...BASE_JSON_LD,
+            {
+              "@context": "https://schema.org",
+              "@type": "BlogPosting",
+              headline: post.title,
+              description: post.description,
+              datePublished: post.datePublished,
+              author: { "@type": "Organization", name: "Oravini", url: SITE },
+              mainEntityOfPage: `${SITE}/blog/${post.slug}`,
+            },
+          ],
+          markup: post.html,
         }),
       );
     }

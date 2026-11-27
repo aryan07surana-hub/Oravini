@@ -57,3 +57,27 @@ test('sitemap.xml lists only public pages',()=>{
  assert.ok(existsSync(new URL('../client/public/robots.txt',import.meta.url)));
  assert.equal(DEFAULT_META.canonical,'https://oravini.com/');
 });
+
+test('blog index and every post have prerendered routes, metadata and sitemap entries',async()=>{
+ const {BLOG_POSTS,BLOG_INDEX_META}=await import('../client/src/pages/blogData');
+ assert.ok(BLOG_POSTS.length>=3,'expected at least 3 launch posts');
+ const sitemap=readFileSync(new URL('../client/public/sitemap.xml',import.meta.url),'utf8');
+ assert.equal(PRERENDERED_ROUTES['/blog'],'blog.html');
+ assert.ok(SEO_ROUTES['/blog'],'missing SEO meta for /blog');
+ assert.equal(SEO_ROUTES['/blog'].title,BLOG_INDEX_META.title);
+ assert.ok(sitemap.includes('<loc>https://oravini.com/blog</loc>'),'sitemap missing /blog');
+ for(const p of BLOG_POSTS){
+  const route=`/blog/${p.slug}`;
+  assert.equal(PRERENDERED_ROUTES[route],`blog-${p.slug}.html`,`missing prerender mapping for ${route}`);
+  const meta=SEO_ROUTES[route];assert.ok(meta,`missing SEO meta for ${route}`);
+  assert.equal(meta.title,p.title);
+  assert.equal(meta.canonical,`https://oravini.com${route}`);
+  assert.equal(meta.robots??'index,follow','index,follow');
+  assert.ok(sitemap.includes(`<loc>https://oravini.com${route}</loc>`),`sitemap missing ${route}`);
+  assert.ok(p.description.length>80&&p.description.length<200,`description length off for ${p.slug}`);
+  assert.ok(p.sections.length>=3,`post ${p.slug} needs at least 3 sections`);
+  assert.match(p.datePublished,/^\d{4}-\d{2}-\d{2}$/);
+  for(const r of p.related)assert.ok(r.href.startsWith('/'),`related link must be internal: ${r.href}`);
+ }
+ assert.ok(existsSync(new URL('../client/src/pages/blogPages.tsx',import.meta.url)));
+});
