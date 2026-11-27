@@ -4,12 +4,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 
-type Offer = { code: string; title: string; description: string | null; price: string; buttonColor: string | null };
+type Offer = { code: string; title: string; description: string | null; price: string; buttonColor: string | null; buttonLabel?: string };
 
 export function PayBanner({ slug, registrationId }: { slug: string; registrationId?: string }) {
   const { data } = useQuery<{ offer: Offer | null }>({
     queryKey: [`/api/public/webinars/${encodeURIComponent(slug)}/pay-offer`],
-    refetchInterval: 30_000,
+    refetchInterval: 8_000,
   });
   const o = data?.offer;
   if (!o) return null;
@@ -19,12 +19,12 @@ export function PayBanner({ slug, registrationId }: { slug: string; registration
     <div className="flex items-center gap-3 px-3 py-2.5 border-b border-white/[0.06] bg-[#2e78ef]/[0.08]" data-testid="pay-banner">
       <ShoppingBag className="w-4 h-4 flex-shrink-0" style={{ color }} aria-hidden />
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-white truncate">{o.title}</p>
+        <p className="text-[13px] font-medium text-white truncate">{o.title} <span className="text-zinc-400 font-normal">· {o.price}</span></p>
         {o.description && <p className="text-[11px] text-zinc-400 truncate">{o.description}</p>}
       </div>
       <a href={href} target="_blank" rel="noopener noreferrer" data-testid="pay-banner-buy"
         className="flex-shrink-0 h-8 px-3 inline-flex items-center rounded-lg text-[13px] font-semibold text-white" style={{ background: color }}>
-        Buy {o.price}
+        {o.buttonLabel || "Click here to buy"}
       </a>
     </div>
   );
