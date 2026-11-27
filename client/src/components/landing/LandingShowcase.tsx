@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 // To swap or add promo videos, edit PROMOS only.
 export const MEDIA = "https://oravini-media.pages.dev/";
 // The Coach walkthrough lives on a second Pages project.
-export const mediaFor = (id: string) => (id === "coach" ? "https://oravini-media2.pages.dev/" : MEDIA);
+const MEDIA2_IDS = new Set(["coach", "webinar", "ytlive"]);
+export const mediaFor = (id: string) => (MEDIA2_IDS.has(id) ? "https://oravini-media2.pages.dev/" : MEDIA);
 export const PROMOS = [
   { id: "dm", tag: "DM Automation", title: "Every comment gets a reply.", body: "Someone comments on your reel and Oravini sends the guide to their DMs, then saves the lead to your CRM. No manual work." },
   { id: "web", tag: "Webinars", title: "Webinars that sell while you present.", body: "Run it live. The offer sits inside the room, and every attendee lands in your CRM." },
+  { id: "webinar", tag: "Webinar platform", title: "Your own webinar platform.", body: "Registration, live room, replay and follow-up in one place, with your offer built in." },
+  { id: "ytlive", tag: "YouTube Live webinars", title: "Go live on YouTube, sell inside Oravini.", body: "Stream to YouTube while attendees register, chat and see your offer in your own room." },
   { id: "ideas", tag: "Content Ideas", title: "Never stare at a blank page again.", body: "Hooks, scripts and a 30-day series built around your niche, in seconds." },
   { id: "coach", tag: "AI Content Coach", title: "A coach that learns from your reels.", body: "It studies what already works for you, finds your winning hooks and plans what to post next." },
   { id: "sched", tag: "Content Scheduler", title: "Posting on autopilot.", body: "Queue reels, photos and carousels. Oravini publishes on time, every time." },
