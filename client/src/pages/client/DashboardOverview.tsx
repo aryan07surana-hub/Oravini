@@ -147,7 +147,7 @@ export default function DashboardOverview(props: Props) {
           {DEMOS.map(t => (
             <Link key={t.href} href={t.href}>
               <div className="calm-card cursor-pointer rounded-[24px] p-3 h-full group" style={{ background: "var(--c-card)", border: "1px solid var(--c-border)" }}>
-                <div className="h-[190px] rounded-[18px] p-3" style={{ background: "linear-gradient(160deg,#e6f0f9 0%,#f4f8fd 100%)" }}><t.Demo /></div>
+                <div className="h-[222px] rounded-[18px] p-3" style={{ background: "linear-gradient(160deg,#e6f0f9 0%,#f4f8fd 100%)" }}><t.Demo /></div>
                 <div className="flex items-end justify-between gap-3 px-2 pt-4 pb-2">
                   <div><p className="text-[15px] font-medium ct">{t.label}</p><p className="text-[13px] cm mt-1 leading-snug">{t.desc}</p></div>
                   <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors group-hover:bg-[#2e78ef] group-hover:text-white" style={{ background: "var(--c-card2)" }}><ArrowRight className="w-4 h-4 -rotate-45" /></span>
