@@ -220,10 +220,12 @@ export async function syncPayment(client: PlatformClient, paymentId: string): Pr
   const c = rows[0];
   if (!c) return "ignored";
   const paidAccount = String(pay?.company_id ?? pay?.company?.id ?? pay?.account_id ?? "");
-  const cents = Math.round(Number(pay?.total ?? pay?.subtotal ?? NaN) * 100);
-  const currency = String(pay?.currency ?? "").toLowerCase();
+  // Whop returns money either as a plain number (older API) or as { amount: "97.00", currency } (current API).
+  const money = (v: any): number => (v && typeof v === "object" ? Number(v.amount) : Number(v));
+  const cents = Math.round(money(pay?.total ?? pay?.subtotal) * 100);
+  const currency = String(pay?.currency ?? pay?.total?.currency ?? "").toLowerCase();
   const status = String(pay?.status ?? "");
-  const refunded = Math.round(Number(pay?.amount_refunded ?? 0) * 100) || 0;
+  const refunded = Math.round((money(pay?.refunded_amount ?? pay?.amount_refunded ?? 0) || 0) * 100) || 0;
   // Never credit a payment that doesn't match what the seller priced.
   if (!c.whop_account_id || (paidAccount && paidAccount !== c.whop_account_id) || cents !== c.amount_cents || currency !== c.currency) {
     console.warn("[whop-platform] sync mismatch", { paymentId, hasAccount: !!c.whop_account_id, paidAccount, expectedAccount: c.whop_account_id, cents, expectedCents: c.amount_cents, currency, expectedCurrency: c.currency, status });
