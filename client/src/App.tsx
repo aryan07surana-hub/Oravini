@@ -73,12 +73,13 @@ import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
 const V_ClientDashboard = withToolVideo(ClientDashboard, "dashboard");
 const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
 const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
-const V_DMAutomation = withToolVideo(DMAutomation, "dm");
-const V_WebinarFunnels = withToolVideo(WebinarFunnels, "web");
+const V_DMAutomation = withToolVideo(DMAutomation, ["dm", "aisetter"]);
+const V_WebinarFunnels = withToolVideo(WebinarFunnels, ["web", "webstream"]);
 const V_WebinarStudio = withToolVideo(WebinarStudio, "live");
+const V_ClientCRM = withToolVideo(ClientCRM, "aicrm");
 const V_Community = withToolVideo(Community, "community");
 const V_ClientProgress = withToolVideo(ClientProgress, "streaks");
-const V_PagesHub = withToolVideo(PagesHub, "funnels");
+const V_PagesHub = withToolVideo(PagesHub, ["funnels", "aicrm"]);
 const V_ClientVideoMarketing = withToolVideo(ClientVideoMarketing, "video");
 
 function WebinarFunnelNew() {
@@ -463,7 +464,7 @@ function AppRoutes() {
       <Route path="/tools/webinars">{() => <Guard component={V_WebinarFunnels} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
-      <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
+      <Route path="/crm">{() => <Guard component={V_ClientCRM} />}</Route>
       <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
