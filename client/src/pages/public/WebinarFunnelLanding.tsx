@@ -26,6 +26,7 @@ export default function WebinarFunnelLanding() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [registered, setRegistered] = useState(false);
+  const [tier, setTier] = useState<"general" | "vip">("general");
 
   useEffect(() => {
     if (!slug) return;
@@ -40,6 +41,9 @@ export default function WebinarFunnelLanding() {
   if (isError) return <WebinarLoadError onRetry={() => refetch()} />;
   if (!webinar) return <WebinarNotFound />;
 
+  const vipUrl = /^https:\/\//i.test(webinar.vipCheckoutUrl || "") ? (webinar.vipCheckoutUrl as string) : "";
+  const hasTiers = !!vipUrl;
+  const vslUrl = /^https:\/\//i.test(webinar.vslUrl || "") ? (webinar.vslUrl as string) : "";
   const liveHref = `/w/${webinar.slug}/live`;
   const pageUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "";
   const calendarHref = googleCalendarUrl({
@@ -70,12 +74,13 @@ export default function WebinarFunnelLanding() {
       const res = await fetch(`/api/webinar-funnels/${encodeURIComponent(webinar.slug)}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, ...getUtmParams() }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, ...(hasTiers ? { tier } : {}), ...getUtmParams() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Registration failed. Please try again.");
       saveRegistration(webinar.slug, { registrationId: data.registrationId, name: name.trim(), email: email.trim().toLowerCase() });
       setRegistered(true);
+      if (hasTiers && tier === "vip") window.location.assign(vipUrl);
     } catch (err: any) {
       setErrors({ form: err.message });
     } finally {
@@ -142,6 +147,18 @@ export default function WebinarFunnelLanding() {
               </>
             )}
           </div>
+
+          {hasTiers && (
+            <div className="mt-8" data-testid="webinar-vsl">
+              {vslUrl ? (
+                <video src={vslUrl} controls playsInline preload="metadata" className="w-full rounded-xl border border-white/[0.08] bg-black aspect-video" />
+              ) : (
+                <div className="w-full aspect-video rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] flex items-center justify-center text-sm text-zinc-500">
+                  <PlayCircle className="w-6 h-6 mr-2" /> Masterclass preview video coming soon
+                </div>
+              )}
+            </div>
+          )}
         </header>
 
         {/* ── Registration card (2nd on mobile, right column on desktop) ── */}
@@ -171,6 +188,9 @@ export default function WebinarFunnelLanding() {
                   <li className="flex gap-2"><span className="text-zinc-600 tabular-nums">2.</span> Open the webinar page a few minutes before the start.</li>
                 </ol>
                 <div className="mt-5 grid gap-2">
+                  {hasTiers && (
+                    <a href={vipUrl} data-testid="link-vip-checkout" className={`${btn("primary", "lg")} w-full`}>Unlock VIP access {webinar.vipPrice ? `(${webinar.vipPrice})` : ""}</a>
+                  )}
                   <Link href={liveHref} data-testid="link-live-page" className={`${btn(groups.length?"secondary":"primary", "lg")} w-full`}>
                     Go to the live page <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -195,6 +215,20 @@ export default function WebinarFunnelLanding() {
                   <h2 className="text-lg font-semibold text-white">Reserve your free spot</h2>
                   <p className="text-[13px] text-zinc-500 mt-1">Free to attend. You'll get the link to the live page as soon as you sign up.</p>
                 </div>
+                {hasTiers && (
+                  <div className="grid gap-2" role="radiogroup" aria-label="Choose your access" data-testid="tier-picker">
+                    <button type="button" role="radio" aria-checked={tier === "general"} onClick={() => setTier("general")}
+                      className={`text-left rounded-lg border p-3 ${tier === "general" ? "border-[#d4b461]/70 bg-[#d4b461]/[0.06]" : "border-white/[0.1]"}`}>
+                      <span className="block text-sm font-semibold text-white">General Access · Free</span>
+                      <span className="block text-xs text-zinc-400 mt-0.5">Live webinar, general community, reminders, calendar event.</span>
+                    </button>
+                    <button type="button" role="radio" aria-checked={tier === "vip"} onClick={() => setTier("vip")}
+                      className={`text-left rounded-lg border p-3 ${tier === "vip" ? "border-[#d4b461]/70 bg-[#d4b461]/[0.06]" : "border-white/[0.1]"}`}>
+                      <span className="block text-sm font-semibold text-white">VIP Access · {webinar.vipPrice || "Paid"}</span>
+                      <span className="block text-xs text-zinc-400 mt-0.5">Everything in General plus the VIP group and priority updates. You pay on the next step.</span>
+                    </button>
+                  </div>
+                )}
                 <div>
                   <label htmlFor="reg-name" className="block text-[13px] font-medium text-zinc-300 mb-1.5">Name</label>
                   <input id="reg-name" data-testid="input-reg-name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" autoComplete="name" maxLength={120}
@@ -216,7 +250,7 @@ export default function WebinarFunnelLanding() {
                 </div>
                 {errors.form && <p id="reg-form-error" className="text-[13px] text-red-300 rounded-lg bg-red-500/[0.06] border border-red-500/20 px-3 py-2" role="alert">{errors.form}</p>}
                 <button data-testid="btn-register" type="submit" disabled={submitting} className={`${btn("primary", "lg")} w-full`}>
-                  {submitting ? "Registering..." : "Register now"}
+                  {submitting ? "Registering..." : hasTiers && tier === "vip" ? "Continue to VIP payment" : "Register now"}
                 </button>
               </form>
             )}
