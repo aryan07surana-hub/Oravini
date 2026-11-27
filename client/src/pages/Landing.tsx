@@ -180,6 +180,8 @@ export default function Landing() {
 )}
 
 <header className="hero">
+  <div className="gl gl-l" aria-hidden="true"><span className="gl-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2e78ef" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V11M10 20V5M16 20v-7M22 20H2"/></svg></span><b>+312%</b><small>Growth this month</small></div>
+  <div className="gl gl-r" aria-hidden="true"><small>New leads today</small><b>48</b><i><u style={{height:"40%"}}/><u style={{height:"62%"}}/><u style={{height:"50%"}}/><u style={{height:"82%"}}/><u style={{height:"100%"}}/></i></div>
   <div className="wrap">
     <span className="eyebrow"><span className="dot"></span>Built for your next stage</span>
     <h1>The new era for growing your <em>personal brand</em></h1>
