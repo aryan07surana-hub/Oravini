@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const MEDIA = "https://oravini-media.pages.dev/";
+const mediaFor = (id: string) => (id === "coach" ? "https://oravini-media2.pages.dev/" : MEDIA);
 // Only the original five have vertical cuts (mp4 only). Newer videos are 16:9 and used on every screen size.
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
 const TITLES: Record<string, string> = {
@@ -18,6 +19,7 @@ const TITLES: Record<string, string> = {
   aisetter: "Your AI setter answers every DM",
   webstream: "Stream your webinar anywhere",
   aicrm: "Your AI CRM, every lead in one place",
+  coach: "Meet your AI Content Coach",
 };
 
 // Small blue "Watch how it works" button (bottom-right) that opens the matching promo video in a modal.
@@ -70,9 +72,9 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
               )}
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" style={{ border: 0, background: "#eff5fd", color: "#2e78ef", width: 28, height: 28, borderRadius: "50%", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
             </div>
-            <video key={shape} poster={`${MEDIA}${id}.jpg`} autoPlay loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
-              {!tall && <source src={`${MEDIA}${id}_${shape}.webm`} type="video/webm" />}
-              <source src={`${MEDIA}${id}_${shape}.mp4`} type="video/mp4" />
+            <video key={shape} poster={`${mediaFor(id)}${id}.jpg`} autoPlay loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
+              {!tall && <source src={`${mediaFor(id)}${id}_${shape}.webm`} type="video/webm" />}
+              <source src={`${mediaFor(id)}${id}_${shape}.mp4`} type="video/mp4" />
             </video>
           </div>
         </div>
