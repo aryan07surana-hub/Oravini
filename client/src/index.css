@@ -479,7 +479,7 @@ html.calm-light body, html.calm-light { font-family: Inter, "Open Sans", ui-sans
 .oravini-landing .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .oravini-landing .tile{background:var(--card);border-radius:24px;padding:26px 26px 22px;overflow:hidden;position:relative;min-height:390px;display:flex;flex-direction:column}
 .oravini-landing .tile.wide{grid-column:span 2}
-.oravini-landing .tile-stage{flex:1;position:relative;display:grid;place-items:center;min-height:225px}
+.oravini-landing .tile-stage{flex:1;position:relative;display:grid;place-items:center;min-height:248px}
 .oravini-landing .tile-cap{font-family:'Inter Display','Inter',system-ui,sans-serif;font-weight:600;font-size:17.5px;letter-spacing:-0.02em;margin-top:18px}
 .oravini-landing .tile-sub{font-size:13.5px;color:var(--sub);margin-top:3px}
 .oravini-landing .mock{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 38px -18px rgba(15,23,42,.22)}
@@ -830,3 +830,14 @@ html.calm-light canvas { background-color: transparent; }
 html.calm-light [class*="bg-amber-"], html.calm-light [class*="bg-yellow-"], html.calm-light [class*="bg-orange-"] { background-color: rgba(46,120,239,.08) !important; }
 html.calm-light [class*="text-amber-"], html.calm-light [class*="text-yellow-"], html.calm-light [class*="text-orange-"] { color: #2e78ef !important; }
 html.calm-light [class*="border-amber-"], html.calm-light [class*="border-yellow-"], html.calm-light [class*="border-orange-"] { border-color: rgba(46,120,239,.28) !important; }
+
+/* Bento polish: depth, balance, tighter type */
+.oravini-landing .bento{gap:20px;align-items:stretch}
+.oravini-landing .tile{background:linear-gradient(180deg,#fbfdff 0,#f3f7fd 100%);border:1px solid #e3ebf7;box-shadow:0 1px 0 #fff inset,0 24px 40px -30px rgba(46,120,239,.35),0 4px 10px -6px rgba(16,24,40,.06);min-height:400px;transition:transform .25s,box-shadow .25s}
+.oravini-landing .tile:hover{transform:translateY(-3px);box-shadow:0 1px 0 #fff inset,0 32px 50px -28px rgba(46,120,239,.5),0 6px 14px -6px rgba(16,24,40,.08)}
+.oravini-landing .tile-stage{min-height:240px;background:radial-gradient(60% 70% at 50% 45%,rgba(46,120,239,.10),transparent 70%)}
+.oravini-landing .tile .dwrap{width:min(100%,380px);height:248px}
+.oravini-landing .tile.wide .dwrap{width:min(100%,520px)}
+.oravini-landing .demo{border:1px solid #e6edf8;box-shadow:0 18px 36px -18px rgba(46,120,239,.35),0 3px 8px -3px rgba(16,24,40,.08)}
+.oravini-landing .tile-cap{font-size:18px;font-weight:700;letter-spacing:-.025em;color:#101828;margin-top:20px}
+.oravini-landing .tile-sub{font-size:13.5px;line-height:1.5;color:#5b6575;margin-top:4px;max-width:46ch}
