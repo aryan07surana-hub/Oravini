@@ -70,6 +70,19 @@ import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
 import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
 
 // New webinars start in the guided wizard; "?mode=advanced" opens the plain form.
+const V_ClientDocuments = withToolVideo(ClientDocuments, "documents");
+const V_CompetitorStudy = withToolVideo(CompetitorStudy, "competitor");
+const V_AIDesign = withToolVideo(AIDesign, "design");
+const V_ContentAnalyser = withToolVideo(ContentAnalyser, "analyser");
+const V_AIVideoEditor = withToolVideo(AIVideoEditor, "aivideo");
+const V_VideoClipEditor = withToolVideo(VideoClipEditor, "editor");
+const V_VideoEditorStudio = withToolVideo(VideoEditorStudio, "editor");
+const V_ScreenRecorder = withToolVideo(ScreenRecorder, "recorder");
+const V_Recordings = withToolVideo(Recordings, "recorder");
+const V_ClientProjectTracker = withToolVideo(ClientProjectTracker, "projecttracker");
+const V_ToolsHub = withToolVideo(ToolsHub, "tools");
+const V_ContentAnalyserYouTube = withToolVideo(ContentAnalyserYouTube, "analyser");
+const V_ContentAnalyserInstagram = withToolVideo(ContentAnalyserInstagram, "analyser");
 const V_ClientDashboard = withToolVideo(ClientDashboard, ["dashboard", "hero"]);
 const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
 const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
@@ -399,14 +412,14 @@ function AppRoutes() {
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={V_ClientDashboard} />}</Route>
-      <Route path="/documents">{() => <Guard component={ClientDocuments} />}</Route>
+      <Route path="/documents">{() => <Guard component={V_ClientDocuments} />}</Route>
       <Route path="/chat">{() => <Guard component={ClientChat} />}</Route>
       <Route path="/community">{() => <Guard component={V_Community} />}</Route>
       <Route path="/progress">{() => <Guard component={V_ClientProgress} />}</Route>
       <Route path="/calls">{() => <Guard component={ClientCalls} />}</Route>
       <Route path="/ai-ideas">{() => <Guard component={V_AIIdeas} />}</Route>
       <Route path="/carousel-studio">{() => <Guard component={CarouselStudio} />}</Route>
-      <Route path="/ai-design">{() => <Guard component={AIDesign} />}</Route>
+      <Route path="/ai-design">{() => <Guard component={V_AIDesign} />}</Route>
       <Route path="/lead-magnet">{() => <Guard component={LeadMagnetGenerator} />}</Route>
       <Route path="/story-generator">{() => <Guard component={InstagramStoryGenerator} />}</Route>
       <Route path="/brand-kit-builder">{() => <Guard component={BrandKitBuilder} />}</Route>
@@ -415,16 +428,16 @@ function AppRoutes() {
       <Route path="/sop-generator">{() => <Guard component={SOPGenerator} />}</Route>
       <Route path="/ai-content-planner">{() => <Guard component={V_AIContentPlanner} />}</Route>
       <Route path="/ai-coach">{() => <Guard component={AIContentCoach} />}</Route>
-      <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
-      <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
-      <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
+      <Route path="/content-analyser/youtube">{() => <Guard component={V_ContentAnalyserYouTube} />}</Route>
+      <Route path="/content-analyser/instagram">{() => <Guard component={V_ContentAnalyserInstagram} />}</Route>
+      <Route path="/content-analyser">{() => <Guard component={V_ContentAnalyser} />}</Route>
       <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={V_InstagramScheduler} />}</Route>
       <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
       <Route path="/tracking/content/instagram">{() => <Guard component={V_InstagramTracking} />}</Route>
       <Route path="/tracking/content/youtube">{() => <Guard component={V_YouTubeTracking} />}</Route>
       <Route path="/tracking/content/calendar">{() => <Guard component={V_ContentCalendar} />}</Route>
       <Route path="/tracking/content">{() => <Guard component={V_ContentTrackingIndex} />}</Route>
-      <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
+      <Route path="/tracking/competitor">{() => <Guard component={V_CompetitorStudy} />}</Route>
       <Route path="/tracking/ads">{() => <Guard component={MetaAdsTracking} />}</Route>
       <Route path="/tracking">{() => <Guard component={V_TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={V_TrackingHome} />}</Route>
@@ -447,13 +460,13 @@ function AppRoutes() {
       <Route path="/dm-tracker">{() => <Guard component={V_DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={V_DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={V_SendDM} />}</Route>
-      <Route path="/video-editor">{() => <Guard component={VideoClipEditor} />}</Route>
-      <Route path="/ai-video-planner">{() => <Guard component={AIVideoEditor} />}</Route>
-      <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
-      <Route path="/video-clip-editor">{() => <Guard component={VideoClipEditor} />}</Route>
-      <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
-      <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
-      <Route path="/recordings">{() => <Guard component={Recordings} />}</Route>
+      <Route path="/video-editor">{() => <Guard component={V_VideoClipEditor} />}</Route>
+      <Route path="/ai-video-planner">{() => <Guard component={V_AIVideoEditor} />}</Route>
+      <Route path="/video-studio">{() => <Guard component={V_VideoEditorStudio} />}</Route>
+      <Route path="/video-clip-editor">{() => <Guard component={V_VideoClipEditor} />}</Route>
+      <Route path="/screen-recorder">{() => <Guard component={V_ScreenRecorder} />}</Route>
+      <Route path="/oravini-recorder">{() => <Guard component={V_ScreenRecorder} />}</Route>
+      <Route path="/recordings">{() => <Guard component={V_Recordings} />}</Route>
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={V_WebinarAnalytics} id={p.id} />}</Route>
       <Route path="/webinar-studio/:id">{(p) => <Guard component={V_WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
@@ -481,8 +494,8 @@ function AppRoutes() {
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
       <Route path="/tools/webinars">{() => <Guard component={V_WebinarFunnels} />}</Route>
-      <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
-      <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
+      <Route path="/tools">{() => <Guard component={V_ToolsHub} />}</Route>
+      <Route path="/project-tracker">{() => <Guard component={V_ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={V_ClientCRM} />}</Route>
       <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
