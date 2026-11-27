@@ -213,7 +213,7 @@ function publicCheckout(r: any, appUrl: string) {
 export async function syncPayment(client: PlatformClient, paymentId: string): Promise<"recorded" | "ignored" | "mismatch"> {
   const pay: any = await client.getPayment(paymentId);
   const checkoutId = pay?.metadata?.oravini_checkout_id;
-  if (typeof checkoutId !== "string") return "ignored"; // not one of ours
+  if (typeof checkoutId !== "string") { console.warn("[whop-platform] sync ignored: no checkout metadata", { paymentId, keys: Object.keys(pay || {}).slice(0, 40), metaKeys: Object.keys(pay?.metadata || {}) }); return "ignored"; } // not one of ours
   const { rows } = await pool.query(
     `SELECT c.*, a.whop_account_id FROM whop_platform_checkouts c
        LEFT JOIN whop_platform_accounts a ON a.user_id = c.user_id WHERE c.id = $1`, [checkoutId]);
@@ -225,7 +225,10 @@ export async function syncPayment(client: PlatformClient, paymentId: string): Pr
   const status = String(pay?.status ?? "");
   const refunded = Math.round(Number(pay?.amount_refunded ?? 0) * 100) || 0;
   // Never credit a payment that doesn't match what the seller priced.
-  if (!c.whop_account_id || (paidAccount && paidAccount !== c.whop_account_id) || cents !== c.amount_cents || currency !== c.currency) return "mismatch";
+  if (!c.whop_account_id || (paidAccount && paidAccount !== c.whop_account_id) || cents !== c.amount_cents || currency !== c.currency) {
+    console.warn("[whop-platform] sync mismatch", { paymentId, hasAccount: !!c.whop_account_id, paidAccount, expectedAccount: c.whop_account_id, cents, expectedCents: c.amount_cents, currency, expectedCurrency: c.currency, status });
+    return "mismatch";
+  }
   const regId = typeof pay?.metadata?.oravini_registration_id === "string" ? pay.metadata.oravini_registration_id.slice(0, 64) : null;
   const normalized = status === "paid" || status === "succeeded" ? "paid" : status || "unknown";
   await pool.query(
