@@ -22,7 +22,7 @@ const oraviniLogoPath = "/oravini-logo.png";
 import LowCreditsBanner from "@/components/LowCreditsBanner";
 import UpgradeModal from "@/components/UpgradeModal";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 function WatermarkOverlay({ email, name }: { email: string; name?: string }) {
   const label = name ? `${name} · ${email}` : email;
@@ -31,7 +31,7 @@ function WatermarkOverlay({ email, name }: { email: string; name?: string }) {
     zIndex: 9990,
     pointerEvents: "none",
     userSelect: "none",
-    color: "rgba(212,180,97,0.18)",
+    color: "rgba(46,120,239,0.18)",
     fontSize: 10,
     fontWeight: 600,
     fontFamily: "'Inter', system-ui, sans-serif",
@@ -59,15 +59,15 @@ function CreditWidget() {
   return (
     <div className="px-4 pb-2">
       <Link href="/credits">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 transition-colors cursor-pointer" data-testid="sidebar-credit-widget">
-          <Zap className="w-3.5 h-3.5 text-[#d4b461] flex-shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#eff5fd] hover:bg-[#e3eefc] border border-[#d6e4f5] transition-colors cursor-pointer" data-testid="sidebar-credit-widget">
+          <Zap className="w-3.5 h-3.5 text-[#2e78ef] flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-zinc-500 leading-none">Credits</p>
-            <p className="text-xs font-semibold text-white leading-none mt-0.5">
+            <p className="text-[10px] text-[#5b6575] leading-none">Credits</p>
+            <p className="text-xs font-semibold text-foreground leading-none mt-0.5">
               {total === null ? "—" : total} remaining
             </p>
           </div>
-          <ChevronRight className="w-3 h-3 text-zinc-600" />
+          <ChevronRight className="w-3 h-3 text-[#8a94a3]" />
         </div>
       </Link>
     </div>
@@ -137,7 +137,7 @@ function SidebarReferralWidget() {
           <div style={{
             flex: 1, display: "flex", alignItems: "center",
             padding: "5px 8px", borderRadius: 7,
-            background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(46,120,239,0.06)", border: "1px solid #e3e9f3",
             minWidth: 0,
           }}>
             <span style={{
@@ -253,7 +253,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
           <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
+              <span aria-label="Oravini" style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: "#2e78ef", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>O</span>
               <div>
                 <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
                 <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Creator Growth Platform</p>
@@ -306,7 +306,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     <span className="flex-1">{label}</span>
                     {badge > 0 && (
                       <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
-                        style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: GOLD }}>
+                        style={active ? { background: "rgba(0,0,0,0.22)", color: "#ffffff" } : { background: "rgba(46,120,239,0.2)", color: GOLD }}>
                         {badge}
                       </Badge>
                     )}
@@ -352,7 +352,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
 
             {/* ── Settings ── */}
-            <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid #e3e9f3" }}>
               {bottomNavItems.map(({ href, label, icon: Icon }) => {
                 const active = location === href;
                 return (
@@ -386,7 +386,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white truncate" data-testid="sidebar-user-name">{user?.name}</p>
+                <p className="text-xs font-bold text-foreground truncate" data-testid="sidebar-user-name">{user?.name}</p>
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>
             </div>
@@ -394,7 +394,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <div className="flex items-center gap-2">
               <Link href="/settings/plan" className="flex-1" data-testid="sidebar-upgrade-btn">
                 <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.02]"
-                  style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: GOLD }}>
+                  style={{ background: "rgba(46,120,239,0.12)", border: "1px solid rgba(46,120,239,0.25)", color: GOLD }}>
                   <ArrowUpRight className="w-3 h-3" />
                   Upgrade Plan
                 </div>
@@ -404,7 +404,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <button
                     data-testid="user-menu"
                     className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-sidebar-accent transition-colors flex-shrink-0"
-                    style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+                    style={{ border: "1px solid #e3e9f3" }}
                   >
                     <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
@@ -429,7 +429,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
               <Menu className="w-5 h-5" />
             </button>
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, flexShrink: 0 }} />
+            <span aria-label="Oravini" style={{ height: 30, width: 30, borderRadius: 9, flexShrink: 0, background: "#2e78ef", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16 }}>O</span>
             <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
           </header>
 
