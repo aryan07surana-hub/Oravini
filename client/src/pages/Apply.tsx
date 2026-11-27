@@ -15,10 +15,18 @@ function CheckItem({ children }: { children: React.ReactNode }) {
   );
 }
 
+const AP: Record<string, string> = {"📈": "<polyline points=\"3 17 9 11 13 15 21 7\"/><polyline points=\"15 7 21 7 21 13\"/>", "👥": "<path d=\"M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2\"/><circle cx=\"10\" cy=\"7\" r=\"4\"/><path d=\"M21 21v-2a4 4 0 0 0-3-3.9\"/><path d=\"M16 3.1a4 4 0 0 1 0 7.8\"/>", "🎯": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/>", "💰": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M14.8 9.2c-.4-1-1.4-1.6-2.8-1.6-1.6 0-2.8.8-2.8 2.1 0 3 5.8 1.4 5.8 4.4 0 1.3-1.2 2.2-3 2.2-1.5 0-2.6-.7-3-1.8\"/><path d=\"M12 6v1.6M12 16.4V18\"/>", "🧠": "<path d=\"M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z\"/><path d=\"M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z\"/>", "📊": "<path d=\"M4 20V10M10 20V4M16 20v-7M22 20H2\"/>", "🎬": "<rect x=\"3\" y=\"6\" width=\"13\" height=\"12\" rx=\"2\"/><path d=\"M16 10l5-3v10l-5-3z\"/>", "🚀": "<path d=\"M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2\"/><path d=\"M12 15l-3-3a22 22 0 0 1 2-4 12 12 0 0 1 9-5c0 3-1 7-5 11a22 22 0 0 1-3 1z\"/><circle cx=\"15\" cy=\"9\" r=\"1.2\"/>"};
+function ApIcon({ k, size = 22 }: { k: string; size?: number }) {
+  return (
+    <span style={{ width: size + 22, height: size + 22, borderRadius: 14, background: "rgba(46,120,239,0.1)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2e78ef" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: AP[k] }} />
+    </span>
+  );
+}
 function ResultCard({ emoji, stat, label }: { emoji: string; stat: string; label: string }) {
   return (
-    <div style={{ background: "rgba(16,24,40,0.03)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "28px 20px", textAlign: "center" }}>
-      <div style={{ fontSize: 32, marginBottom: 10 }}>{emoji}</div>
+    <div style={{ background: "#fff", border: "1px solid rgba(46,120,239,0.12)", boxShadow: "0 10px 30px rgba(46,120,239,0.07)", borderRadius: 18, padding: "28px 20px", textAlign: "center" }}>
+      <div style={{ marginBottom: 12 }}><ApIcon k={emoji} /></div>
       <div style={{ fontSize: 38, fontWeight: 900, color: GOLD, letterSpacing: "-0.03em", lineHeight: 1 }}>{stat}</div>
       <div style={{ fontSize: 13, color: "rgba(16,24,40,0.57)", marginTop: 8, fontWeight: 500 }}>{label}</div>
     </div>
@@ -121,8 +129,8 @@ export default function Apply() {
                 { icon: "🎯", title: "Competitor Intelligence", desc: "See exactly what's performing for top accounts in your niche, so you can model what works without guessing." },
                 { icon: "🚀", title: "Done-With-You Strategy", desc: "For Elite members: direct collaboration on your content system, offers, and growth strategy with our team." },
               ].map(({ icon, title, desc }) => (
-                <div key={title} style={{ background: "rgba(16,24,40,0.03)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 18, padding: "28px" }}>
-                  <div style={{ fontSize: 28, marginBottom: 14 }}>{icon}</div>
+                <div key={title} style={{ background: "#fff", border: "1px solid rgba(46,120,239,0.12)", boxShadow: "0 10px 30px rgba(46,120,239,0.07)", borderRadius: 20, padding: "28px" }}>
+                  <div style={{ marginBottom: 16 }}><ApIcon k={icon} /></div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: "#101828", marginBottom: 10 }}>{title}</h3>
                   <p style={{ fontSize: 14, color: "rgba(16,24,40,0.62)", lineHeight: 1.7 }}>{desc}</p>
                 </div>
@@ -155,7 +163,7 @@ export default function Apply() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 32, background: "rgba(16,24,40,0.03)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "24px 28px" }}>
+            <div style={{ marginTop: 32, background: "#fff", border: "1px solid rgba(46,120,239,0.12)", boxShadow: "0 10px 30px rgba(46,120,239,0.07)", borderRadius: 18, padding: "24px 28px" }}>
               <h4 style={{ fontSize: 15, fontWeight: 700, color: "rgba(16,24,40,0.82)", marginBottom: 16 }}>You're a great fit if you:</h4>
               <CheckItem>Already create content (even inconsistently) and want to scale it</CheckItem>
               <CheckItem>Have a clear niche or are willing to define one</CheckItem>
