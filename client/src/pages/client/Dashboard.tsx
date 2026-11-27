@@ -21,6 +21,7 @@ import {
   Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck, MessageCircle, X
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
+import DashboardOverview from "./DashboardOverview";
 import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -2241,6 +2242,7 @@ export default function ClientDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showMoreInsights, setShowMoreInsights] = useState(false);
   const [vmBannerDismissed, setVmBannerDismissed] = useState(() => localStorage.getItem("vm_addon_banner_dismissed") === "true");
   const autoRefreshRef = useRef(autoRefresh);
   const versionRef = useRef<string | null>(null);
@@ -2355,21 +2357,57 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* ── TIER HERO BANNER ── */}
+          {/* ── OVERVIEW (redesign): next step, live numbers, quick start, weekly results ── */}
           {(user as any)?.plan && (
-            <TierHeroBanner
+            <DashboardOverview
               plan={(user as any).plan}
-              firstName={user?.name?.split(" ")[0] || "Creator"}
               goal={goal}
               lifetimeTotalActions={lifetimeTotalActions}
               contentPostCount={(contentPosts || []).length}
-              streak={streak}
-              monthActions={monthActions}
               weekHistory={weekHistory}
-              projectTracker={projectTracker}
-              tasks={tasks}
             />
           )}
+
+          {/* ── INCOME GOAL + DAILY QUOTE ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="min-h-[160px]" data-testid="income-goal-card">
+              {user?.id && <IncomeGoalCard userId={user.id} />}
+            </div>
+            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <Quote className="w-4 h-4" style={{ color: GOLD }} />
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
+              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
+              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
+            </div>
+          </div>
+
+          {/* ── WORLD CLOCK ── */}
+          <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-3.5 h-3.5 text-zinc-500" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
+              {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
+                <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
+              ))}
+            </div>
+          </div>
+
+          {/* ── MORE INSIGHTS (collapsed by default) ── */}
+          <button
+            onClick={() => setShowMoreInsights(v => !v)}
+            data-testid="button-toggle-insights"
+            className="w-full flex items-center justify-between rounded-2xl px-5 py-3.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors"
+            style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <span>{showMoreInsights ? "Hide" : "Show"} more insights, tour, community and course</span>
+            <ChevronRight className="w-4 h-4 transition-transform" style={{ transform: showMoreInsights ? "rotate(90deg)" : "none" }} />
+          </button>
+          {showMoreInsights && (<>
 
           {/* ── VIDEO MARKETING ADD-ON UPGRADE BANNER ── */}
           {!vmBannerDismissed && (
@@ -2472,35 +2510,6 @@ export default function ClientDashboard() {
 
           {/* ── CREATOR BRIEFING (survey-personalised) ── */}
           <CreatorBriefing />
-
-          {/* ── INCOME GOAL + DAILY QUOTE ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="min-h-[160px]" data-testid="income-goal-card">
-              {user?.id && <IncomeGoalCard userId={user.id} />}
-            </div>
-            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-                <Quote className="w-4 h-4" style={{ color: GOLD }} />
-              </div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
-              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
-              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
-            </div>
-          </div>
-
-          {/* ── WORLD CLOCK ── */}
-          <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="w-3.5 h-3.5 text-zinc-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
-              {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
-                <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
-              ))}
-            </div>
-          </div>
 
           {/* ── CREATOR SCORE ── */}
           <CreatorScore streak={streak} monthActions={monthActions} contentCount={(contentPosts || []).length} />
@@ -2854,6 +2863,8 @@ export default function ClientDashboard() {
               <ContentMasteryModule />
             </div>
           </Suspense>
+
+          </>)}
 
           {/* ── FEEDBACK BANNER ── */}
           <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 to-zinc-900/60 p-5 flex items-center justify-between gap-4 flex-wrap">
