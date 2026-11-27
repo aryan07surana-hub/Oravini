@@ -136,6 +136,9 @@ export const MANYCHAT_ALTERNATIVE: SeoPageConfig = {
       heading: "Who should pick which",
       body: "If you only need DM flows for an established funnel, a dedicated DM tool is a fine choice. If you're a creator, coach or personal brand building the whole journey — content → DM → webinar → sale — Oravini replaces the stack: one login, one CRM, one bill.",
     },
+    { href: "/automated-webinar-platform", label: "Automated and evergreen webinar platform" },
+    { href: "/comment-to-dm-automation", label: "Comment-to-DM automation for Instagram" },
+    { href: "/blog/how-to-increase-webinar-attendance", label: "How to increase webinar attendance" },
   ],
   table: {
     head: ["", "Oravini", "ManyChat"],
@@ -248,6 +251,9 @@ export const IG_DM_AUTOMATION: SeoPageConfig = {
       heading: "Built on Meta's official APIs",
       body: "Oravini connects through Meta's reviewed Instagram messaging permissions. Your account stays within Instagram's rules — no gray-hat bots that risk a ban.",
     },
+    { href: "/automated-webinar-platform", label: "Automated and evergreen webinar platform" },
+    { href: "/comment-to-dm-automation", label: "Comment-to-DM automation for Instagram" },
+    { href: "/blog/how-to-increase-webinar-attendance", label: "How to increase webinar attendance" },
   ],
   faqs: [
     {
