@@ -330,7 +330,7 @@ export default function ClientProgress() {
             <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto">
               Elite clients get a dedicated mission dashboard with live project phases, approvals, updates, deliverables, and next actions from the team.
             </p>
-            <a href="/select-plan" className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm mt-6" style={{ background: "#d4b461", color: "#000" }}>
+            <a href="/select-plan" className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm mt-6" style={{ background: "#2e78ef", color: "#fff" }}>
               Upgrade to Tier 5 <ArrowRight className="w-4 h-4" />
             </a>
           </div>
