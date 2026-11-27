@@ -11174,7 +11174,10 @@ Rules:
       remindersEnabled: z.boolean().optional(),
       vipCheckoutUrl: z.union([httpUrl, z.null()]).optional(),
       vipPrice: optStr(40),
-      vslUrl: z.union([httpUrl, z.null()]).optional(),
+      vslUrl: z.union([
+        z.string().trim().max(2000).refine(v => v === "" || /^https:\/\//i.test(v) || /^\/vsl\/[A-Za-z0-9._-]+\.(mp4|webm)$/.test(v), "VSL must be an https:// link or a /vsl/ file"),
+        z.null(),
+      ]).optional().transform(v => (v === undefined ? undefined : v ? v : null)),
       communityLinks: communityLinksSchema.optional(),
     });
 
