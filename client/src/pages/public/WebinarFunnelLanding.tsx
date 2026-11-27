@@ -66,7 +66,7 @@ export default function WebinarFunnelLanding() {
 
   const vipUrl = /^https:\/\//i.test(webinar.vipCheckoutUrl || "") ? (webinar.vipCheckoutUrl as string) : "";
   const hasTiers = !!vipUrl;
-  const vslUrl = /^https:\/\//i.test(webinar.vslUrl || "") ? (webinar.vslUrl as string) : "";
+  const vslUrl = (/^https:\/\//i.test(webinar.vslUrl || "") || /^\/vsl\/[A-Za-z0-9._-]+\.(mp4|webm)$/.test(webinar.vslUrl || "")) ? (webinar.vslUrl as string) : "";
   const liveHref = `/w/${webinar.slug}/live`;
   const pageUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "";
   const calendarHref = googleCalendarUrl({
