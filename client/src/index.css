@@ -347,3 +347,41 @@ html, body {
     font-size: 16px !important;
   }
 }
+
+/* Calm light theme (dashboard redesign). Applied to <html> only while the dashboard is mounted. */
+html.calm-light {
+  --background: 0 0% 100%;
+  --foreground: 228 18% 10%;
+  --border: 225 14% 91%;
+  --card: 0 0% 100%;
+  --card-foreground: 228 18% 10%;
+  --card-border: 225 14% 91%;
+  --sidebar: 225 20% 98%;
+  --sidebar-foreground: 228 18% 10%;
+  --sidebar-border: 225 14% 92%;
+  --sidebar-primary: 226 68% 54%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 225 20% 95%;
+  --sidebar-accent-foreground: 228 18% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 228 18% 10%;
+  --primary: 226 68% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 225 20% 95%;
+  --secondary-foreground: 228 18% 10%;
+  --muted: 225 20% 96%;
+  --muted-foreground: 225 8% 40%;
+  --accent: 225 20% 95%;
+  --accent-foreground: 228 18% 10%;
+  --input: 225 14% 88%;
+  --ring: 226 68% 54%;
+  color-scheme: light;
+}
+/* Remap hard-coded dark utility colours used by the sidebar and older dashboard sections */
+html.calm-light .text-white { color: hsl(228 18% 10%); }
+html.calm-light .text-zinc-200, html.calm-light .text-zinc-300 { color: hsl(225 10% 30%); }
+html.calm-light .text-zinc-400, html.calm-light .text-zinc-500 { color: hsl(225 8% 42%); }
+html.calm-light .text-zinc-600 { color: hsl(225 8% 58%); }
+html.calm-light .bg-zinc-900, html.calm-light .bg-zinc-800, html.calm-light [class*="bg-zinc-900/"], html.calm-light [class*="bg-zinc-800/"] { background-color: hsl(225 20% 96%); }
+html.calm-light .border-zinc-800, html.calm-light .border-zinc-700, html.calm-light .divide-zinc-800 > * { border-color: hsl(225 14% 91%); }
+html.calm-light .bg-black\/50 { background-color: rgba(20,22,28,0.4); }
