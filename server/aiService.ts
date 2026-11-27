@@ -22,7 +22,7 @@ const GROQ_BASE = process.env.AI_GROQ_BASE_URL || "https://api.groq.com/openai/v
 const TIMEOUT_MS = 30000;
 const OR_HEADERS = { "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 
-export const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile";
+export const GROQ_DEFAULT_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 // OpenRouter model names (fallback chain)
 const DEFAULT_MODELS = [
