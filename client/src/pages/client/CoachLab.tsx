@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trophy, Library, Zap, FileText, CalendarDays, Plus, Trash2, Copy, Check, Sparkles, TrendingUp, Bookmark, Wand2 } from "lucide-react";
+import { Loader2, RefreshCw, Trophy, Library, Zap, FileText, CalendarDays, Plus, Trash2, Copy, Check, Sparkles, TrendingUp, Bookmark, Wand2 } from "lucide-react";
 
 const BLUE = "#2e78ef";
 const LINE = "#e3e9f3";
 
-type Reel = { id: string; url?: string; hook: string; transcript?: string; views?: number; likes?: number; comments?: number; saves?: number; shares?: number; lengthSec?: number; postedAt?: string };
+type Reel = { id: string; source?: string; avgWatchSec?: number; url?: string; hook: string; transcript?: string; views?: number; likes?: number; comments?: number; saves?: number; shares?: number; lengthSec?: number; postedAt?: string };
 type SavedHook = { id: string; hook: string; score?: number; angle?: string; source?: string };
-type LabState = { reels: Reel[]; hooks: SavedHook[]; winners?: any; viral: any[]; report?: any; calendar?: any; niche?: string };
+type LabState = { reels: Reel[]; hooks: SavedHook[]; winners?: any; viral: any[]; report?: any; calendar?: any; niche?: string; igSync?: { at: string; count: number; insights: boolean; username?: string | null } };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const fmt = (n?: number) => (n == null ? "-" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n));
@@ -81,9 +81,13 @@ export default function CoachLab({ niche: profileNiche }: { niche?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState("");
   const timer = useRef<any>(null);
+  const [ig, setIg] = useState<any>(null);
+  const [igBusy, setIgBusy] = useState("");
+  const loadedRef = useRef(false);
 
   useEffect(() => {
-    apiRequest("GET", "/api/coach/lab/state").then((d: any) => { setSt({ reels: [], hooks: [], viral: [], ...(d || {}) }); setLoaded(true); }).catch(() => setLoaded(true));
+    apiRequest("GET", "/api/coach/lab/state").then((d: any) => { setSt({ reels: [], hooks: [], viral: [], ...(d || {}) }); setLoaded(true); loadedRef.current = true; }).catch(() => setLoaded(true));
+    apiRequest("GET", "/api/coach/lab/ig/status").then(setIg).catch(() => setIg(null));
   }, []);
   const update = (patch: Partial<LabState>) => {
     setSt((prev) => {
@@ -100,6 +104,44 @@ export default function CoachLab({ niche: profileNiche }: { niche?: string }) {
     finally { setBusy(""); }
   };
   const niche = st.niche ?? profileNiche ?? "";
+  const saveNow = (next: LabState) => { if (timer.current) clearTimeout(timer.current); apiRequest("PUT", "/api/coach/lab/state", next).catch(() => {}); };
+  /** Pull reels + insights from Instagram. Free. */
+  const syncIg = async (force = true): Promise<LabState | null> => {
+    setIgBusy("sync");
+    try {
+      const d: any = await apiRequest("POST", "/api/coach/lab/ig/sync", { force });
+      if (d?.state) { const n = { reels: [], hooks: [], viral: [], ...d.state } as LabState; setSt(n); return n; }
+      return null;
+    } catch (e: any) {
+      toast({ title: e?.code === "reconnect" ? "Reconnect Instagram" : "Could not sync Instagram", description: String(e?.message || "Try again"), variant: "destructive" });
+      return null;
+    } finally { setIgBusy(""); }
+  };
+  /** Sync, then rebuild winners, weekly report and calendar from the real numbers. */
+  const refreshFromIg = async () => {
+    const fresh = await syncIg(true);
+    if (!fresh || fresh.reels.length < 2) { if (fresh) toast({ title: "Not enough reels yet", description: "Post at least 2 reels and sync again." }); return; }
+    let cur: LabState = fresh;
+    const w = await run("winners", "/api/coach/lab/winners", { reels: cur.reels });
+    if (!w) return; cur = { ...cur, winners: w }; setSt(cur);
+    const formula2 = w.formula;
+    const r = await run("report", "/api/coach/lab/report", { reels: cur.reels, formula: formula2 });
+    if (r) { cur = { ...cur, report: r }; setSt(cur); }
+    const nz = cur.niche ?? profileNiche ?? "";
+    if (nz) {
+      const ids = new Set<string>(w.winnerIds || []);
+      const c = await run("calendar", "/api/coach/lab/calendar", { niche: nz, perWeek: "4", weeks: "2", formula: formula2, winners: cur.reels.filter((x) => ids.has(x.id)) });
+      if (c?.posts) cur = { ...cur, calendar: c };
+    }
+    setSt(cur); saveNow(cur);
+    toast({ title: "Coach updated from your real reels" });
+  };
+  useEffect(() => {
+    if (!loaded || !ig?.enabled || !ig?.connected || ig?.expired) return;
+    const at = st.igSync?.at ? new Date(st.igSync.at).getTime() : 0;
+    if (Date.now() - at > 12 * 3600 * 1000) syncIg(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, ig?.enabled, ig?.connected]);
   const winnerReels = useMemo(() => {
     const ids = new Set<string>(st.winners?.winnerIds || []);
     return st.reels.filter((r) => ids.has(r.id));
@@ -123,6 +165,7 @@ export default function CoachLab({ niche: profileNiche }: { niche?: string }) {
             </button>
           ))}
         </div>
+        {loaded && ig?.enabled && <IgPanel ig={ig} st={st} busy={busy} igBusy={igBusy} onSync={() => syncIg(true)} onRefresh={refreshFromIg} update={update} setTab={setTab} />}
         {!loaded ? <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: BLUE }} /></div> : (
           <>
             {tab === "winners" && <Winners st={st} update={update} run={run} busy={busy} />}
@@ -404,6 +447,56 @@ function Calendar({ st, update, run, busy, niche, setNiche, formula, winnerReels
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+function IgPanel({ ig, st, busy, igBusy, onSync, onRefresh, update, setTab }: { ig: any; st: LabState; busy: string; igBusy: string; onSync: () => void; onRefresh: () => void; update: (p: Partial<LabState>) => void; setTab: (t: any) => void }) {
+  const sync = st.igSync;
+  const working = !!busy || !!igBusy;
+  const f = st.winners?.formula;
+  const ids = new Set<string>(st.winners?.winnerIds || []);
+  const top = st.reels.filter((r) => ids.has(r.id)).slice(0, 3);
+  const next: any[] = st.report?.nextPosts || [];
+  const hasCoaching = st.reels.some((r) => r.source === "instagram") && (f || next.length > 0);
+  const saveHook = (h: string) => { if (!st.hooks.some((x) => x.hook === h)) update({ hooks: [{ id: uid(), hook: h, source: "my winner" }, ...st.hooks] }); };
+  return (
+    <div className="space-y-4 mb-6" data-testid="coach-ig-panel">
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#eaf2fe" }}><TrendingUp className="w-5 h-5" style={{ color: BLUE }} /></div>
+            <div>
+              {!ig.connected ? (<><div className="text-sm font-bold" style={{ color: "#101828" }}>Connect Instagram, skip the typing</div>
+                <div className="text-xs" style={{ color: "#6b7686" }}>The coach pulls your reels and insights, finds your winners and coaches you from real numbers.</div></>)
+                : ig.expired ? (<><div className="text-sm font-bold" style={{ color: "#101828" }}>Instagram connection expired</div><div className="text-xs" style={{ color: "#6b7686" }}>Reconnect to keep your reels in sync.</div></>)
+                : (<><div className="text-sm font-bold flex items-center gap-2" style={{ color: "#101828" }}>Instagram connected{ig.igUsername ? ` as @${ig.igUsername}` : ""} <Pill tone="green">Live</Pill></div>
+                  <div className="text-xs" style={{ color: "#6b7686" }}>{sync ? `${sync.count} reels synced ${new Date(sync.at).toLocaleString()}.` : "Not synced yet."}{sync && !sync.insights ? " Views, saves and shares need the insights permission. Reconnect to allow it." : ""}</div></>)}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {(!ig.connected || ig.expired) ? <a href="/api/oauth/meta/connect"><Btn>{ig.expired ? "Reconnect Instagram" : "Connect Instagram"}</Btn></a> : (<>
+              <Btn ghost onClick={onSync} busy={igBusy === "sync"} disabled={working}><RefreshCw className="w-4 h-4" />Sync now</Btn>
+              <Btn onClick={onRefresh} busy={working && igBusy !== "sync"} disabled={working}><Sparkles className="w-4 h-4" />Coach me from my reels <span className="opacity-80 font-medium">up to 8 credits</span></Btn></>)}
+          </div>
+        </div>
+        {!ig.connected && <div className="text-[11px] mt-3" style={{ color: "#8a94a3" }}>Prefer not to connect? Paste your reels in My Winners, it works the same.</div>}
+      </Card>
+      {hasCoaching && (
+        <Card className="p-5" style={{ background: "linear-gradient(180deg,#f4f8fe,#fff)" }}>
+          <div className="flex items-center justify-between mb-3"><div className="font-bold text-sm" style={{ color: "#101828" }}>Your coaching, from your real reels</div><Pill>Updated {sync ? new Date(sync.at).toLocaleDateString() : "today"}</Pill></div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div><div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "#8a94a3" }}>Post next</div>
+              <div className="space-y-2">{next.slice(0, 3).map((p, i) => <div key={i} className="text-[13px]" style={{ color: "#101828" }}><b>{p.hook}</b><div className="text-xs" style={{ color: "#6b7686" }}>{p.format}</div></div>)}{!next.length && <button type="button" className="text-xs font-semibold" style={{ color: BLUE }} onClick={() => setTab("report")}>Build your weekly report</button>}</div></div>
+            <div><div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "#8a94a3" }}>Reuse these hooks</div>
+              <div className="space-y-2">{top.map((r) => <div key={r.id} className="flex items-start justify-between gap-2 text-[13px]" style={{ color: "#101828" }}><span>{r.hook}</span><button type="button" onClick={() => saveHook(r.hook)} className="text-[11px] font-semibold shrink-0" style={{ color: BLUE }}>Save</button></div>)}{!top.length && <div className="text-xs" style={{ color: "#8a94a3" }}>Run the winners analysis to see them.</div>}</div></div>
+            <div><div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "#8a94a3" }}>Stop doing</div>
+              <div className="space-y-1.5">{(f?.stopDoing || []).slice(0, 3).map((x: string, i: number) => <div key={i} className="text-[13px]" style={{ color: "#101828" }}>{x}</div>)}{!f && <div className="text-xs" style={{ color: "#8a94a3" }}>Appears after the winners analysis.</div>}</div></div>
+          </div>
+          <button type="button" className="text-xs font-semibold mt-4" style={{ color: BLUE }} onClick={() => setTab("winners")}>Paste a new script in My Winners to get feedback against your own best reels</button>
+        </Card>
+      )}
     </div>
   );
 }
