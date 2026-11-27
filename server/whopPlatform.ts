@@ -100,24 +100,26 @@ export function createPlatformClient(cfg: PlatformConfig, fetchImpl: typeof fetc
   };
   return {
     createAccount: (b: { email: string; title: string; externalId: string }) =>
-      call("/accounts", { method: "POST", body: JSON.stringify({ email: b.email, title: b.title, external_id: b.externalId }) }, `acct-${b.externalId}`),
-    getAccount: (id: string) => call(`/accounts/${encodeURIComponent(id)}`),
+      call("/companies", { method: "POST", body: JSON.stringify({ title: b.title, email: b.email, parent_company_id: cfg.platformAccountId, metadata: { oravini_ref: b.externalId } }) }, `acct-${b.externalId}`),
+    getAccount: (id: string) => call(`/companies/${encodeURIComponent(id)}`),
     createOnboardingLink: (accountId: string, refreshUrl: string, returnUrl: string) =>
-      call("/account_links", { method: "POST", body: JSON.stringify({ account_id: accountId, refresh_url: refreshUrl, return_url: returnUrl, use_case: "account_onboarding" }) }),
+      call("/account_links", { method: "POST", body: JSON.stringify({ company_id: accountId, refresh_url: refreshUrl, return_url: returnUrl, use_case: "account_onboarding" }) }),
     createPayoutLink: (accountId: string, refreshUrl: string, returnUrl: string) =>
-      call("/account_links", { method: "POST", body: JSON.stringify({ account_id: accountId, refresh_url: refreshUrl, return_url: returnUrl, use_case: "payouts_portal" }) }),
+      call("/account_links", { method: "POST", body: JSON.stringify({ company_id: accountId, refresh_url: refreshUrl, return_url: returnUrl, use_case: "payouts_portal" }) }),
     createCheckout: (b: { accountId: string; amountCents: number; feeCents: number; title: string; description: string | null; redirectUrl: string | null; buttonColor: string | null; metadata: Record<string, string>; idem: string }) => {
       const body: any = {
         account_id: b.accountId,
         metadata: b.metadata,
         variant: {
+          currency: "usd",
+          title: b.title.slice(0, 80),
+          ...(b.description ? { description: b.description.slice(0, 500) } : {}),
           initial_price: centsToUnits(b.amountCents),
           billing_type: "one_time",
           application_fee_amount: centsToUnits(b.feeCents),
         },
       };
       if (b.redirectUrl) body.redirect_url = b.redirectUrl;
-      if (b.buttonColor) body.checkout_styling = { button_color: b.buttonColor };
       return call("/checkout_configurations", { method: "POST", body: JSON.stringify(body) }, b.idem);
     },
     getPayment: (id: string) => call(`/payments/${encodeURIComponent(id)}`),
