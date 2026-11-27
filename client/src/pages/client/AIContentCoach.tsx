@@ -548,51 +548,33 @@ function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave:
 }
 
 // ── Welcome Video Modal ───────────────────────────────────────────────────────
-function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
+function WelcomeVideoModal({ onClose }: { onClose: (never: boolean) => void }) {
   const [visible, setVisible] = useState(false);
+  const [never, setNever] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
-
-  const dismiss = () => {
-    setVisible(false);
-    setTimeout(onClose, 280);
-  };
-
+  const dismiss = () => { setVisible(false); setTimeout(() => onClose(never), 280); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={dismiss} />
-      <div
-        style={{
-          transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(12px)",
-          opacity: visible ? 1 : 0,
-          transition: "all 0.28s cubic-bezier(0.32,0.72,0,1)",
-          maxWidth: 640,
-        }}
-        className="relative w-full bg-[#0d0d0d] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
-      >
-        {/* Header */}
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: "rgba(16,24,40,.55)" }} onClick={dismiss} />
+      <div style={{ transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(12px)", opacity: visible ? 1 : 0, transition: "all 0.28s cubic-bezier(0.32,0.72,0,1)", maxWidth: 640, background: "#fff", border: "1px solid #e3e9f3", boxShadow: "0 40px 90px -30px rgba(46,120,239,.55)" }}
+        className="relative w-full rounded-2xl overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-              style={{ background:`${GOLD}15`, border:`1px solid ${GOLD}30` }}>🤙</div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#eaf2fe" }}><Play className="w-4 h-4" style={{ color: "#2e78ef" }} /></div>
             <div>
-              <h2 className="text-[15px] font-black text-white leading-tight">Welcome to AI Content Coach</h2>
-              <p className="text-[11px] text-white/40 mt-0.5">Watch this 2-min walkthrough — then start creating.</p>
+              <h2 className="text-[15px] font-bold leading-tight" style={{ color: "#101828" }}>Welcome to AI Content Coach</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: "#6b7686" }}>A short walkthrough, then start creating.</p>
             </div>
           </div>
-          <button onClick={dismiss}
-            className="w-7 h-7 rounded-full bg-white/6 hover:bg-white/12 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors shrink-0 ml-4">
+          <button onClick={dismiss} aria-label="Close" className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 ml-4" style={{ background: "#eff5fd", color: "#2e78ef" }}>
             <XIcon className="w-3.5 h-3.5"/>
           </button>
         </div>
-
-        {/* Video embed */}
         <div className="px-6">
-          <div className="relative w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/6" style={{ aspectRatio:"16/9" }}>
+          <div className="relative w-full rounded-xl overflow-hidden" style={{ aspectRatio:"16/9", background: "#eef4fe", border: "1px solid #e3e9f3" }}>
             <CoachIntroVideo />
           </div>
         </div>
-
-        {/* What's inside quick list */}
         <div className="px-6 py-4 grid grid-cols-2 gap-2">
           {[
             { icon:"🎯", text:"Score your hook before posting" },
@@ -600,20 +582,18 @@ function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
             { icon:"📊", text:"See where viewers drop off" },
             { icon:"🔥", text:"Quick rewrites in one click" },
           ].map(({icon,text}) => (
-            <div key={text} className="flex items-center gap-2 text-[11px] text-white/50">
-              <span>{icon}</span><span>{text}</span>
-            </div>
+            <div key={text} className="flex items-center gap-2 text-[11px]" style={{ color: "#5b6675" }}><span>{icon}</span><span>{text}</span></div>
           ))}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 pb-6 pt-2 border-t border-white/6">
-          <p className="text-[10px] text-white/20">Won't auto-play again. Hit "Watch intro" anytime to rewatch.</p>
-          <Button onClick={dismiss}
-            className="h-9 px-5 font-bold text-sm shrink-0"
-            style={{ background:GOLD, color:"#000" }}>
-            Let's go →
-          </Button>
+        <div className="flex items-center justify-between gap-3 px-6 pb-5 pt-3 flex-wrap" style={{ borderTop: "1px solid #e3e9f3" }}>
+          <label className="inline-flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: "#5b6675" }}>
+            <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} style={{ accentColor: "#2e78ef", width: 16, height: 16 }} />
+            Don't show this again
+          </label>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={dismiss} className="h-9 px-5 font-semibold text-sm" style={{ borderColor: "#d6e4f5", color: "#2e78ef", background: "#fff" }}>Skip</Button>
+            <Button onClick={dismiss} className="h-9 px-5 font-bold text-sm shrink-0" style={{ background: "#2e78ef", color: "#fff" }}>Let's go</Button>
+          </div>
         </div>
       </div>
     </div>
@@ -866,8 +846,8 @@ export default function AIContentCoach() {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   // ── Welcome modal — show once per browser, "Watch again" button reopens it ─
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(COACH_WELCOME_STORAGE_KEY));
-  const dismissWelcome = () => { localStorage.setItem(COACH_WELCOME_STORAGE_KEY, "1"); setShowWelcome(false); };
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(COACH_WELCOME_STORAGE_KEY) && !sessionStorage.getItem(COACH_WELCOME_STORAGE_KEY));
+  const dismissWelcome = (never?: boolean) => { try { (never ? localStorage : sessionStorage).setItem(COACH_WELCOME_STORAGE_KEY, "1"); } catch { /* ignore */ } setShowWelcome(false); };
 
   // ── New feature state ──────────────────────────────────────────────────────
   const [platform, setPlatform] = useState<"reels" | "tiktok" | "shorts">("reels");
