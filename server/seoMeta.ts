@@ -37,6 +37,15 @@ export const PRERENDERED_ROUTES: Record<string, string> = {
   "/vs/manychat": "vs-manychat.html",
   "/instagram-dm-automation": "instagram-dm-automation.html",
   "/webinar-platform": "webinar-platform.html",
+  "/dm-automation-for-coaches": "dm-automation-for-coaches.html",
+  "/dm-automation-for-real-estate-agents": "dm-automation-for-real-estate-agents.html",
+  "/dm-automation-for-fitness-coaches": "dm-automation-for-fitness-coaches.html",
+  "/dm-automation-for-salons": "dm-automation-for-salons.html",
+  "/webinar-platform-for-coaches": "webinar-platform-for-coaches.html",
+  "/webinar-platform-for-course-creators": "webinar-platform-for-course-creators.html",
+  "/vs/chatfuel": "vs-chatfuel.html",
+  "/vs/kajabi": "vs-kajabi.html",
+  "/vs/webinarjam": "vs-webinarjam.html",
   "/blog": "blog.html",
   ...Object.fromEntries(BLOG_POSTS.map((p) => [`/blog/${p.slug}`, `blog-${p.slug}.html`])),
 };
@@ -95,6 +104,69 @@ export const SEO_ROUTES: Record<string, SeoMeta> = {
       },
     ]),
   ),
+  "/dm-automation-for-coaches": {
+    title: "Instagram DM Automation for Coaches: Turn Comments into Clients | Oravini",
+    description:
+      "Instagram DM automation built for coaches: comment-to-DM, keyword replies and welcome messages that fill your webinars and discovery calls — every lead tracked in one CRM.",
+    canonical: `${SITE_URL}/dm-automation-for-coaches`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/dm-automation-for-real-estate-agents": {
+    title: "Instagram DM Automation for Real Estate Agents: Instant Listing Replies | Oravini",
+    description:
+      "DM automation for real estate agents on Instagram: auto-reply to listing comments, send property links in seconds and track every buyer lead in one CRM.",
+    canonical: `${SITE_URL}/dm-automation-for-real-estate-agents`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/dm-automation-for-fitness-coaches": {
+    title: "Instagram DM Automation for Fitness Coaches: Fill Your Program from Reels | Oravini",
+    description:
+      "DM automation for fitness coaches: comment-to-DM for workout reels, instant program links, and every lead tracked from first comment to signed client.",
+    canonical: `${SITE_URL}/dm-automation-for-fitness-coaches`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/dm-automation-for-salons": {
+    title: "Instagram DM Automation for Salons: Book Appointments from Comments | Oravini",
+    description:
+      "DM automation for salons and studios: auto-reply to price and booking comments, send your booking link instantly, and track every appointment enquiry in one place.",
+    canonical: `${SITE_URL}/dm-automation-for-salons`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/webinar-platform-for-coaches": {
+    title: "Webinar Platform for Coaches: Fill Your Program with One Live Session | Oravini",
+    description:
+      "A webinar platform for coaches: registration pages, live room with offers, automatic replays and a CRM that turns attendees into discovery calls and clients.",
+    canonical: `${SITE_URL}/webinar-platform-for-coaches`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/webinar-platform-for-course-creators": {
+    title: "Webinar Platform for Course Creators: Launch Funnels in One Place | Oravini",
+    description:
+      "Webinars for course launches: registration pages, live sessions with offers, replays, VSL hosting and one CRM tracking every lead from signup to sale.",
+    canonical: `${SITE_URL}/webinar-platform-for-course-creators`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/vs/chatfuel": {
+    title: "Oravini vs Chatfuel: Honest Comparison for Creators (2026) | Oravini",
+    description:
+      "Oravini vs Chatfuel compared: Instagram DM automation, AI chat, webinars, funnels, video hosting, CRM and pricing model. Which fits a creator business?",
+    canonical: `${SITE_URL}/vs/chatfuel`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/vs/kajabi": {
+    title: "Oravini vs Kajabi: Honest Comparison for Creators (2026) | Oravini",
+    description:
+      "Oravini vs Kajabi compared: courses, webinars, funnels, video hosting, Instagram DM automation, AI content tools and pricing. Which fits your creator business?",
+    canonical: `${SITE_URL}/vs/kajabi`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/vs/webinarjam": {
+    title: "Oravini vs WebinarJam: Honest Comparison for Creators (2026) | Oravini",
+    description:
+      "Oravini vs WebinarJam compared: live webinar features, registration funnels, replays, CRM, DM automation and pricing model. Which fits a creator launch?",
+    canonical: `${SITE_URL}/vs/webinarjam`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
   "/preview": {
     title: "Oravini Dashboard Preview — See the AI Growth Platform in Action",
     description:
@@ -206,4 +278,4 @@ export function injectSeoMeta(indexHtml: string, meta: SeoMeta): string {
     html = html.replace(/<head>/, `<head>\n    <title>${escapeAttr(meta.title)}</title>`);
   }
   return html.replace(/<\/head>/, `    ${renderMetaTags(meta)}\n  </head>`);
-      }
+}

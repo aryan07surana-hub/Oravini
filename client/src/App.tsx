@@ -35,7 +35,12 @@ import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/PricingV2Landing";
-import { ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage } from "@/pages/seoPages";
+import {
+  ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage,
+  DmCoachesPage, DmRealEstatePage, DmFitnessPage, DmSalonsPage,
+  WebinarCoachesPage, WebinarCourseCreatorsPage,
+  VsChatfuelPage, VsKajabiPage, VsWebinarjamPage,
+} from "@/pages/seoPages";
 import { BlogIndexPage, BlogPostPage } from "@/pages/blogPages";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
@@ -320,6 +325,15 @@ function AppRoutes() {
       <Route path="/vs/manychat" component={VsManychatPage} />
       <Route path="/instagram-dm-automation" component={IgDmAutomationPage} />
       <Route path="/webinar-platform" component={WebinarPlatformPage} />
+      <Route path="/dm-automation-for-coaches" component={DmCoachesPage} />
+      <Route path="/dm-automation-for-real-estate-agents" component={DmRealEstatePage} />
+      <Route path="/dm-automation-for-fitness-coaches" component={DmFitnessPage} />
+      <Route path="/dm-automation-for-salons" component={DmSalonsPage} />
+      <Route path="/webinar-platform-for-coaches" component={WebinarCoachesPage} />
+      <Route path="/webinar-platform-for-course-creators" component={WebinarCourseCreatorsPage} />
+      <Route path="/vs/chatfuel" component={VsChatfuelPage} />
+      <Route path="/vs/kajabi" component={VsKajabiPage} />
+      <Route path="/vs/webinarjam" component={VsWebinarjamPage} />
       <Route path="/blog" component={BlogIndexPage} />
       <Route path="/blog/:slug">{(params) => <BlogPostPage slug={params.slug} />}</Route>
       <Route path="/apply" component={Apply} />

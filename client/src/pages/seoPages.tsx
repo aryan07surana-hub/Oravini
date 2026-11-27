@@ -319,9 +319,449 @@ export const WEBINAR_PLATFORM: SeoPageConfig = {
   ],
 };
 
-export const SEO_PAGES: SeoPageConfig[] = [MANYCHAT_ALTERNATIVE, VS_MANYCHAT, IG_DM_AUTOMATION, WEBINAR_PLATFORM];
+export const DM_COACHES: SeoPageConfig = {
+  slug: "dm-automation-for-coaches",
+  title: "Instagram DM Automation for Coaches: Turn Comments into Clients | Oravini",
+  description:
+    "Instagram DM automation built for coaches: comment-to-DM, keyword replies and welcome messages that fill your webinars and discovery calls — every lead tracked in one CRM.",
+  h1: "Instagram DM automation for coaches who sell transformation",
+  intro:
+    "Your content already makes people raise their hands — 'comment READY and I'll send you the link.' Oravini answers every one of those comments in seconds, delivers the link, and drops the lead into the same CRM that tracks your webinar registrations and discovery-call bookings. No more screenshots of comment sections on Sunday night.",
+  sections: [
+    {
+      heading: "Every call-to-action becomes an automatic conversation",
+      body: "Comment-to-DM on posts and reels, keyword replies for questions you get daily ('pricing', 'program', 'results'), thank-yous for story mentions, and a welcome DM for new followers. Set them once in the setup wizard and every future post carries them.",
+    },
+    {
+      heading: "A straight line from comment to client",
+      body: "The DM delivers your lead magnet, webinar registration or booking link — all built inside Oravini. Each contact is tagged with the post that brought them, so when someone becomes a client you know exactly which reel did it.",
+    },
+    {
+      heading: "Built for a one-person coaching business",
+      body: "You don't have a sales team answering DMs. Oravini is the team: instant replies while you're coaching, a CRM pipeline that moves leads from new to booked, and AI content tools that keep the top of the funnel full.",
+    },
+  ],
+  faqs: [
+    {
+      q: "I coach part-time and can't answer DMs all day. Does this actually run itself?",
+      a: "Yes — that's the point. Your rules reply instantly whether you're in a session or asleep. You open the CRM when you have time and see every conversation, tagged and sorted, instead of scrolling an inbox.",
+    },
+    {
+      q: "Can the automated DM send people to my webinar or booking page?",
+      a: "Yes — registration pages, funnels and booking links are built in Oravini, so the DM can link straight to them and the signup lands in your CRM automatically. No third-party page builder needed.",
+    },
+    {
+      q: "Is this within Instagram's rules?",
+      a: "Oravini uses Meta's official Instagram messaging APIs with a reviewed app. You'll need a professional (business or creator) account — the same requirement as any legitimate automation tool.",
+    },
+  ],
+  related: [
+    { href: "/instagram-dm-automation", label: "Instagram DM automation: the full feature tour" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
+export const DM_REAL_ESTATE: SeoPageConfig = {
+  slug: "dm-automation-for-real-estate-agents",
+  title: "Instagram DM Automation for Real Estate Agents: Instant Listing Replies | Oravini",
+  description:
+    "DM automation for real estate agents on Instagram: auto-reply to listing comments, send property links in seconds and track every buyer lead in one CRM.",
+  h1: "Instagram DM automation for agents who can't reply in 5 minutes",
+  intro:
+    "A buyer comments 'price?' on your listing reel at 9pm. By morning they've commented on three other agents' posts. Oravini replies in seconds — with the details, the brochure link or a viewing slot — and files every conversation in a CRM you can actually follow up from.",
+  sections: [
+    {
+      heading: "Speed wins the lead",
+      body: "Comment-to-DM triggers send your listing link the moment someone asks. Keyword replies handle the questions every property gets — price, location, possession — instantly, at any hour, in your voice.",
+    },
+    {
+      heading: "Every enquiry becomes a tracked lead",
+      body: "Each automated conversation lands in Oravini's CRM with the post and property it came from. Your pipeline shows who asked about which listing, so follow-up is a list, not a memory test.",
+    },
+    {
+      heading: "Property marketing without the tool sprawl",
+      body: "Build listing landing pages with the AI page studio, host walkthrough videos, and announce new properties with posts the AI content tools help you write. One login from first comment to site visit.",
+    },
+  ],
+  faqs: [
+    {
+      q: "Can each listing have its own auto-reply?",
+      a: "Yes — you set the keyword or comment trigger per post ('comment VILLA for the brochure'), so each property gets its own message and link, and leads are tagged by the post that brought them.",
+    },
+    {
+      q: "Does it work for rental listings too?",
+      a: "The automation doesn't care what you're selling. Sales, rentals, commercial — any post can carry a comment-to-DM trigger and any enquiry lands in the same CRM.",
+    },
+    {
+      q: "Is this safe for my Instagram account?",
+      a: "Oravini connects through Meta's official messaging APIs — the sanctioned route, not an unofficial bot. A professional Instagram account is required, same as any tool in this category.",
+    },
+  ],
+  related: [
+    { href: "/instagram-dm-automation", label: "Instagram DM automation: the full feature tour" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
+export const DM_FITNESS: SeoPageConfig = {
+  slug: "dm-automation-for-fitness-coaches",
+  title: "Instagram DM Automation for Fitness Coaches: Fill Your Program from Reels | Oravini",
+  description:
+    "DM automation for fitness coaches: comment-to-DM for workout reels, instant program links, and every lead tracked from first comment to signed client.",
+  h1: "Instagram DM automation for fitness coaches",
+  intro:
+    "Your transformation reels get the comments — 'send the plan', 'price?', 'how do I join.' Oravini answers all of them in seconds with your program link, and tracks every lead from first comment to paying client, while you're on the gym floor.",
+  sections: [
+    {
+      heading: "Your reels close while you coach",
+      body: "Comment-to-DM turns 'comment PLAN' posts into instant conversations. Keyword replies handle the repeat questions — pricing, online vs in-person, results timeline — so no enquiry waits until your next break between clients.",
+    },
+    {
+      heading: "Challenge funnels without the duct tape",
+      body: "Running a 21-day challenge? Build the signup page with the AI funnel studio, deliver it by DM, and watch registrations land in your CRM tagged to the reel that produced them. Host the kickoff webinar in the same platform.",
+    },
+    {
+      heading: "Content that keeps the funnel full",
+      body: "AI content ideas, hooks and competitor intelligence show you which fitness content is working in your niche — so the posts that trigger your automations keep coming.",
+    },
+  ],
+  faqs: [
+    {
+      q: "Can I send different replies for different programs?",
+      a: "Yes — triggers are set per post and per keyword, so 'comment SHRED' and 'comment STRENGTH' can each deliver their own link and tag leads by program.",
+    },
+    {
+      q: "I sell both online coaching and a challenge. Can one account handle both?",
+      a: "One Oravini account runs all of it: the DM automations, the challenge funnel, the webinar kickoff, and the CRM that tracks every lead across both offers.",
+    },
+    {
+      q: "What does it cost to start?",
+      a: "The free plan includes 100 app credits a month, no card required. Paid plans are prepaid — one payment for the term you pick, nothing auto-renews.",
+    },
+  ],
+  related: [
+    { href: "/dm-automation-for-coaches", label: "DM automation for coaches" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
+export const DM_SALONS: SeoPageConfig = {
+  slug: "dm-automation-for-salons",
+  title: "Instagram DM Automation for Salons: Book Appointments from Comments | Oravini",
+  description:
+    "DM automation for salons and studios: auto-reply to price and booking comments, send your booking link instantly, and track every appointment enquiry in one place.",
+  h1: "Instagram DM automation for salons that are too busy to reply",
+  intro:
+    "Your before-and-after posts bring the comments — 'price?', 'where are you located?', 'any slots this week?' — usually while your hands are in someone's hair. Oravini replies instantly with your price list or booking link, and every enquiry lands in one tracked list instead of a buried DM inbox.",
+  sections: [
+    {
+      heading: "Instant answers to the questions every salon gets",
+      body: "Keyword replies for pricing, location, hours and availability. Comment-to-DM on your best transformations sends the booking link while the post is still hot — not two days later when the client has booked elsewhere.",
+    },
+    {
+      heading: "Every enquiry is a name you can follow up",
+      body: "Each automated conversation is saved with the post it came from. Quiet Tuesday afternoon? Open your CRM and message everyone who asked about balayage last month.",
+    },
+    {
+      heading: "Marketing that doesn't need a marketing person",
+      body: "AI content ideas tuned to your niche keep the posts coming, and the page studio builds offer pages — festive packages, new-stylist intros — that your DMs can link straight to.",
+    },
+  ],
+  faqs: [
+    {
+      q: "We're a small team. Is this hard to set up?",
+      a: "The setup wizard walks you through connecting Instagram and writing your first replies — most salons are live the same day, and every reply is text you wrote, in your tone.",
+    },
+    {
+      q: "Can the auto-reply send our booking link?",
+      a: "Yes — that's the most common setup. Someone comments or DMs 'booking', Oravini sends your link instantly, and the conversation is tracked so you know the post that filled the chair.",
+    },
+    {
+      q: "Does this work with a personal Instagram account?",
+      a: "You'll need a professional (business) Instagram account — Meta's requirement for any messaging tool. Switching takes about two minutes in Instagram's settings and changes nothing for your followers.",
+    },
+  ],
+  related: [
+    { href: "/instagram-dm-automation", label: "Instagram DM automation: the full feature tour" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
+export const WEBINAR_COACHES: SeoPageConfig = {
+  slug: "webinar-platform-for-coaches",
+  title: "Webinar Platform for Coaches: Fill Your Program with One Live Session | Oravini",
+  description:
+    "A webinar platform for coaches: registration pages, live room with offers, automatic replays and a CRM that turns attendees into discovery calls and clients.",
+  h1: "The webinar platform for coaches who sell live",
+  intro:
+    "A free masterclass is still the fastest way for a coach to turn an audience into clients — but only if the registration, the room, the replay and the follow-up actually connect. Oravini runs all four in one place, and every attendee lands in your CRM the moment they sign up.",
+  sections: [
+    {
+      heading: "Registration pages that write themselves",
+      body: "Describe your masterclass to the funnel copilot and get a registration page with countdown and confirmation emails. Share the link in your bio, your stories, or straight from a comment-to-DM trigger.",
+    },
+    {
+      heading: "A live room built for coaching offers",
+      body: "Live chat, Q&A, polls and a timed offer button for your program. Stream via YouTube Live from your own channel, then watch the analytics: show rate, stay rate at 25/50/75%, and exactly where the room leaned in.",
+    },
+    {
+      heading: "Follow-up that treats attendees differently",
+      body: "Registrants who missed it get the replay. Attendees who stayed but didn't buy get the offer again. Everyone moves through your CRM pipeline — no exporting attendee lists into a spreadsheet at midnight.",
+    },
+  ],
+  faqs: [
+    {
+      q: "I've never run a webinar. How technical is this?",
+      a: "If you can go live on Instagram, you can run this. The page builds itself from a description, the room runs in the browser, and attendees join from a link — nothing to install for you or them.",
+    },
+    {
+      q: "Can I pitch my coaching program during the session?",
+      a: "That's what the offer button is for — timed to appear when you make the pitch, tracked so you see who clicked, and connected to your payment account so revenue shows on your dashboard.",
+    },
+    {
+      q: "What does it cost?",
+      a: "Webinars are included free on the Pro plan and available as an add-on to Growth. The Free plan's 100 monthly credits cover the AI content tools you'll use to fill the room.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform", label: "The full webinar platform tour" },
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+  ],
+};
+
+export const WEBINAR_COURSE_CREATORS: SeoPageConfig = {
+  slug: "webinar-platform-for-course-creators",
+  title: "Webinar Platform for Course Creators: Launch Funnels in One Place | Oravini",
+  description:
+    "Webinars for course launches: registration pages, live sessions with offers, replays, VSL hosting and one CRM tracking every lead from signup to sale.",
+  h1: "The webinar platform built for course launches",
+  intro:
+    "A course launch is a chain: content, webinar registration, live pitch, replay window, close. When those five links live in five tools, the chain breaks in the joins. Oravini runs the whole launch in one platform — and shows you which link is leaking.",
+  sections: [
+    {
+      heading: "The full launch arc, connected",
+      body: "AI-built registration page, live room with chat and timed offer button, automatic replay library, and follow-up messages for no-shows and non-buyers. Every registrant is a CRM lead with its source from the first click.",
+    },
+    {
+      heading: "VSLs and course videos under the same roof",
+      body: "Host your video sales letter and course trailers on Oravini's video hosting instead of a separate platform, and link them from the same funnel pages your webinar attendees already know.",
+    },
+    {
+      heading: "Numbers that tell you what to fix",
+      body: "Registration conversion, show rate, stay rate at 25/50/75%, offer clicks and revenue per webinar — the launch dashboard tells you whether to fix the promise, the promotion or the pitch.",
+    },
+  ],
+  faqs: [
+    {
+      q: "Can I run an evergreen (automated) webinar funnel?",
+      a: "Your replay library and funnel pages stay live after launch, so an evergreen flow is: content drives registration, registrants get the replay and offer on a schedule, CRM tracks everything. You keep selling between live launches.",
+    },
+    {
+      q: "How do I take payment for the course?",
+      a: "You connect your own payment account (Stripe read-only or Whop) and keep your revenue. Oravini tracks per-webinar revenue on the dashboard.",
+    },
+    {
+      q: "Is this overkill for a first launch?",
+      a: "A first launch is exactly when the connected chain matters — you have no audience slack to absorb leaks. Start on the free plan, build the registration page and DM triggers, and add webinars when you're ready to go live.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform", label: "The full webinar platform tour" },
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+  ],
+};
+
+export const VS_CHATFUEL: SeoPageConfig = {
+  slug: "vs/chatfuel",
+  title: "Oravini vs Chatfuel: Honest Comparison for Creators (2026) | Oravini",
+  description:
+    "Oravini vs Chatfuel compared: Instagram DM automation, AI chat, webinars, funnels, video hosting, CRM and pricing model. Which fits a creator business?",
+  h1: "Oravini vs Chatfuel: an honest comparison",
+  intro:
+    "Chatfuel and Oravini can both auto-reply to your Instagram DMs and comments. The difference is what happens next: Chatfuel is a chatbot platform, Oravini is a creator growth platform with chat automation inside it. Here is the comparison on what each actually does.",
+  sections: [
+    {
+      heading: "What Chatfuel does well",
+      body: "AI-powered chat automation for Instagram, WhatsApp, Facebook Messenger and websites, with a flow builder and templates. For businesses whose entire funnel lives inside a chat window, it's an established option.",
+    },
+    {
+      heading: "What Oravini does differently",
+      body: "Oravini starts one step earlier: AI content tools and competitor intelligence help you make the posts, comment-to-DM captures the response, and webinars, funnels, video hosting and one CRM convert it. The chat is the middle of the journey, not the whole product.",
+    },
+    {
+      heading: "The honest trade-off",
+      body: "Chatfuel covers more chat channels (WhatsApp, Messenger, website widgets) and its AI agent answers free-text questions. Oravini covers everything around the chat — content, webinars, funnels, CRM — that a chatbot platform leaves to other subscriptions.",
+    },
+  ],
+  table: {
+    head: ["Category", "Oravini", "Chatfuel"],
+    rows: [
+      ["Core focus", "Creator growth: content, DMs, webinars, funnels, CRM", "AI chat automation across messaging channels"],
+      ["Instagram comment-to-DM", "Yes", "Yes"],
+      ["WhatsApp / Messenger", "Not included", "Yes"],
+      ["Free-text AI chat agent", "Keyword and trigger based", "Yes"],
+      ["Webinars with registration funnel", "Built in", "No"],
+      ["Video hosting & VSL pages", "Yes (video plans)", "No"],
+      ["AI content & competitor research", "Built in", "No"],
+      ["Pricing model", "Free plan + prepaid terms, no auto-renewal", "Subscription, scales with contacts"],
+    ],
+  },
+  faqs: [
+    {
+      q: "Which should a creator pick?",
+      a: "If your funnel is content → DM → webinar → sale, Oravini covers every step in one login. If you need an AI agent answering open-ended questions across WhatsApp and Messenger too, Chatfuel's channel coverage is broader — pair it with the tools it doesn't include.",
+    },
+    {
+      q: "Which is cheaper?",
+      a: "Different models: Oravini is a free plan plus prepaid terms with no auto-renewal; Chatfuel is a subscription that scales with contacts. Compare Chatfuel's price at your audience size against Oravini's flat plans — and add the cost of the webinar, funnel and CRM tools Chatfuel doesn't replace.",
+    },
+    {
+      q: "Can I move my chat flows from Chatfuel to Oravini?",
+      a: "Your Instagram audience stays on Instagram either way. Recreate your keyword and comment-to-DM rules in Oravini's setup wizard — most creators rebuild their core flows in under an hour.",
+    },
+  ],
+  related: [
+    { href: "/vs/manychat", label: "Oravini vs ManyChat" },
+    { href: "/blog/how-to-choose-manychat-alternative", label: "How to choose a ManyChat alternative in 2026" },
+  ],
+};
+
+export const VS_KAJABI: SeoPageConfig = {
+  slug: "vs/kajabi",
+  title: "Oravini vs Kajabi: Honest Comparison for Creators (2026) | Oravini",
+  description:
+    "Oravini vs Kajabi compared: courses, webinars, funnels, video hosting, Instagram DM automation, AI content tools and pricing. Which fits your creator business?",
+  h1: "Oravini vs Kajabi: an honest comparison",
+  intro:
+    "Kajabi is a knowledge-commerce platform: courses, memberships, coaching products and the marketing around them. Oravini is a creator growth platform: AI content, Instagram DM automation, webinars, funnels and CRM. Some overlap, different centers of gravity.",
+  sections: [
+    {
+      heading: "What Kajabi does well",
+      body: "Hosting and selling structured online courses and memberships, with checkout, email marketing and a website builder. If your business is a catalog of paid courses, Kajabi is built around exactly that.",
+    },
+    {
+      heading: "What Oravini does differently",
+      body: "Oravini's center is audience growth: AI content ideas and competitor intelligence, Instagram DM automation that turns engagement into leads, webinars with a full registration-to-replay funnel, and a CRM tracking every contact from first comment.",
+    },
+    {
+      heading: "The honest trade-off",
+      body: "Kajabi is deeper on course delivery — student progress, assessments, memberships. Oravini is deeper on filling the top of the funnel — content and Instagram — and on live selling through webinars. Kajabi also starts at a meaningfully higher monthly price; Oravini has a free plan and prepaid terms.",
+    },
+  ],
+  table: {
+    head: ["Category", "Oravini", "Kajabi"],
+    rows: [
+      ["Core focus", "Audience growth: content, DMs, webinars, funnels, CRM", "Selling courses and memberships"],
+      ["Course hosting & student management", "Video hosting for course content", "Full course platform (progress, assessments)"],
+      ["Instagram DM automation", "Built in", "No"],
+      ["AI content & competitor research", "Built in", "AI writing helpers"],
+      ["Webinars / live launches", "Built in: registration, live room, replay", "Events feature, no dedicated live room"],
+      ["CRM with source tracking", "Every lead tracked with source + UTMs", "Contact management"],
+      ["Free plan", "Yes, 100 credits/month", "Trial only"],
+      ["Pricing model", "Prepaid terms, no auto-renewal", "Monthly/annual subscription"],
+    ],
+  },
+  faqs: [
+    {
+      q: "I'm a coach deciding between them. What's the short version?",
+      a: "If your bottleneck is delivering a polished course catalog, look at Kajabi. If your bottleneck is getting enough leads from Instagram and converting them live, that's Oravini's home turf — at a lower starting cost.",
+    },
+    {
+      q: "Can Oravini host my actual course videos?",
+      a: "Yes, video hosting is included on video plans — VSLs, course content and replays. What Oravini doesn't do is Kajabi-style student management (quizzes, progress tracking, certificates).",
+    },
+    {
+      q: "Do creators use both?",
+      a: "Some do: Oravini for content, Instagram automation, webinars and lead tracking; a course platform for delivery. Many coaches find Oravini's video hosting plus funnels covers a lean launch on its own.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform-for-course-creators", label: "Webinars for course creators" },
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+  ],
+};
+
+export const VS_WEBINARJAM: SeoPageConfig = {
+  slug: "vs/webinarjam",
+  title: "Oravini vs WebinarJam: Honest Comparison for Creators (2026) | Oravini",
+  description:
+    "Oravini vs WebinarJam compared: live webinar features, registration funnels, replays, CRM, DM automation and pricing model. Which fits a creator launch?",
+  h1: "Oravini vs WebinarJam: an honest comparison",
+  intro:
+    "WebinarJam is a dedicated webinar tool with a feature-rich live room. Oravini is a creator growth platform where webinars connect natively to your content, Instagram automation and CRM. If webinars are the only thing you need, both deserve a look; if the webinar is one step in a bigger funnel, the comparison shifts.",
+  sections: [
+    {
+      heading: "What WebinarJam does well",
+      body: "A mature live room: multiple presenters, attendee spotlight, panic button, extensive in-session widgets. It's been focused on the live event itself for years, and it shows.",
+    },
+    {
+      heading: "What Oravini does differently",
+      body: "Oravini's webinar room covers the selling essentials — chat, Q&A, polls, timed offer button, replay — and everything before and after is built in: the content that promotes it, the comment-to-DM that fills it, the CRM that tracks every registrant from their first click.",
+    },
+    {
+      heading: "The honest trade-off",
+      body: "WebinarJam's live room has more knobs for large productions. Oravini removes the integrations a dedicated webinar tool needs — page builder, CRM, email, DM automation — because they're the same product. Oravini also streams via YouTube Live from your own channel, which builds your YouTube presence as a side effect.",
+    },
+  ],
+  table: {
+    head: ["Category", "Oravini", "WebinarJam"],
+    rows: [
+      ["Core focus", "Creator growth platform with webinars built in", "Dedicated webinar software"],
+      ["Live room", "Chat, Q&A, polls, timed offer button", "Larger feature set for big productions"],
+      ["Registration pages", "AI-built, in-platform", "Built-in templates"],
+      ["Replay handling", "Automatic replay library + segmented follow-up", "Replica replay options"],
+      ["Instagram DM automation", "Built in — fills the room from comments", "No"],
+      ["CRM with source tracking", "Every registrant tracked with source + UTMs", "No — integrates with external CRMs"],
+      ["AI content & competitor research", "Built in", "No"],
+      ["Pricing model", "Free plan + prepaid terms", "Annual subscription tiers"],
+    ],
+  },
+  faqs: [
+    {
+      q: "Which is better for a first launch?",
+      a: "A first launch dies in the joins: registration page here, webinar there, leads exported somewhere else. Oravini keeps the chain in one login, which matters more at small scale than live-room depth.",
+    },
+    {
+      q: "Can Oravini handle a large live audience?",
+      a: "Oravini streams via YouTube Live, which carries the audience load — your stream benefits from YouTube's infrastructure, and the chat, Q&A and offers run alongside it in Oravini's room.",
+    },
+    {
+      q: "How do the prices compare?",
+      a: "WebinarJam sells annual subscriptions at several tiers. Oravini has a free plan and prepaid terms with no auto-renewal — and its price includes the funnel, CRM, video hosting and DM automation you'd buy separately alongside a dedicated webinar tool.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform", label: "The full webinar platform tour" },
+    { href: "/blog/webinar-platform-guide", label: "What creators should look for in a webinar platform" },
+  ],
+};
+
+export const SEO_PAGES: SeoPageConfig[] = [
+  MANYCHAT_ALTERNATIVE,
+  VS_MANYCHAT,
+  IG_DM_AUTOMATION,
+  WEBINAR_PLATFORM,
+  DM_COACHES,
+  DM_REAL_ESTATE,
+  DM_FITNESS,
+  DM_SALONS,
+  WEBINAR_COACHES,
+  WEBINAR_COURSE_CREATORS,
+  VS_CHATFUEL,
+  VS_KAJABI,
+  VS_WEBINARJAM,
+];
 
 export function ManyChatAlternativePage() { return <SEOPage config={MANYCHAT_ALTERNATIVE} />; }
 export function VsManychatPage() { return <SEOPage config={VS_MANYCHAT} />; }
 export function IgDmAutomationPage() { return <SEOPage config={IG_DM_AUTOMATION} />; }
 export function WebinarPlatformPage() { return <SEOPage config={WEBINAR_PLATFORM} />; }
+export function DmCoachesPage() { return <SEOPage config={DM_COACHES} />; }
+export function DmRealEstatePage() { return <SEOPage config={DM_REAL_ESTATE} />; }
+export function DmFitnessPage() { return <SEOPage config={DM_FITNESS} />; }
+export function DmSalonsPage() { return <SEOPage config={DM_SALONS} />; }
+export function WebinarCoachesPage() { return <SEOPage config={WEBINAR_COACHES} />; }
+export function WebinarCourseCreatorsPage() { return <SEOPage config={WEBINAR_COURSE_CREATORS} />; }
+export function VsChatfuelPage() { return <SEOPage config={VS_CHATFUEL} />; }
+export function VsKajabiPage() { return <SEOPage config={VS_KAJABI} />; }
+export function VsWebinarjamPage() { return <SEOPage config={VS_WEBINARJAM} />; }

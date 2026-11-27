@@ -13,9 +13,11 @@ test('public marketing routes carry index,follow metadata',()=>{
  }
  assert.equal(PRERENDERED_ROUTES['/'],'home.html');
  assert.equal(PRERENDERED_ROUTES['/oravini'],'home.html');
- for(const r of ['/manychat-alternative','/vs/manychat','/instagram-dm-automation','/webinar-platform']){
+ for(const r of ['/manychat-alternative','/vs/manychat','/instagram-dm-automation','/webinar-platform','/dm-automation-for-coaches','/dm-automation-for-real-estate-agents','/dm-automation-for-fitness-coaches','/dm-automation-for-salons','/webinar-platform-for-coaches','/webinar-platform-for-course-creators','/vs/chatfuel','/vs/kajabi','/vs/webinarjam']){
   assert.ok(PRERENDERED_ROUTES[r],`missing prerender mapping for ${r}`);
   assert.equal(PRERENDERED_ROUTES[r],`${r.slice(1).replace(/\//g,'-')}.html`);
+  const meta=SEO_ROUTES[r];assert.ok(meta,`missing SEO meta for ${r}`);
+  assert.equal(meta.canonical,`https://oravini.com${r}`);
  }
 });
 
@@ -52,7 +54,7 @@ test('robots.txt allows crawling and references the sitemap',()=>{
 
 test('sitemap.xml lists only public pages',()=>{
  const sitemap=readFileSync(new URL('../client/public/sitemap.xml',import.meta.url),'utf8');
- for(const p of ['/','/oravini','/preview','/privacy','/terms','/manychat-alternative','/vs/manychat','/instagram-dm-automation','/webinar-platform'])assert.ok(sitemap.includes(`<loc>https://oravini.com${p==='/'?'/':p}</loc>`),`sitemap missing ${p}`);
+ for(const p of ['/','/oravini','/preview','/privacy','/terms','/manychat-alternative','/vs/manychat','/instagram-dm-automation','/webinar-platform','/dm-automation-for-coaches','/dm-automation-for-real-estate-agents','/dm-automation-for-fitness-coaches','/dm-automation-for-salons','/webinar-platform-for-coaches','/webinar-platform-for-course-creators','/vs/chatfuel','/vs/kajabi','/vs/webinarjam'])assert.ok(sitemap.includes(`<loc>https://oravini.com${p==='/'?'/':p}</loc>`),`sitemap missing ${p}`);
  for(const p of ['/api/','/dashboard','/admin','/onboarding','/select-plan'])assert.ok(!sitemap.includes(`oravini.com${p}`),`sitemap must not list ${p}`);
  assert.ok(existsSync(new URL('../client/public/robots.txt',import.meta.url)));
  assert.equal(DEFAULT_META.canonical,'https://oravini.com/');
