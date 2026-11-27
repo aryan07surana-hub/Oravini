@@ -75,6 +75,8 @@ function applyHelmet(app: Express) {
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com", "https://www.facebook.com", "https://connect.facebook.net"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+          // Video/audio served from Cloudinary once uploads move to durable storage.
+          mediaSrc: ["'self'", "https://res.cloudinary.com", "blob:", "data:"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           connectSrc: ["'self'", "https://api.anthropic.com", "https://graph.facebook.com", "https://api.linkedin.com", "https://api.twitter.com", "wss:", "ws:"],
           frameSrc: [

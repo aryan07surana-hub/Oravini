@@ -1487,7 +1487,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.warn("[security] File validation error:", valErr);
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Durable when Cloudinary is configured (survives restarts), local /uploads otherwise.
+    const fileUrl = await saveMedia(req.file.path, req.file.filename);
     const fileSize = req.file.size > 1024 * 1024
       ? `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`
       : `${Math.round(req.file.size / 1024)} KB`;
@@ -2773,7 +2774,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!req.file) return res.status(400).json({ message: "No file" });
     const { receiverId } = req.body;
     if (!receiverId) return res.status(400).json({ message: "receiverId required" });
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Durable when Cloudinary is configured (survives restarts), local /uploads otherwise.
+    const fileUrl = await saveMedia(req.file.path, req.file.filename);
     const msg = await storage.createMessage({
       senderId: (req.user as any).id,
       receiverId,
@@ -14321,7 +14323,8 @@ ${all.map((v: any) => `  <url>
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       const user = req.user as any;
-      const fileUrl = `/uploads/${req.file.filename}`;
+      // Durable when Cloudinary is configured (survives restarts), local /uploads otherwise.
+      const fileUrl = await saveMedia(req.file.path, req.file.filename);
       const title = (req.body.title as string) || `Screen Recording ${new Date().toLocaleString()}`;
       const description = (req.body.description as string) || null;
       const video = await storage.createVideoEvent({
@@ -14378,9 +14381,21 @@ ${all.map((v: any) => `  <url>
       const user = req.user as any;
       const video = await storage.getVideoEvent(p(req.params.id));
       if (!video || video.userId !== user.id) return res.status(404).json({ message: "Not found" });
-      if (!video.videoUrl.startsWith("/uploads/")) return res.status(400).json({ message: "Cannot transcribe external video" });
-      const filePath = path.join(uploadsDir, path.basename(video.videoUrl));
-      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found on disk" });
+      let filePath: string;
+      let tmpTranscribe: string | null = null;
+      if (video.videoUrl.startsWith("/uploads/")) {
+        filePath = path.join(uploadsDir, path.basename(video.videoUrl));
+        if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found on disk" });
+      } else if (/^https?:\/\//.test(video.videoUrl)) {
+        // Durable copy lives in cloud storage (Cloudinary) — pull it back for Whisper.
+        const r = await fetch(video.videoUrl);
+        if (!r.ok) return res.status(404).json({ message: "Could not fetch stored video" });
+        tmpTranscribe = path.join(uploadsDir, `transcribe-tmp-${Date.now()}${path.extname(new URL(video.videoUrl).pathname) || ".webm"}`);
+        fs.writeFileSync(tmpTranscribe, Buffer.from(await r.arrayBuffer()));
+        filePath = tmpTranscribe;
+      } else {
+        return res.status(400).json({ message: "Cannot transcribe external video" });
+      }
       const fileStat = fs.statSync(filePath);
       if (fileStat.size > 25 * 1024 * 1024) return res.status(400).json({ message: "File too large for transcription (max 25MB)" });
 
@@ -14388,6 +14403,7 @@ ${all.map((v: any) => `  <url>
       const formData = new FormDataLib();
       const fileBuffer = fs.readFileSync(filePath);
       formData.append("file", fileBuffer, { filename: path.basename(filePath), contentType: "video/webm" });
+      if (tmpTranscribe) { try { fs.unlinkSync(tmpTranscribe); } catch { } }
       formData.append("model", "whisper-large-v3");
       formData.append("response_format", "verbose_json");
       formData.append("timestamp_granularities[]", "word");
@@ -14848,7 +14864,8 @@ Return JSON only:
   }, async (req: any, res: Response) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      const videoUrl = `/uploads/${req.file.filename}`;
+      // Durable when Cloudinary is configured (survives restarts), local /uploads otherwise.
+      const videoUrl = await saveMedia(req.file.path, req.file.filename);
       res.json({ url: videoUrl, filename: req.file.filename, size: req.file.size });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
