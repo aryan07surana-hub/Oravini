@@ -73,7 +73,7 @@ export const priceToCents = (price: number) => Math.round(price * 100);
 
 // ── Whop API client (platform key, fixed base per environment) ──────────────
 export class WhopPlatformError extends Error {
-  constructor(public status: number, public code: string) { super(code); }
+  constructor(public status: number, public code: string, public detail?: string) { super(code); }
 }
 export function createPlatformClient(cfg: PlatformConfig, fetchImpl: typeof fetch = fetch) {
   const base = WHOP_API_BASES[cfg.environment];
@@ -95,7 +95,7 @@ export function createPlatformClient(cfg: PlatformConfig, fetchImpl: typeof fetc
     } catch {
       throw new WhopPlatformError(0, "unavailable");
     }
-    if (!res.ok) throw new WhopPlatformError(res.status, res.status === 401 || res.status === 403 ? "auth" : res.status === 409 ? "conflict" : res.status >= 500 ? "unavailable" : "rejected");
+    if (!res.ok) { let detail = ""; try { detail = (await res.text()).slice(0, 300); } catch {} throw new WhopPlatformError(res.status, res.status === 401 || res.status === 403 ? "auth" : res.status === 409 ? "conflict" : res.status >= 500 ? "unavailable" : "rejected", detail); }
     return res.json() as Promise<any>;
   };
   return {
@@ -296,7 +296,7 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
       if (typeof link?.url !== "string" || !WHOP_HOST_RE.test(link.url)) return res.status(502).json({ message: "Whop did not return an onboarding link." });
       res.json({ url: link.url });
     } catch (e: any) {
-      console.warn("[whop-platform] connect failed", e?.status, e?.code || e?.message);
+      console.warn("[whop-platform] connect failed", e?.status, e?.code || e?.message, e?.detail);
       res.status(e?.status === 409 ? 409 : 502).json({ message: e?.status === 409 ? "This email is already linked to another Whop account." : "Could not reach Whop. Try again shortly." });
     }
   });
