@@ -15,11 +15,17 @@ const TITLES: Record<string, string> = {
   streaks: "Streaks and goals that keep you going",
   funnels: "Funnels and CRM in one place",
   live: "Inside the webinar live room",
+  aisetter: "Your AI setter answers every DM",
+  webstream: "Stream your webinar anywhere",
+  aicrm: "Your AI CRM, every lead in one place",
 };
 
 // Small blue "Watch how it works" button (bottom-right) that opens the matching promo video in a modal.
 // It sits over the page, so it never changes a tool's own layout.
-export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
+export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typeof TITLES)[] }) {
+  const list = (Array.isArray(ids) ? ids : [ids]) as string[];
+  const [cur, setCur] = useState(0);
+  const id = list[Math.min(cur, list.length - 1)] as keyof typeof TITLES;
   const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
@@ -55,6 +61,13 @@ export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
           <div onClick={(e) => e.stopPropagation()} style={{ width: tall ? "min(340px,100%)" : "min(960px,100%)", background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 40px 90px -30px rgba(46,120,239,.6)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #e3e9f3" }}>
               <strong style={{ fontSize: 14, color: "#101828" }}>{TITLES[id]}</strong>
+              {list.length > 1 && (
+                <span style={{ display: "inline-flex", gap: 6, marginLeft: "auto", marginRight: 12 }}>
+                  {list.map((x, i) => (
+                    <button key={x} type="button" onClick={() => setCur(i)} style={{ border: "1px solid #d6e4f5", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: i === cur ? "#2e78ef" : "#fff", color: i === cur ? "#fff" : "#2e78ef" }}>{i + 1}</button>
+                  ))}
+                </span>
+              )}
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" style={{ border: 0, background: "#eff5fd", color: "#2e78ef", width: 28, height: 28, borderRadius: "50%", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
             </div>
             <video key={shape} poster={`${MEDIA}${id}.jpg`} autoPlay loop playsInline controls preload="metadata" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eff5fd", objectFit: "cover" }}>
@@ -68,7 +81,7 @@ export function ToolVideoFab({ id }: { id: keyof typeof TITLES }) {
   );
 }
 
-export function withToolVideo<P extends object>(Page: React.ComponentType<P>, id: keyof typeof TITLES) {
+export function withToolVideo<P extends object>(Page: React.ComponentType<P>, id: keyof typeof TITLES | (keyof typeof TITLES)[]) {
   return function WithToolVideo(props: P) {
     return (<><Page {...props} /><ToolVideoFab id={id} /></>);
   };
