@@ -251,6 +251,7 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
   const cfg = deps.config ?? loadPlatformConfig();
   const client = deps.client ?? createPlatformClient(cfg);
   try { await ensureWhopPlatformTables(); } catch { console.warn("[whop-platform] could not ensure tables"); }
+  try { const { registerWhopLogin } = await import("./whopLogin"); await registerWhopLogin(app); } catch (e) { console.warn("[whop-login] not registered"); }
 
   const ready = (res: Response) => {
     if (!cfg.enabled || !cfg.apiKey) { res.status(503).json({ message: "Payments are not switched on yet." }); return false; }
