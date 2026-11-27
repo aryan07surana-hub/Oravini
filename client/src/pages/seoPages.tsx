@@ -736,6 +736,116 @@ export const VS_WEBINARJAM: SeoPageConfig = {
   ],
 };
 
+export const AUTOMATED_WEBINAR: SeoPageConfig = {
+  slug: "automated-webinar-platform",
+  title: "Automated & Evergreen Webinar Platform for Creators and Coaches | Oravini",
+  description:
+    "Run an evergreen webinar funnel: an instant-access registration page, a hosted recording, an offer button and a CRM that tracks who watched and who clicked. Built for creators and coaches.",
+  h1: "An evergreen webinar platform that sells while you are offline",
+  intro:
+    "A live webinar sells once. An evergreen one sells every week. The idea is simple: record your best training, put it behind a registration page, and let your content and DMs send people to it. Oravini gives you the pieces in one place: the page, the hosted video, the offer and the CRM that shows who watched, how long they stayed and who clicked.",
+  sections: [
+    {
+      heading: "Instant-access registration pages",
+      body: "Start from an on-demand training template or describe your training to the funnel copilot. Visitors enter a name and email to get the training. There is no date to pick and no reminder schedule to manage, and every signup lands in your CRM with its source and UTM tags.",
+    },
+    {
+      heading: "Your recording, hosted next to your funnel",
+      body: "Upload the session to Video Hosting or keep it as the replay of a live webinar. The replay page can carry the same offer button you used live, so the pitch is part of the page and not something viewers have to remember. Run it live once, then let the replay do the repeat work.",
+    },
+    {
+      heading: "See what the recording is doing",
+      body: "Show rate, stay rate at 25, 50 and 75 percent, the drop-off curve and offer clicks are tracked per webinar. If most viewers leave at minute twelve, you know which part to re-record. That feedback loop is what separates an evergreen funnel that improves from one that just sits there.",
+    },
+    {
+      heading: "Follow-up based on behavior",
+      body: "A registrant starts as a new lead. Someone who watches ten minutes or more moves to qualified. Someone who clicks your offer moves to proposal and gets flagged as hot. Your pipeline shows where each person stands, so you follow up with the people who raised their hand and leave the rest alone.",
+    },
+    {
+      heading: "Fill it from Instagram without lifting a finger",
+      body: "Evergreen only works if people keep arriving. Comment-to-DM sends your registration link to everyone who comments a keyword on a post or reel, and the signup is tagged to the post that brought it. Content brings the audience, the DM brings the registration, the recording does the selling.",
+    },
+  ],
+  faqs: [
+    {
+      q: "What is the difference between a live, an automated and an evergreen webinar?",
+      a: "A live webinar happens at a set time with you in the room. An automated or evergreen webinar is recorded once and available to every new registrant on demand, so it keeps working long after you recorded it. Many creators run it live first, then reuse the recording.",
+    },
+    {
+      q: "Does Oravini fake a live session on a schedule?",
+      a: "No. Attendees get instant access to a recorded training, or you run a real live session and keep the replay up. Oravini does not present a recording as live, which keeps your audience's trust and avoids the complaints that come with fake-live setups.",
+    },
+    {
+      q: "Can I still run live sessions?",
+      a: "Yes. Live webinars stream through YouTube Live from your own channel, with chat, Q&A, polls and a timed offer button. The recording becomes your replay and can sit behind the same registration funnel afterward.",
+    },
+    {
+      q: "How do I know the recording is converting?",
+      a: "Each webinar has its own dashboard: registrations, attendance, how long people stayed, where they dropped off and who clicked the offer. Poll answers are saved as CRM tags, so you can segment who wanted what.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform", label: "The full webinar platform tour" },
+    { href: "/blog/how-to-structure-a-webinar-that-sells", label: "How to structure a webinar that sells" },
+    { href: "/comment-to-dm-automation", label: "Send your webinar link to everyone who comments" },
+  ],
+};
+
+export const COMMENT_TO_DM: SeoPageConfig = {
+  slug: "comment-to-dm-automation",
+  title: "Comment-to-DM Automation for Instagram: Reply to Every Comment with a DM | Oravini",
+  description:
+    "Turn Instagram comments into conversations. Set a keyword on a post or reel and Oravini sends the DM with your link, then tracks the lead in your CRM. Setup wizard and logs included.",
+  h1: "Comment-to-DM automation for Instagram, built into your funnel",
+  intro:
+    "Every creator has used the line: comment GUIDE and I will send it to you. Doing that by hand does not scale past a few dozen comments. Oravini watches the comments on the posts and reels you choose, and when someone uses your keyword it sends them a DM with your link. The lead then lands in the same CRM as your webinar registrations and funnel signups.",
+  sections: [
+    {
+      heading: "How it works",
+      body: "Pick a post or reel, choose the keyword, write the DM. When a comment contains the keyword, the commenter gets your message. You can send a lead magnet, a webinar registration page, a booking link or a short question to start a conversation. Setup takes a few minutes in the guided wizard.",
+    },
+    {
+      heading: "More than comment triggers",
+      body: "The same rules engine handles keyword replies for questions you get in DMs every day, a welcome message for new conversations, and thank-you replies when someone mentions you in a story. One tool covers the whole inbox, so you are not running a different automation for each entry point.",
+    },
+    {
+      heading: "Every message is yours",
+      body: "These are rules and templates you write. Nothing improvises on your behalf, and the wording, links and timing stay in your control. A log shows what was sent, to whom and when, so you can check that a campaign is behaving before you scale it.",
+    },
+    {
+      heading: "Leads that do not get lost",
+      body: "A DM tool that stops at the DM leaves you copying names into a spreadsheet. In Oravini the contact is saved to your CRM with its source, then moves through the pipeline as they register for a webinar, watch it and click your offer. You can see which reel brought which client.",
+    },
+    {
+      heading: "Respects how Instagram works",
+      body: "Oravini uses Instagram's official messaging connection for business and creator accounts. Replies go to people who commented or messaged you, which keeps your account in good standing. Instagram sets its own limits on automated messages, and a good setup works inside them instead of fighting them.",
+    },
+  ],
+  faqs: [
+    {
+      q: "Do I need a business or creator account?",
+      a: "Yes. Instagram's messaging connection is only available for professional accounts, and the account has to be linked to a Facebook Page. The setup wizard walks you through connecting it.",
+    },
+    {
+      q: "Can one post have different keywords?",
+      a: "You can set up rules per post or reel and use different keywords for different offers, for example one keyword for a free guide and another for a webinar registration.",
+    },
+    {
+      q: "What should the automated DM say?",
+      a: "Keep it short and specific: thank them, deliver exactly what the post promised, and add one clear next step. Messages that read like a person wrote them get replies. Messages that read like a blast get ignored.",
+    },
+    {
+      q: "Is this the same as ManyChat?",
+      a: "The comment-to-DM idea is the same. The difference is what sits behind it: Oravini has the webinar platform, funnels, video hosting and CRM in the same account, so the DM links straight to pages you built there.",
+    },
+  ],
+  related: [
+    { href: "/instagram-dm-automation", label: "Instagram DM automation: the full feature tour" },
+    { href: "/manychat-alternative", label: "Looking at ManyChat alternatives?" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
 export const SEO_PAGES: SeoPageConfig[] = [
   MANYCHAT_ALTERNATIVE,
   VS_MANYCHAT,
@@ -750,6 +860,8 @@ export const SEO_PAGES: SeoPageConfig[] = [
   VS_CHATFUEL,
   VS_KAJABI,
   VS_WEBINARJAM,
+  AUTOMATED_WEBINAR,
+  COMMENT_TO_DM,
 ];
 
 export function ManyChatAlternativePage() { return <SEOPage config={MANYCHAT_ALTERNATIVE} />; }
@@ -765,3 +877,5 @@ export function WebinarCourseCreatorsPage() { return <SEOPage config={WEBINAR_CO
 export function VsChatfuelPage() { return <SEOPage config={VS_CHATFUEL} />; }
 export function VsKajabiPage() { return <SEOPage config={VS_KAJABI} />; }
 export function VsWebinarjamPage() { return <SEOPage config={VS_WEBINARJAM} />; }
+export function AutomatedWebinarPage() { return <SEOPage config={AUTOMATED_WEBINAR} />; }
+export function CommentToDmPage() { return <SEOPage config={COMMENT_TO_DM} />; }
