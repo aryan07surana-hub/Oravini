@@ -18,12 +18,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     if (this.state.error) {
       const err = this.state.error as Error;
       return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0910", color: "#fff", padding: 24, fontFamily: "system-ui, sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f6f8fc", color: "#101828", padding: 24, fontFamily: "system-ui, sans-serif" }}>
           <div style={{ maxWidth: 480, textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(212,180,97,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
-            <h1 style={{ color: "#d4b461", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
-            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#d4b461", color: "#0a0910", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(46,120,239,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
+            <h1 style={{ color: "#101828", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
+            <p style={{ color: "#5b6675", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#2e78ef", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
           </div>
         </div>
       );
@@ -252,9 +252,10 @@ function SuperAdminGuard({ component: Component, ...props }: any) {
 
 function Guard({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
+  useCalmLight();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -268,8 +269,8 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
 function HomeRedirect() {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Landing />;
@@ -300,8 +301,8 @@ function HostGate({ children }: { children: React.ReactNode }) {
     fetch("/api/public/resolve-host").then(r => (r.ok ? r.json() : { kind: "app" })).catch(() => ({ kind: "app" })).then(setRes);
   }, []);
   if (!res) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (res.kind === "landing") return <PublicLandingPage slugOverride={res.slug} />;
