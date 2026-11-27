@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ToolGrid, FeatureRows, Faq } from "@/components/landing/LandingMore";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingFlows } from "@/components/landing/LandingFlows";
+import { OraviniMark } from "@/components/OraviniLogo";
 import TermPricingPreview from "@/components/video-marketing/TermPricingPreview";
 import { LandingCursor } from "@/components/landing/LandingCursor";
 import { DMDemo, IdeasDemo, SchedulerDemo, VideoDemo, WebinarDemo, StreakDemo } from "@/components/landing/LandingDemos";
@@ -160,7 +161,7 @@ export default function Landing() {
 
 <nav>
   <div className="wrap nav-in">
-    <Link href="/" className="logo"><span className="logo-mark">O</span>oravini</Link>
+    <Link href="/" className="logo"><OraviniMark size={22} />oravini</Link>
     <div className="nav-links">
       <a href="#features">Product</a><a href="#tools">Tools</a><a href="#webinars">Webinars</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
     </div>
@@ -193,7 +194,7 @@ export default function Landing() {
       <HeroVideo />
       <div className="app" ref={seqRef}>
         <div className="app-side">
-          <div className="brand"><span className="logo-mark">O</span>oravini</div>
+          <div className="brand"><OraviniMark size={16} />oravini</div>
           <div className="side-item active"><span className="ic"></span>Dashboard</div>
           <div className="side-item"><span className="ic"></span>AI Ideas</div>
           <div className="side-item"><span className="ic"></span>Competitor Study</div>
@@ -446,7 +447,7 @@ export default function Landing() {
 
 <footer>
   <div className="wrap foot-in">
-    <Link href="/" className="logo" style={{"fontSize":"17px"}}><span className="logo-mark" style={{"width":"20px","height":"20px","borderRadius":"6px","fontSize":"11px"}}>O</span>oravini</Link>
+    <Link href="/" className="logo" style={{"fontSize":"17px"}}><OraviniMark size={18} />oravini</Link>
     <div className="foot-links"><a href={CALENDLY} target="_blank" rel="noopener noreferrer">Book a call</a><Link href="/login">Portal login</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><a href="https://www.instagram.com/oravini_ai/" target="_blank" rel="noopener noreferrer">Instagram</a></div>
     <div>© 2026 Oravini · Powered by Brandverse</div>
   </div>
