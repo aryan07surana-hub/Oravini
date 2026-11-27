@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import CoachLab from "./CoachLab";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSurvey } from "@/hooks/use-survey";
@@ -25,7 +26,27 @@ const GOLD = "#d4b461";
 // ── Swap this with your Loom or YouTube embed URL ────────────────────────────
 // Loom:    "https://www.loom.com/embed/YOUR_VIDEO_ID?autoplay=1&hide_owner=true"
 // YouTube: "https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&mute=1&rel=0"
-const COACH_INTRO_VIDEO_SRC = "https://www.loom.com/embed/REPLACE_WITH_YOUR_LOOM_ID?autoplay=1&hide_owner=true&hide_share=true&hide_title=true";
+// Intro walkthrough slot: hosted on the promo media host. Change the id once the real walkthrough is uploaded
+// ({id}_16x9.webm / .mp4 and {id}.jpg).
+const COACH_INTRO_VIDEO_ID = "coach";
+const COACH_MEDIA = "https://oravini-media.pages.dev/";
+function CoachIntroVideo() {
+  const [bad, setBad] = useState(false);
+  if (bad) return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" style={{ background: "linear-gradient(180deg,#eef4fe,#fff)" }}>
+      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: "#2e78ef" }}><Play className="w-5 h-5 text-white"/></div>
+      <div className="text-sm font-semibold" style={{ color: "#101828" }}>Walkthrough coming soon</div>
+      <div className="text-xs mt-1" style={{ color: "#5b6675" }}>Paste a script below and the coach will show you around.</div>
+    </div>
+  );
+  return (
+    <video className="absolute inset-0 w-full h-full" style={{ objectFit: "cover", background: "#eef4fe" }} poster={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}.jpg`} controls autoPlay playsInline preload="metadata"
+      onError={(e) => { if ((e.target as HTMLElement).tagName !== "SOURCE") setBad(true); }}>
+      <source src={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}_16x9.webm`} type="video/webm" />
+      <source src={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}_16x9.mp4`} type="video/mp4" onError={() => setBad(true)} />
+    </video>
+  );
+}
 const COACH_WELCOME_STORAGE_KEY = "oravini_coach_welcome_seen";
 
 type Mood = "weak" | "decent" | "strong" | "idle" | "thinking";
@@ -567,14 +588,7 @@ function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
         {/* Video embed */}
         <div className="px-6">
           <div className="relative w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/6" style={{ aspectRatio:"16/9" }}>
-            <iframe
-              src={COACH_INTRO_VIDEO_SRC}
-              className="absolute inset-0 w-full h-full"
-              frameBorder="0"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              title="AI Content Coach — Walkthrough"
-            />
+            <CoachIntroVideo />
           </div>
         </div>
 
@@ -840,6 +854,7 @@ export default function AIContentCoach() {
   const [script, setScript] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [goal, setGoal] = useState("viral");
+  const [labView, setLabView] = useState(false);
   const [mode, setMode] = useState("breakdown");
   const [mood, setMood] = useState<Mood>("idle");
   const [thinking, setThinking] = useState(false);
@@ -1180,6 +1195,20 @@ export default function AIContentCoach() {
 
   const isScriptMode = ["breakdown","pre-post"].includes(mode);
 
+  if (labView) return (
+    <ClientLayout>
+      <div className="min-h-screen bg-background flex flex-col" style={{ maxHeight:"100vh" }}>
+        <div className="border-b border-border px-6 py-3 flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-2"><Sparkles className="w-5 h-5" style={{ color:"#2e78ef" }}/><h1 className="text-lg font-bold text-foreground">AI Content Coach</h1></div>
+          <div className="flex items-center rounded-full p-0.5" style={{ background:"#eef2f8" }} data-testid="coach-view-toggle">
+            <button type="button" onClick={()=>setLabView(false)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ color:"#5b6675" }}>Coach</button>
+            <button type="button" onClick={()=>setLabView(true)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)" }}>Growth Lab</button>
+          </div>
+        </div>
+        <CoachLab niche={coachProfile?.niche} />
+      </div>
+    </ClientLayout>
+  );
   return (
     <>
     <ClientLayout>
@@ -1198,6 +1227,10 @@ export default function AIContentCoach() {
             <h1 className="text-lg font-bold text-foreground">AI Content Coach</h1>
           </div>
           <Badge style={{ background:"#d4b46122",color:GOLD,borderColor:"#d4b46130",fontSize:10 }} className="border">AGENT</Badge>
+          <div className="flex items-center rounded-full p-0.5" style={{ background:"#eef2f8" }} data-testid="coach-view-toggle">
+            <button type="button" onClick={()=>setLabView(false)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={!labView?{background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)"}:{color:"#5b6675"}}>Coach</button>
+            <button type="button" onClick={()=>setLabView(true)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={labView?{background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)"}:{color:"#5b6675"}} data-testid="open-growth-lab">Growth Lab</button>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             {GOALS.map(g=>(
               <button key={g.id} onClick={()=>setGoal(g.id)} data-testid={`goal-${g.id}`}
