@@ -296,6 +296,7 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
       if (typeof link?.url !== "string" || !WHOP_HOST_RE.test(link.url)) return res.status(502).json({ message: "Whop did not return an onboarding link." });
       res.json({ url: link.url });
     } catch (e: any) {
+      console.warn("[whop-platform] connect failed", e?.status, e?.code || e?.message);
       res.status(e?.status === 409 ? 409 : 502).json({ message: e?.status === 409 ? "This email is already linked to another Whop account." : "Could not reach Whop. Try again shortly." });
     }
   });
