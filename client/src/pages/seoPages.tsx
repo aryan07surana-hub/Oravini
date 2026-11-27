@@ -4,7 +4,7 @@
 // inside the SPA for real visitors.
 import React from "react";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 export interface SeoFaq {
   q: string;
@@ -25,16 +25,16 @@ export interface SeoPageConfig {
 
 const CTA = (
   <div style={{ textAlign: "center", margin: "72px auto 24px", maxWidth: 640 }}>
-    <h2 style={{ fontSize: 30, fontWeight: 900, color: "#fff", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+    <h2 style={{ fontSize: 30, fontWeight: 900, color: "#101828", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
       Start free. <span style={{ color: GOLD }}>Scale when ready.</span>
     </h2>
-    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 15, lineHeight: 1.7, margin: "14px 0 26px" }}>
+    <p style={{ color: "rgba(16,24,40,0.67)", fontSize: 15, lineHeight: 1.7, margin: "14px 0 26px" }}>
       Free plan includes 100 app credits every month. No card required.
     </p>
     <a
       href="/login?tab=register"
       style={{
-        display: "inline-block", background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, color: "#000",
+        display: "inline-block", background: `linear-gradient(135deg, #4f93ff, ${GOLD})`, color: "#ffffff",
         fontWeight: 800, fontSize: 15, borderRadius: 12, padding: "15px 38px", textDecoration: "none",
       }}
     >
@@ -48,18 +48,18 @@ const CTA = (
 
 export function SEOPage({ config }: { config: SeoPageConfig }) {
   return (
-    <main style={{ background: "#0a0910", minHeight: "100vh", color: "#fff", fontFamily: "Inter, system-ui, sans-serif" }}>
+    <main style={{ background: "#ffffff", minHeight: "100vh", color: "#101828", fontFamily: "Inter, system-ui, sans-serif" }}>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "96px 24px 80px" }}>
         <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 16 }}>Oravini</div>
         <h1 style={{ fontSize: "clamp(30px, 5vw, 48px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.12, margin: "0 0 22px" }}>
           {config.h1}
         </h1>
-        <p style={{ fontSize: 17, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, margin: "0 0 48px" }}>{config.intro}</p>
+        <p style={{ fontSize: 17, color: "rgba(16,24,40,0.72)", lineHeight: 1.75, margin: "0 0 48px" }}>{config.intro}</p>
 
         {config.sections.map((s) => (
           <section key={s.heading} style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.01em", margin: "0 0 12px" }}>{s.heading}</h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.8, margin: 0 }}>{s.body}</p>
+            <p style={{ fontSize: 15, color: "rgba(16,24,40,0.67)", lineHeight: 1.8, margin: 0 }}>{s.body}</p>
           </section>
         ))}
 
@@ -77,7 +77,7 @@ export function SEOPage({ config }: { config: SeoPageConfig }) {
                 {config.table.rows.map((r) => (
                   <tr key={r[0]}>
                     {r.map((c, i) => (
-                      <td key={i} style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", color: i === 0 ? "#fff" : "rgba(255,255,255,0.55)", lineHeight: 1.6, verticalAlign: "top" }}>{c}</td>
+                      <td key={i} style={{ padding: "12px 14px", borderBottom: "1px solid rgba(16,24,40,0.07)", color: i === 0 ? "#101828" : "rgba(16,24,40,0.67)", lineHeight: 1.6, verticalAlign: "top" }}>{c}</td>
                     ))}
                   </tr>
                 ))}
@@ -90,18 +90,18 @@ export function SEOPage({ config }: { config: SeoPageConfig }) {
           <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 20px" }}>Frequently asked questions</h2>
           {config.faqs.map((f) => (
             <div key={f.q} style={{ marginBottom: 22 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>{f.q}</h3>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.75, margin: 0 }}>{f.a}</p>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#101828", margin: "0 0 6px" }}>{f.q}</h3>
+              <p style={{ fontSize: 14, color: "rgba(16,24,40,0.62)", lineHeight: 1.75, margin: 0 }}>{f.a}</p>
             </div>
           ))}
         </section>
 
         {config.related && config.related.length > 0 && (
-          <section style={{ marginBottom: 24, padding: "22px 24px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, background: "rgba(255,255,255,0.02)" }}>
+          <section style={{ marginBottom: 24, padding: "22px 24px", border: "1px solid rgba(16,24,40,0.08)", borderRadius: 16, background: "rgba(16,24,40,0.02)" }}>
             <div style={{ fontSize: 12, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>From the blog</div>
             {config.related.map((r) => (
               <div key={r.href} style={{ marginBottom: 10 }}>
-                <a href={r.href} style={{ color: "#fff", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
+                <a href={r.href} style={{ color: "#101828", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
                   {r.label} <span style={{ color: GOLD }}>→</span>
                 </a>
               </div>
