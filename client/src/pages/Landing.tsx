@@ -143,14 +143,13 @@ export default function Landing() {
   const [popupDismissed, setPopupDismissed] = useState(false);
 
   useEffect(() => {
-    if (popupDismissed) return;
-    const timer = setTimeout(() => { if (!popupDismissed) setShowPopup(true); }, 120000);
-    const onScroll = () => {
-      const scrollPct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
-      if (scrollPct >= 0.65 && !popupDismissed) { setShowPopup(true); window.removeEventListener("scroll", onScroll); }
+    if (popupDismissed || sessionStorage.getItem("oravini-audit-popup")) return;
+    // Exit intent only: opens when the cursor leaves through the top of the page. Never while scrolling.
+    const onLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0 && window.scrollY > 600) { sessionStorage.setItem("oravini-audit-popup", "1"); setShowPopup(true); }
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { clearTimeout(timer); window.removeEventListener("scroll", onScroll); };
+    document.addEventListener("mouseleave", onLeave);
+    return () => document.removeEventListener("mouseleave", onLeave);
   }, [popupDismissed]);
 
   return (
