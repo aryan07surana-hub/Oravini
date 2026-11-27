@@ -33,20 +33,22 @@ function LaunchVideo() {
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
+  const [wait, setWait] = useState(false);
   const [vol, setVol] = useState(1);
   const base = mediaFor("launch");
   const fmt = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
-  const start = () => { const v = ref.current; if (!v) return; v.muted = false; v.volume = vol; v.currentTime = 0; v.play().catch(() => {}); setStarted(true); };
+  const start = () => { const v = ref.current; if (!v) return; v.muted = false; v.volume = vol; setStarted(true); setWait(true); v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); };
   const toggle = () => { const v = ref.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); };
   const full = () => { const f = ref.current?.parentElement as any; if (!f) return; if (document.fullscreenElement) document.exitFullscreen(); else (f.requestFullscreen || f.webkitRequestFullscreen)?.call(f); };
   return (
     <div className="lp-frame">
+     <div className="lp-stage">
       <video ref={ref} poster={`${base}launch.jpg`} playsInline preload="auto"
         onClick={() => started && toggle()}
-        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)} onWaiting={() => setWait(true)} onPlaying={() => setWait(false)} onCanPlay={() => setWait(false)} onSeeked={() => setWait(false)} onPause={() => setPlaying(false)}
         onEnded={() => { setStarted(false); setPlaying(false); }}
-        onTimeUpdate={e => setT(e.currentTarget.currentTime)}
-        onLoadedMetadata={e => setDur(e.currentTarget.duration)}>
+        onTimeUpdate={e => { setT(e.currentTarget.currentTime); if (e.currentTarget.currentTime > 0) setWait(false); }}
+        onLoadedMetadata={e => setDur(e.currentTarget.duration)} onDurationChange={e => setDur(e.currentTarget.duration)}>
         <source src={`${base}launch_16x9.mp4`} type="video/mp4" />
         <source src={`${base}launch_16x9.webm`} type="video/webm" />
       </video>
@@ -55,6 +57,8 @@ function LaunchVideo() {
           <span className="lp-bigplay-btn"><i /></span>
         </button>
       )}
+      {started && wait && <div className="lp-spin" aria-label="Loading" />}
+     </div>
       {started && (
         <div className="lp-ctl">
           <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className="lp-cb">{playing ? <b className="lp-pause" /> : <b className="lp-tri" />}</button>
@@ -82,13 +86,17 @@ export function LandingShowcase() {
 .lp-show .tag:before{content:"";width:6px;height:6px;border-radius:50%;background:#2e78ef}
 .lp-show h2{font-size:clamp(30px,4.2vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:16px 0 10px;color:#101828}
 .lp-show .sub{font-size:16px;line-height:1.6;color:#5b6575;margin:0}
-.lp-frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:22px;overflow:hidden;background:#eef4fe;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 36px 70px -32px rgba(46,120,239,.45),0 10px 26px -12px rgba(16,24,40,.12)}
-.lp-frame video{display:block;width:100%;height:100%;object-fit:cover}
+.lp-frame{position:relative;width:100%;border-radius:22px;overflow:hidden;background:#eef4fe;display:flex;flex-direction:column;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 36px 70px -32px rgba(46,120,239,.45),0 10px 26px -12px rgba(16,24,40,.12)}
+.lp-stage{position:relative;width:100%;aspect-ratio:16/9;background:#eef4fe}
+.lp-frame:fullscreen{border-radius:0;justify-content:center;background:#000}
+.lp-frame video{display:block;width:100%;height:100%;object-fit:contain;background:#eef4fe}
+.lp-spin{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:4px solid rgba(46,120,239,.25);border-top-color:#2e78ef;animation:lpspin .8s linear infinite;pointer-events:none}
+@keyframes lpspin{to{transform:rotate(360deg)}}
 .lp-bigplay{position:absolute;inset:0;border:0;background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
 .lp-bigplay-btn{width:96px;height:68px;border-radius:16px;background:#2e78ef;display:grid;place-items:center;box-shadow:0 18px 36px -10px rgba(46,120,239,.7);transition:transform .2s,background .2s}
 .lp-bigplay:hover .lp-bigplay-btn{transform:scale(1.08);background:#2468d8}
 .lp-bigplay-btn i{border-left:24px solid #fff;border-top:14px solid transparent;border-bottom:14px solid transparent;margin-left:6px}
-.lp-ctl{position:absolute;left:0;right:0;bottom:0;height:44px;background:#2e78ef;display:flex;align-items:center;gap:12px;padding:0 14px;color:#fff;font:600 13px Inter,system-ui,sans-serif}
+.lp-ctl{position:relative;flex:none;height:44px;background:#2e78ef;display:flex;align-items:center;gap:12px;padding:0 14px;color:#fff;font:600 13px Inter,system-ui,sans-serif}
 .lp-cb{border:0;background:transparent;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;padding:0}
 .lp-tri{border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
 .lp-pause{width:11px;height:13px;border-left:4px solid #fff;border-right:4px solid #fff}
@@ -121,7 +129,7 @@ export function LandingShowcase() {
 .lp-mcap{padding:14px 18px 18px;display:flex;flex-direction:column;gap:4px;font-family:Inter,system-ui,sans-serif}
 .lp-mcap b{color:#101828;font-size:16px}.lp-mcap span{color:#5b6575;font-size:13.5px;line-height:1.5}
 @media(max-width:900px){.lp-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:640px){.lp-show{padding:36px 16px 56px}.lp-grid{grid-template-columns:repeat(2,1fr);gap:10px}.lp-show .sub{font-size:14px}.lp-show h3{margin-top:44px}}
+@media(max-width:640px){.lp-frame{border-radius:14px}.lp-ctl{height:40px;gap:8px;padding:0 10px}.lp-vol{display:none}.lp-bigplay-btn{width:72px;height:52px}.lp-bigplay-btn i{border-left-width:18px;border-top-width:11px;border-bottom-width:11px}.lp-show{padding:36px 16px 56px}.lp-grid{grid-template-columns:repeat(2,1fr);gap:10px}.lp-show .sub{font-size:14px}.lp-show h3{margin-top:44px}}
       `}</style>
       <div className="in">
         <div className="head">
