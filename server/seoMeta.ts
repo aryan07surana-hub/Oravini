@@ -46,6 +46,8 @@ export const PRERENDERED_ROUTES: Record<string, string> = {
   "/vs/chatfuel": "vs-chatfuel.html",
   "/vs/kajabi": "vs-kajabi.html",
   "/vs/webinarjam": "vs-webinarjam.html",
+  "/automated-webinar-platform": "automated-webinar-platform.html",
+  "/comment-to-dm-automation": "comment-to-dm-automation.html",
   "/blog": "blog.html",
   ...Object.fromEntries(BLOG_POSTS.map((p) => [`/blog/${p.slug}`, `blog-${p.slug}.html`])),
 };
@@ -144,6 +146,20 @@ export const SEO_ROUTES: Record<string, SeoMeta> = {
     description:
       "Webinars for course launches: registration pages, live sessions with offers, replays, VSL hosting and one CRM tracking every lead from signup to sale.",
     canonical: `${SITE_URL}/webinar-platform-for-course-creators`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/automated-webinar-platform": {
+    title: "Automated & Evergreen Webinar Platform for Creators and Coaches | Oravini",
+    description:
+      "Run an evergreen webinar funnel: an instant-access registration page, a hosted recording, an offer button and a CRM that tracks who watched and who clicked. Built for creators and coaches.",
+    canonical: `${SITE_URL}/automated-webinar-platform`,
+    ogImage: DEFAULT_OG_IMAGE,
+  },
+  "/comment-to-dm-automation": {
+    title: "Comment-to-DM Automation for Instagram: Reply to Every Comment with a DM | Oravini",
+    description:
+      "Turn Instagram comments into conversations. Set a keyword on a post or reel and Oravini sends the DM with your link, then tracks the lead in your CRM. Setup wizard and logs included.",
+    canonical: `${SITE_URL}/comment-to-dm-automation`,
     ogImage: DEFAULT_OG_IMAGE,
   },
   "/vs/chatfuel": {
