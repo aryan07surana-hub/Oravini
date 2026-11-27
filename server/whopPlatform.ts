@@ -284,7 +284,7 @@ export async function registerWhopPlatformRoutes(app: Express, deps: { client?: 
       if (!accountId) {
         const email = String((req.user as any).email || "");
         const name = String((req.user as any).name || email.split("@")[0] || "Oravini seller").slice(0, 80);
-        const acc: any = await client.createAccount({ email, title: name, externalId: `oravini:${cfg.environment}:${u}` });
+        const acc: any = await client.createAccount({ email, title: `${name} (${String(u).replace(/[^A-Za-z0-9]/g, "").slice(0, 6)})`, externalId: `oravini:${cfg.environment}:${u}` });
         accountId = String(acc?.id || "");
         if (!/^biz_[A-Za-z0-9]+$/.test(accountId)) return res.status(502).json({ message: "Whop did not return an account." });
         await pool.query(
