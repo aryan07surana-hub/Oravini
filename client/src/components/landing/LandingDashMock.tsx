@@ -45,30 +45,37 @@ const Card = ({ children, style }: { children: ReactNode; style?: React.CSSPrope
 const Lbl = ({ children }: { children: ReactNode }) => <span className="lbl">{children}</span>;
 
 /* ---------- views (p advances every 900ms) ---------- */
+const TARGETS = [150000, 86000, 112000, 71000, 128000, 94000, 165000, 78000];
 function DashView({ p, t }: { p: number; t: number }) {
-  // Everything here is a continuous function of time t (seconds): no resets, no seams.
-  const followers = Math.round(60000 + 31000 * (1 - Math.exp(-t / 70)) + 90 * Math.sin(t * 1.3));
+  // Continuous: the follower count eases toward a new target every cycle, starting from wherever it is.
+  const st = useRef({ v: 60000, last: t, hist: [] as number[], lastPush: t });
+  const S = st.current; const cyc = Math.floor(t / 7); const target = TARGETS[cyc % TARGETS.length];
+  const dt = Math.max(0, Math.min(0.1, t - S.last)); S.last = t;
+  S.v += (target - S.v) * (1 - Math.exp(-dt / 1.6));
+  if (t - S.lastPush > 0.3) { S.lastPush = t; S.hist.push(S.v); if (S.hist.length > 30) S.hist.shift(); }
+  const followers = Math.round(S.v);
+  const mode = Math.floor(t / 14) % 3;
+  const hs = S.hist.length > 2 ? S.hist : [S.v, S.v + 1, S.v + 2];
+  const lo = Math.min(...hs), hi = Math.max(...hs), rng = Math.max(1, hi - lo);
+  const pts2 = hs.map((v, i) => [(i / 29) * 300, 60 - ((v - lo) / rng) * 48] as [number, number]);
+  const path = pts2.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const trend = target >= S.v;
   const goal = Math.round(58 + 10 * Math.sin(t / 7));
   const seq = [0, 0, 1, 2, 3, 3, 3, 3, 2, 1, 0, 0];
   const done = seq[Math.floor(t / 0.9) % seq.length];
   const score = Math.round(810 + 22 * Math.sin(t / 3.1));
-  const N = 28;
-  const ys = Array.from({ length: N }, (_, i) => {
-    const x = i / (N - 1);
-    return 40 - 22 * x + 7 * Math.sin(t * 0.7 + i * 0.5) + 4 * Math.sin(t * 0.43 + i * 1.3);
-  });
-  const path = ys.map((y, i) => `${i ? "L" : "M"}${(i / (N - 1)) * 300},${y.toFixed(1)}`).join(" ");
-  const delta = (3.4 + 0.9 * Math.sin(t / 2.4)).toFixed(1);
+  const delta = (trend ? 1 : -1) * (1.2 + Math.abs(target - S.v) / 40000);
   return (
     <>
       <div className="app-grid">
         <Card>
           <Lbl>Followers</Lbl>
-          <div className="big" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(followers)}<span className="delta">+{delta}%</span></div>
+          <div className="big" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(followers)}<span className="delta">{delta >= 0 ? "+" : ""}{delta.toFixed(1)}%</span></div>
           <svg width="100%" height="72" viewBox="0 0 300 72" preserveAspectRatio="none" style={{ marginTop: 10 }}>
             <defs><linearGradient id="dmg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={BLUE} stopOpacity=".28" /><stop offset="1" stopColor={BLUE} stopOpacity="0" /></linearGradient></defs>
-            <path d={`${path} L300,72 L0,72 Z`} fill="url(#dmg)" />
-            <path d={path} fill="none" stroke={BLUE} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            <g style={{ opacity: mode === 0 ? 1 : 0, transition: "opacity .7s ease" }}><path d={`${path} L${pts2[pts2.length - 1][0]},72 L0,72 Z`} fill="url(#dmg)" /><path d={path} fill="none" stroke={BLUE} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></g>
+            <g style={{ opacity: mode === 1 ? 1 : 0, transition: "opacity .7s ease" }}>{pts2.map(([x, y], i) => <rect key={i} x={x - 3.5} y={y} width="7" height={72 - y} rx="2" fill={BLUE} opacity={0.35 + 0.65 * (i / pts2.length)} />)}</g>
+            <g style={{ opacity: mode === 2 ? 1 : 0, transition: "opacity .7s ease" }}><path d={path} fill="none" stroke="#9fc2f8" strokeWidth="1.6" strokeDasharray="3 4" />{pts2.filter((_, i) => i % 3 === 0 || i === pts2.length - 1).map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3.2" fill="#fff" stroke={BLUE} strokeWidth="2" />)}</g>
           </svg>
         </Card>
         <Card>
