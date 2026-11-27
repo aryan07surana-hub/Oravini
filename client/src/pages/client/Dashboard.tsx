@@ -2243,6 +2243,18 @@ export default function ClientDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
   const [showFeedback, setShowFeedback] = useState(false);
   const [showMoreInsights, setShowMoreInsights] = useState(false);
+
+  // Calm light theme while the dashboard is open; restored on leave.
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    root.classList.add("calm-light");
+    return () => {
+      root.classList.remove("calm-light");
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
   const [vmBannerDismissed, setVmBannerDismissed] = useState(() => localStorage.getItem("vm_addon_banner_dismissed") === "true");
   const autoRefreshRef = useRef(autoRefresh);
   const versionRef = useRef<string | null>(null);
@@ -2901,3 +2913,4 @@ export default function ClientDashboard() {
       )}
     </>
   );}
+                  
