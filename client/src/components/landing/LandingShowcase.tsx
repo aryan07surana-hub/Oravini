@@ -18,6 +18,9 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
   const [mobile, setMobile] = useState(false);
   useEffect(() => { const m = window.matchMedia("(max-width: 640px)"); const f = () => setMobile(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
   const shape = mobile ? "9x16" : "16x9";
+  const vref = useRef<HTMLVideoElement>(null);
+  const [sound, setSound] = useState(false);
+  const toggleSound = () => { const v = vref.current; if (!v) return; v.muted = sound; setSound(!sound); if (!sound) v.play().catch(() => {}); };
   const ref = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(0);
   const [bad, setBad] = useState(false);
@@ -48,10 +51,11 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
         <p className="body">{promo.body}</p>
       </div>
       <div className={"frame" + (mobile ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
-        <video key={shape} poster={`${MEDIA}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
+        <video ref={vref} key={shape} poster={`${MEDIA}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
           <source src={`${MEDIA}${promo.id}_${shape}.webm`} type="video/webm" />
           <source src={`${MEDIA}${promo.id}_${shape}.mp4`} type="video/mp4" />
         </video>
+        <button type="button" className="snd" onClick={toggleSound} aria-label={sound ? "Mute" : "Turn sound on"}>{sound ? "Sound on" : "Tap for sound"}</button>
       </div>
     </div>
   );
@@ -71,6 +75,7 @@ export function LandingShowcase() {
 .lp-show p.body{font-size:16px;line-height:1.65;color:#5b6575;margin:0 auto;max-width:560px}
 .lp-show .frame{position:relative;width:100%;aspect-ratio:16/9;background:#fff;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 40px 80px -30px rgba(46,120,239,.45),0 12px 30px -12px rgba(16,24,40,.12);overflow:hidden;will-change:transform,opacity}
 .lp-show .frame.m{aspect-ratio:9/16;max-width:340px;margin:0 auto}
+.lp-show .snd{position:absolute;right:14px;bottom:14px;border:0;cursor:pointer;background:rgba(255,255,255,.92);color:#2e78ef;font:600 12px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px -4px rgba(16,24,40,.25)}
 .lp-show video{display:block;width:100%;height:100%;object-fit:cover}
 @media(max-width:640px){.lp-show{padding:20px 16px 56px}.lp-show .copy{margin-bottom:26px}.lp-show p.body{font-size:14px}}
       `}</style>
