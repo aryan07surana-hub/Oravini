@@ -2365,6 +2365,7 @@ export default function ClientDashboard() {
               lifetimeTotalActions={lifetimeTotalActions}
               contentPostCount={(contentPosts || []).length}
               weekHistory={weekHistory}
+              streak={streak}
             />
           )}
 
@@ -2900,4 +2901,4 @@ export default function ClientDashboard() {
       )}
     </>
   );
-}
+                  }
