@@ -18,6 +18,7 @@ const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(0);
+  const [bad, setBad] = useState(false);
   useEffect(() => {
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setP(1); return; }
     let raf = 0;
@@ -36,6 +37,7 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
     window.addEventListener("resize", onScroll);
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
+  if (bad) return null; // video file missing: hide the block instead of showing an empty frame
   const e = ease(p);
   const copy = ease(clamp(p / 0.6));
   return (
@@ -46,7 +48,7 @@ function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
         <p className="body">{promo.body}</p>
       </div>
       <div className="frame" style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
-        <video src={promo.src} poster={promo.poster} autoPlay muted loop playsInline preload="auto" />
+        <video src={promo.src} poster={promo.poster} autoPlay muted loop playsInline preload="auto" onError={() => setBad(true)} />
       </div>
     </div>
   );
