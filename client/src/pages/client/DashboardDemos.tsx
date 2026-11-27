@@ -22,7 +22,7 @@ export const DEMO_CSS = `
 .demo{position:relative;height:100%;width:100%;overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 0 42.8px rgba(43,47,65,.10);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .demo .bar{height:30px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid #f0efed;font-size:10px;font-weight:600;color:#141414}
 .demo .bar i{width:6px;height:6px;border-radius:50%;background:#dedddb}
-.cur{position:absolute;z-index:9;color:#141414;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));opacity:0}
+.cur{position:absolute;z-index:9;color:#2e78ef;fill:#2e78ef;stroke:#fff;stroke-width:1.5;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));opacity:0}
 .a{opacity:0}
 
 /* 1 DM automation */
@@ -49,7 +49,7 @@ ${show("c1", .4, 11, "opacity:0;transform:scale(.8)", SP)}${show("c2", .8, 11, "
 ${kf("cdrag", [[0, "opacity:0;left:6%;top:82%", EM], [2.0, "opacity:0;left:6%;top:82%"], [2.2, "opacity:1;left:6%;top:82%", EM], [4.0, "opacity:1;left:40%;top:30%", SP], [4.3, "opacity:1;left:40%;top:30%"], [11, "opacity:1;left:40%;top:30%"], [11.6, "opacity:0;left:40%;top:30%"], [L, "opacity:0"]])}
 ${kf("cdrag2", [[0, "opacity:0;left:6%;top:82%", EM], [5.4, "opacity:0;left:6%;top:82%"], [5.6, "opacity:1;left:6%;top:82%", EM], [7.4, "opacity:1;left:68%;top:30%", SP], [7.7, "opacity:1;left:68%;top:30%"], [11, "opacity:1;left:68%;top:30%"], [11.6, "opacity:0;left:68%;top:30%"], [L, "opacity:0"]])}
 ${show("ctag", 4.4, 11, "opacity:0;transform:translateY(4px)")}${show("ctag2", 7.8, 11, "opacity:0;transform:translateY(4px)")}
-${kf("cpost", [[0, "background:#2e78ef", "ease"], [9.6, "background:#2e78ef"], [10.0, "background:#141414"], [L, "background:#141414"]])}
+${kf("cpost", [[0, "background:#2e78ef", "ease"], [9.6, "background:#2e78ef"], [10.0, "background:#2e78ef"], [L, "background:#2e78ef"]])}
 ${show("cpill", 8.6, 11, "opacity:0;transform:translateY(10px)")}
 ${cur("ccur", [[0, 10, 88], [2.0, 10, 88], [2.2, 10, 88], [4.0, 44, 38], [4.6, 44, 38], [5.6, 10, 88], [7.4, 72, 38], [8.2, 72, 38], [10, 88, 88], [L, 10, 88]])}
 
@@ -90,7 +90,7 @@ ${show("schip", 8.8, 11, "opacity:0;transform:scale(.8)", SP)}
 `;
 
 const A = (n: string, extra = "") => ({ animation: `${n} ${L}s infinite both ${extra}` } as const);
-const Cursor = ({ n }: { n: string }) => <MousePointer2 className="cur w-4 h-4 fill-white" style={A(n)} />;
+const Cursor = ({ n }: { n: string }) => <MousePointer2 className="cur w-[18px] h-[18px]" style={A(n)} />;
 const Bar = ({ t, right }: { t: string; right?: React.ReactNode }) => (
   <div className="bar"><i /><i /><i /><span className="ml-1">{t}</span><span className="ml-auto">{right}</span></div>
 );
@@ -125,7 +125,7 @@ export function WebinarDemo() {
           <span className="rounded-lg bg-[#2e78ef] text-[#ffffff] text-[10px] font-semibold px-2.5 py-1.5" style={A("wbtn")}>Copy</span>
         </div>
       </div>
-      <div className="absolute right-4 top-[40px] rounded-full bg-[#141414] text-[#ffffff] text-[10px] px-2.5 py-1" style={A("wtoast")}>Link copied</div>
+      <div className="absolute right-4 top-[40px] rounded-full bg-[#2e78ef] text-[#ffffff] text-[10px] px-2.5 py-1" style={A("wtoast")}>Link copied</div>
       <div className="absolute left-4 right-4 top-[96px]" style={A("w2")}>
         <p className="text-[9px] uppercase tracking-wider text-black/40">Registrations</p>
         <p className="cnt text-[34px] font-medium tracking-tight leading-none text-[#141414] mt-0.5" style={A("wcnt")} />
@@ -158,7 +158,7 @@ export function CalendarDemo() {
       </div>
       <div className="absolute w-[11%] z-[5] rounded-md text-[#ffffff] text-[8.5px] font-medium px-1 py-1 text-center bg-[#2e78ef]" style={{ ...A("cdrag"), marginLeft: 0, ["--x" as any]: 0 }}><span style={A("cpost")} className="absolute inset-0 rounded-md" /><span className="relative">Reel</span></div>
       <div className="absolute w-[11%] z-[5] rounded-md text-[#ffffff] text-[8.5px] font-medium px-1 py-1 text-center bg-[#2e78ef]" style={A("cdrag2")}>Post</div>
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-2 rounded-full bg-[#141414] text-[#ffffff] text-[9.5px] font-medium px-3 py-1 inline-flex items-center gap-1" style={A("cpill")}><Check className="w-3 h-3" />2 posts queued</div>
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-2 rounded-full bg-[#2e78ef] text-[#ffffff] text-[9.5px] font-medium px-3 py-1 inline-flex items-center gap-1" style={A("cpill")}><Check className="w-3 h-3" />2 posts queued</div>
       <Cursor n="ccur" />
     </div>
   );
@@ -171,7 +171,7 @@ export function IdeasDemo() {
       <Bar t="Content Ideas" />
       <div className="absolute left-3 right-3 top-[40px] flex items-center gap-2">
         <div className="flex-1 rounded-lg bg-[#f7f7f8] px-2.5 py-1.5 text-[10.5px] text-black/60 overflow-hidden whitespace-nowrap"><div className="overflow-hidden whitespace-nowrap" style={A("itype")}>Fitness coaching</div></div>
-        <span className="rounded-lg bg-[#141414] text-[#ffffff] text-[10px] font-semibold px-2.5 py-1.5 inline-flex items-center gap-1" style={A("ibtn")}><Sparkles className="w-3 h-3" />Generate</span>
+        <span className="rounded-lg bg-[#2e78ef] text-[#ffffff] text-[10px] font-semibold px-2.5 py-1.5 inline-flex items-center gap-1" style={A("ibtn")}><Sparkles className="w-3 h-3" />Generate</span>
       </div>
       <div className="absolute right-4 top-[76px]" style={A("ispin")}><div className="spinner" /></div>
       <div className="absolute left-3 right-3 top-[74px] space-y-1.5">
@@ -190,7 +190,7 @@ export function IdeasDemo() {
 
 export function VideoDemo() {
   return (
-    <div className="demo" style={{ background: "linear-gradient(160deg,#2a3a5e,#141414)" }}>
+    <div className="demo" style={{ background: "linear-gradient(160deg,#3b82f0,#1d4ba8)" }}>
       <div className="absolute left-3 top-3 rounded-full bg-white/15 text-[#ffffff] text-[9.5px] px-2 py-1" style={A("vview")}><span className="cnt" style={A("vview2")} /> watching</div>
       <div className="absolute right-3 top-3 rounded-full bg-[#2e78ef] text-[#ffffff] text-[9.5px] font-semibold px-2 py-1" style={A("vstat")}>42 clicks</div>
       <div className="absolute inset-0 flex items-center justify-center"><span className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center" style={A("vplay")}><Play className="w-5 h-5 text-[#141414] fill-[#141414] ml-0.5" /></span></div>
