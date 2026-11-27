@@ -97,6 +97,7 @@ export const SPA_ROUTES: string[] = [
   "/pages/new",
   "/pages/studio/:id",
   "/payments",
+  "/get-paid",
   "/portal",
   "/portal/calendar",
   "/portal/courses",
@@ -192,3 +193,4 @@ export function matchesSpaRoute(pathname: string): boolean {
   }
   return false;
 }
+
