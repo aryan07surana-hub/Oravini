@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // To swap or add promo videos, edit PROMOS only.
 export const MEDIA = "https://oravini-media.pages.dev/";
 // The Coach walkthrough lives on a second Pages project.
-const MEDIA2_IDS = new Set(["coach", "webinar", "ytlive"]);
+const MEDIA2_IDS = new Set(["coach", "webinar", "ytlive", "launch"]);
 export const mediaFor = (id: string) => (MEDIA2_IDS.has(id) ? "https://oravini-media2.pages.dev/" : MEDIA);
 export const PROMOS = [
   { id: "dm", tag: "DM Automation", title: "Every comment gets a reply.", body: "Someone comments on your reel and Oravini sends the guide to their DMs, then saves the lead to your CRM. No manual work." },
@@ -23,80 +23,77 @@ export const PROMOS = [
   { id: "live", tag: "Webinar live room", title: "A live room built to convert.", body: "Present, chat and show your offer at the right moment while attendees stay in the room." },
   { id: "community", tag: "Community", title: "Grow with people on the same path.", body: "Share wins, ask questions and learn from other creators inside the app." },
   { id: "streaks", tag: "Streaks and goals", title: "Stay consistent, hit the goal.", body: "Set an income target, build a daily streak and watch your progress add up." },
-  { id: "hero", tag: "Your dashboard", title: "One place for everything.", body: "Ideas, posts, leads and webinars share the same data, so nothing gets copied between apps." },
 ];
 
 const VERTICAL = new Set(["dm", "web", "ideas", "sched", "hero"]);
-const clamp = (n: number, a = 0, b = 1) => Math.min(b, Math.max(a, n));
-const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
-function Reveal({ promo }: { promo: (typeof PROMOS)[number] }) {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => { const m = window.matchMedia("(max-width: 640px)"); const f = () => setMobile(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
-  const tall = mobile && VERTICAL.has(promo.id);
-  const shape = tall ? "9x16" : "16x9";
-  const vref = useRef<HTMLVideoElement>(null);
+function LaunchVideo() {
+  const ref = useRef<HTMLVideoElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const [sound, setSound] = useState(false);
-  const toggleSound = () => { const v = vref.current; if (!v) return; v.muted = sound; setSound(!sound); if (!sound) v.play().catch(() => {}); };
-  const ref = useRef<HTMLDivElement>(null);
-  const [p, setP] = useState(0);
-  const [bad, setBad] = useState(false);
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setP(1); return; }
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      // 0 when the block's top edge enters the bottom of the screen, 1 when it sits in the middle
-      setP(clamp((vh - r.top) / (vh * 0.62)));
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+    const v = ref.current, b = box.current; if (!v || !b) return;
+    const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) v.play().catch(() => {}); else v.pause(); }, { threshold: 0.35 });
+    io.observe(b); return () => io.disconnect();
   }, []);
-  if (bad) return null; // video file missing: hide the block instead of showing an empty frame
-  const e = ease(p);
-  const copy = ease(clamp(p / 0.6));
+  const toggle = () => { const v = ref.current; if (!v) return; v.muted = sound; setSound(!sound); if (!sound) { v.currentTime = 0; v.play().catch(() => {}); } };
+  const base = mediaFor("launch");
   return (
-    <div ref={ref} className="blk">
-      <div className="copy" style={{ opacity: copy, transform: `translateY(${(1 - copy) * 26}px)` }}>
-        <p className="body">{promo.body}</p>
-      </div>
-      <div className={"frame" + (tall ? " m" : "")} style={{ opacity: 0.2 + 0.8 * e, transform: `translateY(${(1 - e) * 40}px) scale(${0.84 + 0.16 * e})`, borderRadius: 28 - 10 * e }}>
-        <video ref={vref} key={shape} poster={`${mediaFor(promo.id)}${promo.id}.jpg`} autoPlay muted loop playsInline preload="metadata" onError={(e) => { if ((e.target as HTMLElement).tagName === "SOURCE") return; setBad(true); }}>
-          {!tall && <source src={`${mediaFor(promo.id)}${promo.id}_${shape}.webm`} type="video/webm" />}
-          <source src={`${mediaFor(promo.id)}${promo.id}_${shape}.mp4`} type="video/mp4" />
-        </video>
-        <button type="button" className="snd" onClick={toggleSound} aria-label={sound ? "Mute" : "Turn sound on"}>{sound ? "Sound on" : "Tap for sound"}</button>
-      </div>
+    <div ref={box} className="lp-frame">
+      <video ref={ref} poster={`${base}launch.jpg`} muted loop playsInline preload="metadata">
+        <source src={`${base}launch_16x9.webm`} type="video/webm" />
+        <source src={`${base}launch_16x9.mp4`} type="video/mp4" />
+      </video>
+      <button type="button" className="lp-snd" onClick={toggle}>{sound ? "Sound on" : "Tap for sound"}</button>
     </div>
   );
 }
 
 export function LandingShowcase() {
   return (
-    <section className="lp-show" aria-label="Product showcase">
+    <section className="lp-show" id="see-how" aria-label="See how it works">
       <style>{`
-.lp-show{position:relative;background:linear-gradient(180deg,#fff 0,#f4f8fe 55%,#fff 100%);padding:40px 24px 90px;overflow:hidden}
-.lp-show .blk{position:relative;max-width:1040px;margin:0 auto;padding:40px 0}
-.lp-show .blk:before{content:"";position:absolute;width:820px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(46,120,239,.13),transparent 65%);left:50%;top:60%;transform:translate(-50%,-50%);pointer-events:none}
-.lp-show .copy{position:relative;text-align:center;max-width:680px;margin:0 auto 28px;will-change:transform,opacity}
+.lp-show{background:linear-gradient(180deg,#fff 0,#f4f8fe 100%);padding:56px 24px 40px}
+.lp-show .in{max-width:1040px;margin:0 auto}
+.lp-show .head{text-align:center;max-width:640px;margin:0 auto 28px}
 .lp-show .tag{display:inline-flex;align-items:center;gap:7px;color:#2e78ef;background:#eaf2fe;border-radius:99px;padding:6px 13px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .lp-show .tag:before{content:"";width:6px;height:6px;border-radius:50%;background:#2e78ef}
-.lp-show h2{font-size:clamp(30px,4.2vw,48px);font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:16px 0 12px;color:#101828}
-.lp-show p.body{font-size:16px;line-height:1.65;color:#5b6575;margin:0 auto;max-width:560px}
-.lp-show .frame{position:relative;width:100%;aspect-ratio:16/9;background:#fff;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 40px 80px -30px rgba(46,120,239,.45),0 12px 30px -12px rgba(16,24,40,.12);overflow:hidden;will-change:transform,opacity}
-.lp-show .frame.m{aspect-ratio:9/16;max-width:340px;margin:0 auto}
-.lp-show .snd{position:absolute;right:14px;bottom:14px;border:0;cursor:pointer;background:rgba(255,255,255,.92);color:#2e78ef;font:600 12px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px -4px rgba(16,24,40,.25)}
-.lp-show video{display:block;width:100%;height:100%;object-fit:cover}
-@media(max-width:640px){.lp-show{padding:20px 16px 56px}.lp-show .copy{margin-bottom:26px}.lp-show p.body{font-size:14px}}
+.lp-show h2{font-size:clamp(30px,4.2vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:16px 0 10px;color:#101828}
+.lp-show .sub{font-size:16px;line-height:1.6;color:#5b6575;margin:0}
+.lp-frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:22px;overflow:hidden;background:#eef4fe;box-shadow:0 0 0 1px rgba(46,120,239,.14),0 36px 70px -32px rgba(46,120,239,.45),0 10px 26px -12px rgba(16,24,40,.12)}
+.lp-frame video{display:block;width:100%;height:100%;object-fit:cover}
+.lp-snd{position:absolute;right:14px;bottom:14px;border:0;cursor:pointer;background:rgba(255,255,255,.94);color:#2e78ef;font:600 12px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px rgba(16,24,40,.15)}
+.lp-show h3{font-size:20px;font-weight:700;letter-spacing:-.02em;color:#101828;text-align:center;margin:64px 0 6px}
+.lp-show .sub2{text-align:center;color:#6b7686;font-size:14px;margin:0 0 22px}
+.lp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.lp-card{position:relative;text-align:left;border:1px solid #e3e9f3;border-radius:16px;background:#fff;padding:0;cursor:pointer;overflow:hidden;transition:transform .2s,box-shadow .2s,border-color .2s;font-family:inherit}
+.lp-card:hover{transform:translateY(-3px);border-color:#bcd3fb;box-shadow:0 18px 34px -20px rgba(46,120,239,.5)}
+.lp-th{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,#eaf2fe,#dbe8fb);overflow:hidden}
+.lp-th img{width:100%;height:100%;object-fit:cover;display:block}
+.lp-play{position:absolute;right:10px;bottom:10px;width:30px;height:30px;border-radius:50%;background:#2e78ef;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px -4px rgba(46,120,239,.7)}
+.lp-play:after{content:"";border-left:9px solid #fff;border-top:5.5px solid transparent;border-bottom:5.5px solid transparent;margin-left:2px}
+.lp-ct{padding:12px 14px 14px}
+.lp-ct small{display:block;color:#2e78ef;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.lp-ct b{display:block;margin-top:4px;font-size:13.5px;line-height:1.3;color:#101828;font-weight:650}
+.lp-modal{position:fixed;inset:0;z-index:1000;background:rgba(16,24,40,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
+.lp-mbox{width:min(920px,100%);background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(16,24,40,.6)}
+.lp-mbox.t{width:min(360px,100%)}
+.lp-mhead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font:700 13px Inter,system-ui,sans-serif;color:#2e78ef}
+.lp-mhead button{border:0;background:#eaf2fe;color:#2e78ef;width:30px;height:30px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer}
+.lp-mbox video{display:block;width:100%;background:#eef4fe;max-height:70vh}
+.lp-mcap{padding:14px 18px 18px;display:flex;flex-direction:column;gap:4px;font-family:Inter,system-ui,sans-serif}
+.lp-mcap b{color:#101828;font-size:16px}.lp-mcap span{color:#5b6575;font-size:13.5px;line-height:1.5}
+@media(max-width:900px){.lp-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.lp-show{padding:36px 16px 56px}.lp-grid{grid-template-columns:repeat(2,1fr);gap:10px}.lp-show .sub{font-size:14px}.lp-show h3{margin-top:44px}}
       `}</style>
-      {PROMOS.map((p) => <Reveal key={p.id} promo={p} />)}
+      <div className="in">
+        <div className="head">
+          <span className="tag">Watch the tour</span>
+          <h2>See how it works</h2>
+          <p className="sub">One minute on what Oravini does for your brand, then pick any tool below to watch it in action.</p>
+        </div>
+        <LaunchVideo />
+      </div>
     </section>
   );
 }
