@@ -56,10 +56,19 @@ function DashView({ p, t }: { p: number; t: number }) {
   if (t - S.lastPush > 0.3) { S.lastPush = t; S.hist.push(S.v); if (S.hist.length > 30) S.hist.shift(); }
   const followers = Math.round(S.v);
   const mode = Math.floor(t / 14) % 3;
-  const hs = S.hist.length > 2 ? S.hist : [S.v, S.v + 1, S.v + 2];
-  const lo = Math.min(...hs), hi = Math.max(...hs), rng = Math.max(1, hi - lo);
-  const pts2 = hs.map((v, i) => [(i / 29) * 300, 60 - ((v - lo) / rng) * 48] as [number, number]);
-  const path = pts2.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  if (S.hist.length < 30) { S.hist = Array.from({ length: 30 }, (_, i) => S.v - (30 - i) * 40); }
+  const hs = S.hist;
+  const tlo = Math.min(...hs), thi = Math.max(...hs);
+  const R = (S as any).r || ((S as any).r = { lo: tlo, hi: thi });
+  R.lo += (tlo - R.lo) * 0.08; R.hi += (thi - R.hi) * 0.08;
+  const rng = Math.max(4000, R.hi - R.lo);
+  const pts2 = hs.map((v, i) => [(i / (hs.length - 1)) * 300, 56 - ((v - R.lo) / rng) * 40] as [number, number]);
+  const path = pts2.map(([x, y], i) => {
+    if (!i) return `M${x.toFixed(1)},${y.toFixed(1)}`;
+    const [px, py] = pts2[i - 1]; const cx = (px + x) / 2;
+    return `C${cx.toFixed(1)},${py.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const last = pts2[pts2.length - 1];
   const trend = target >= S.v;
   const goal = Math.round(58 + 10 * Math.sin(t / 7));
   const seq = [0, 0, 1, 2, 3, 3, 3, 3, 2, 1, 0, 0];
@@ -72,11 +81,10 @@ function DashView({ p, t }: { p: number; t: number }) {
         <Card>
           <Lbl>Followers</Lbl>
           <div className="big" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(followers)}<span className="delta">{delta >= 0 ? "+" : ""}{delta.toFixed(1)}%</span></div>
-          <svg width="100%" height="72" viewBox="0 0 300 72" preserveAspectRatio="none" style={{ marginTop: 10 }}>
-            <defs><linearGradient id="dmg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={BLUE} stopOpacity=".28" /><stop offset="1" stopColor={BLUE} stopOpacity="0" /></linearGradient></defs>
-            <g style={{ opacity: mode === 0 ? 1 : 0, transition: "opacity .7s ease" }}><path d={`${path} L${pts2[pts2.length - 1][0]},72 L0,72 Z`} fill="url(#dmg)" /><path d={path} fill="none" stroke={BLUE} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></g>
-            <g style={{ opacity: mode === 1 ? 1 : 0, transition: "opacity .7s ease" }}>{pts2.map(([x, y], i) => <rect key={i} x={x - 3.5} y={y} width="7" height={72 - y} rx="2" fill={BLUE} opacity={0.35 + 0.65 * (i / pts2.length)} />)}</g>
-            <g style={{ opacity: mode === 2 ? 1 : 0, transition: "opacity .7s ease" }}><path d={path} fill="none" stroke="#9fc2f8" strokeWidth="1.6" strokeDasharray="3 4" />{pts2.filter((_, i) => i % 3 === 0 || i === pts2.length - 1).map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3.2" fill="#fff" stroke={BLUE} strokeWidth="2" />)}</g>
+          <svg width="100%" height="72" viewBox="0 0 300 72" preserveAspectRatio="none" style={{ marginTop: 10, overflow: "visible" }}>
+            <defs><linearGradient id="dmg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={BLUE} stopOpacity=".22" /><stop offset="1" stopColor={BLUE} stopOpacity="0" /></linearGradient></defs>
+            <path d={`${path} L${last[0]},72 L0,72 Z`} fill="url(#dmg)" />
+            <path d={path} fill="none" stroke={BLUE} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
         </Card>
         <Card>
@@ -319,3 +327,4 @@ export function DashMock() {
     </div>
   );
 }
+
