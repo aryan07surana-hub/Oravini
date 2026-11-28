@@ -19,7 +19,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ function PostGrid({ posts, accent = GOLD }: { posts: any[]; accent?: string }) {
             href={post.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.07] hover:border-white/20 transition-all"
+            className="block aspect-square rounded-xl overflow-hidden bg-slate-50 border border-white/[0.07] hover:border-white/20 transition-all"
           >
             {post.thumbnail
               ? <img src={post.thumbnail} alt="" className="w-full h-full object-cover" />
@@ -89,7 +89,7 @@ function PostGrid({ posts, accent = GOLD }: { posts: any[]; accent?: string }) {
             </button>
           )}
           {expanded === i && (
-            <div className="mt-1 p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[11px] text-zinc-400 leading-relaxed">
+            <div className="mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-zinc-400 leading-relaxed">
               {post.caption}
             </div>
           )}
@@ -114,7 +114,7 @@ function CopyBtn({ text }: { text: string }) {
 const TooltipContent = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs shadow-2xl">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs shadow-2xl">
       <p className="text-zinc-400 mb-1">{label}</p>
       {payload.map((p: any) => (
         <p key={p.name} style={{ color: p.color }} className="font-bold">{p.name}: {fmt(p.value)}</p>
@@ -204,14 +204,14 @@ function GrowthTracker() {
               onChange={e => setUsername(e.target.value)}
               onKeyDown={e => e.key === "Enter" && username.trim() && addMutation.mutate(username)}
               placeholder="username"
-              className="pl-7 bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-[#d4b461] h-10"
+              className="pl-7 bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 focus:border-[#2e78ef] h-10"
             />
           </div>
           <Button
             onClick={() => addMutation.mutate(username)}
             disabled={!username.trim() || addMutation.isPending}
             className="gap-2 h-10"
-            style={{ background: GOLD, color: "#0a0800" }}
+            style={{ background: GOLD, color: "#ffffff" }}
           >
             {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             {addMutation.isPending ? "Scanning…" : "Track"}
@@ -227,7 +227,7 @@ function GrowthTracker() {
       {/* Profile cards */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <div className="w-6 h-6 border-2 border-[#d4b461] border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-[#2e78ef] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (profiles as any[]).length === 0 ? (
         <div className="text-center py-20 border border-dashed border-white/[0.07] rounded-2xl text-zinc-600">
@@ -268,7 +268,7 @@ function GrowthTracker() {
                         href={`https://instagram.com/${profile.username}`}
                         target="_blank" rel="noreferrer"
                         onClick={e => e.stopPropagation()}
-                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-[#d4b461] transition-colors"
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-[#2e78ef] transition-colors"
                       >
                         @{profile.username} <ExternalLink className="w-2.5 h-2.5" />
                       </a>
@@ -301,7 +301,7 @@ function GrowthTracker() {
                   <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                     <Button
                       size="sm" variant="outline"
-                      className="flex-1 gap-1.5 text-xs border-zinc-700 hover:border-[#d4b461] hover:text-[#d4b461] h-8"
+                      className="flex-1 gap-1.5 text-xs border-slate-200 hover:border-[#2e78ef] hover:text-[#2e78ef] h-8"
                       onClick={() => handleScan(profile.id)}
                       disabled={scanningId === profile.id}
                     >
@@ -328,7 +328,7 @@ function GrowthTracker() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6"
+          className="rounded-2xl border border-slate-200 bg-slate-50 p-6"
         >
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -405,20 +405,20 @@ function HashtagScout() {
               onChange={e => setHashtag(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleScrape()}
               placeholder="entrepreneurship"
-              className="pl-7 bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-[#d4b461] h-10"
+              className="pl-7 bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 focus:border-[#2e78ef] h-10"
             />
           </div>
           <select
             value={limit}
             onChange={e => setLimit(Number(e.target.value))}
-            className="bg-zinc-800/60 border border-zinc-700 text-zinc-300 rounded-lg px-3 h-10 text-sm"
+            className="bg-zinc-800/60 border border-slate-200 text-zinc-300 rounded-lg px-3 h-10 text-sm"
           >
             <option value={10}>10 posts</option>
             <option value={20}>20 posts</option>
             <option value={30}>30 posts</option>
             <option value={50}>50 posts</option>
           </select>
-          <Button onClick={handleScrape} disabled={loading || !hashtag.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#0a0800" }}>
+          <Button onClick={handleScrape} disabled={loading || !hashtag.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#ffffff" }}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {loading ? "Scraping…" : "Scrape"}
           </Button>
@@ -463,7 +463,7 @@ function HashtagScout() {
                     key={acc.ownerUsername}
                     href={`https://instagram.com/${acc.ownerUsername}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800/60 border border-zinc-700 hover:border-[#d4b461] hover:text-[#d4b461] transition-colors text-xs text-zinc-400"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800/60 border border-slate-200 hover:border-[#2e78ef] hover:text-[#2e78ef] transition-colors text-xs text-zinc-400"
                   >
                     <User className="w-3 h-3" />@{acc.ownerUsername}
                     <ExternalLink className="w-2.5 h-2.5 opacity-50" />
@@ -522,18 +522,18 @@ function CommentMiner() {
             onChange={e => setPostUrl(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleScrape()}
             placeholder="https://www.instagram.com/p/... or /reel/..."
-            className="flex-1 min-w-[280px] bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-[#d4b461] h-10"
+            className="flex-1 min-w-[280px] bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 focus:border-[#2e78ef] h-10"
           />
           <select
             value={limit}
             onChange={e => setLimit(Number(e.target.value))}
-            className="bg-zinc-800/60 border border-zinc-700 text-zinc-300 rounded-lg px-3 h-10 text-sm"
+            className="bg-zinc-800/60 border border-slate-200 text-zinc-300 rounded-lg px-3 h-10 text-sm"
           >
             <option value={50}>50 comments</option>
             <option value={100}>100 comments</option>
             <option value={200}>200 comments</option>
           </select>
-          <Button onClick={handleScrape} disabled={loading || !postUrl.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#0a0800" }}>
+          <Button onClick={handleScrape} disabled={loading || !postUrl.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#ffffff" }}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
             {loading ? "Mining…" : "Mine"}
           </Button>
@@ -585,13 +585,13 @@ function CommentMiner() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Filter…"
-                  className="pl-8 h-8 bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 text-xs w-48"
+                  className="pl-8 h-8 bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 text-xs w-48"
                 />
               </div>
             </div>
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {filtered.slice(0, 200).map((c: any, i: number) => (
-                <div key={c.id || i} className="flex gap-3 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 group">
+                <div key={c.id || i} className="flex gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-200 group">
                   <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {c.ownerProfilePic
                       ? <img src={c.ownerProfilePic} alt="" className="w-full h-full object-cover" />
@@ -601,7 +601,7 @@ function CommentMiner() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <a href={`https://instagram.com/${c.ownerUsername}`} target="_blank" rel="noopener noreferrer"
-                        className="text-[11px] font-bold text-zinc-400 hover:text-[#d4b461] transition-colors">
+                        className="text-[11px] font-bold text-zinc-400 hover:text-[#2e78ef] transition-colors">
                         @{c.ownerUsername}
                       </a>
                       {c.likesCount > 0 && <span className="text-[10px] text-zinc-600">♥ {c.likesCount}</span>}
@@ -656,20 +656,20 @@ function LocationSpy() {
               onChange={e => setLocation(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleScrape()}
               placeholder="New York, Dubai, Bali…"
-              className="pl-9 bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-[#d4b461] h-10"
+              className="pl-9 bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 focus:border-[#2e78ef] h-10"
             />
           </div>
           <select
             value={limit}
             onChange={e => setLimit(Number(e.target.value))}
-            className="bg-zinc-800/60 border border-zinc-700 text-zinc-300 rounded-lg px-3 h-10 text-sm"
+            className="bg-zinc-800/60 border border-slate-200 text-zinc-300 rounded-lg px-3 h-10 text-sm"
           >
             <option value={10}>10 posts</option>
             <option value={20}>20 posts</option>
             <option value={30}>30 posts</option>
             <option value={50}>50 posts</option>
           </select>
-          <Button onClick={handleScrape} disabled={loading || !location.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#0a0800" }}>
+          <Button onClick={handleScrape} disabled={loading || !location.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#ffffff" }}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
             {loading ? "Scouting…" : "Scout"}
           </Button>
@@ -733,19 +733,19 @@ function ProfileDeepDive() {
               onChange={e => setUsername(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleScrape()}
               placeholder="username"
-              className="pl-7 bg-zinc-800/60 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-[#d4b461] h-10"
+              className="pl-7 bg-zinc-800/60 border-slate-200 text-white placeholder:text-zinc-600 focus:border-[#2e78ef] h-10"
             />
           </div>
           <select
             value={limit}
             onChange={e => setLimit(Number(e.target.value))}
-            className="bg-zinc-800/60 border border-zinc-700 text-zinc-300 rounded-lg px-3 h-10 text-sm"
+            className="bg-zinc-800/60 border border-slate-200 text-zinc-300 rounded-lg px-3 h-10 text-sm"
           >
             <option value={15}>15 posts</option>
             <option value={30}>30 posts</option>
             <option value={50}>50 posts</option>
           </select>
-          <Button onClick={handleScrape} disabled={loading || !username.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#0a0800" }}>
+          <Button onClick={handleScrape} disabled={loading || !username.trim()} className="gap-2 h-10" style={{ background: GOLD, color: "#ffffff" }}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
             {loading ? "Diving…" : "Deep Dive"}
           </Button>
@@ -771,10 +771,10 @@ function ProfileDeepDive() {
                     {result.profile.isVerified && <Shield className="w-4 h-4 text-blue-400" />}
                   </div>
                   <a href={`https://instagram.com/${result.username}`} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-zinc-500 hover:text-[#d4b461] transition-colors flex items-center gap-1">
+                    className="text-sm text-zinc-500 hover:text-[#2e78ef] transition-colors flex items-center gap-1">
                     @{result.username} <ExternalLink className="w-3 h-3" />
                   </a>
-                  {result.profile.category && <Badge className="mt-1 text-[10px] bg-zinc-800 text-zinc-400 border-zinc-700">{result.profile.category}</Badge>}
+                  {result.profile.category && <Badge className="mt-1 text-[10px] bg-zinc-800 text-zinc-400 border-slate-200">{result.profile.category}</Badge>}
                   {result.profile.bio && <p className="mt-2 text-sm text-zinc-400 leading-relaxed">{result.profile.bio}</p>}
                   {result.profile.website && (
                     <a href={result.profile.website} target="_blank" rel="noopener noreferrer"
@@ -810,7 +810,7 @@ function ProfileDeepDive() {
               <div className="flex flex-wrap gap-2">
                 {topHashtags.map(([tag, count]) => (
                   <a key={tag} href={`https://instagram.com/explore/tags/${tag}/`} target="_blank" rel="noopener noreferrer"
-                    className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors hover:border-[#d4b461] hover:text-[#d4b461]"
+                    className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors hover:border-[#2e78ef] hover:text-[#2e78ef]"
                     style={{ background: `${GOLD}08`, borderColor: `${GOLD}25`, color: GOLD }}
                   >
                     #{tag} <span className="opacity-50">×{count}</span>
@@ -883,7 +883,7 @@ export default function IgGrowthTracker() {
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
                 style={{
                   background: isActive ? GOLD : "rgba(255,255,255,0.04)",
-                  color: isActive ? "#0a0800" : "rgba(255,255,255,0.45)",
+                  color: isActive ? "#ffffff" : "rgba(255,255,255,0.45)",
                   border: `1px solid ${isActive ? GOLD : "rgba(255,255,255,0.07)"}`,
                   boxShadow: isActive ? `0 0 20px ${GOLD}30` : "none",
                 }}

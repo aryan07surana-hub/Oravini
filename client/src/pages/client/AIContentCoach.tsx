@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import CoachLab from "./CoachLab";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSurvey } from "@/hooks/use-survey";
@@ -20,12 +21,32 @@ import {
   Package, History, Smartphone, Music2, PlayCircle, X as XIcon,
 } from "lucide-react";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 // ── Swap this with your Loom or YouTube embed URL ────────────────────────────
 // Loom:    "https://www.loom.com/embed/YOUR_VIDEO_ID?autoplay=1&hide_owner=true"
 // YouTube: "https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&mute=1&rel=0"
-const COACH_INTRO_VIDEO_SRC = "https://www.loom.com/embed/REPLACE_WITH_YOUR_LOOM_ID?autoplay=1&hide_owner=true&hide_share=true&hide_title=true";
+// Intro walkthrough slot: hosted on the promo media host. Change the id once the real walkthrough is uploaded
+// ({id}_16x9.webm / .mp4 and {id}.jpg).
+const COACH_INTRO_VIDEO_ID = "coach";
+const COACH_MEDIA = "https://oravini-media2.pages.dev/";
+function CoachIntroVideo() {
+  const [bad, setBad] = useState(false);
+  if (bad) return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" style={{ background: "linear-gradient(180deg,#eef4fe,#fff)" }}>
+      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: "#2e78ef" }}><Play className="w-5 h-5 text-white"/></div>
+      <div className="text-sm font-semibold" style={{ color: "#101828" }}>Quick tour</div>
+      <div className="text-xs mt-1" style={{ color: "#5b6675" }}>Paste a script below and the coach will show you around.</div>
+    </div>
+  );
+  return (
+    <video className="absolute inset-0 w-full h-full" style={{ objectFit: "cover", background: "#eef4fe" }} poster={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}.jpg`} controls autoPlay playsInline preload="metadata"
+      onError={(e) => { if ((e.target as HTMLElement).tagName !== "SOURCE") setBad(true); }}>
+      <source src={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}_16x9.webm`} type="video/webm" />
+      <source src={`${COACH_MEDIA}${COACH_INTRO_VIDEO_ID}_16x9.mp4`} type="video/mp4" onError={() => setBad(true)} />
+    </video>
+  );
+}
 const COACH_WELCOME_STORAGE_KEY = "oravini_coach_welcome_seen";
 
 type Mood = "weak" | "decent" | "strong" | "idle" | "thinking";
@@ -128,6 +149,21 @@ function TypingDots() {
   );
 }
 
+// Offline hook scorer: used when the AI scorer is unavailable so the live score never shows a dead 0.
+function localHookScore(hook: string) {
+  const h = hook.trim(); const words = h.split(/\s+/).filter(Boolean).length; const low = h.toLowerCase();
+  let score = 40; let weakness = "";
+  if (words >= 5 && words <= 14) score += 14; else if (words > 20) { score -= 8; weakness = "Shorten it to under 14 words"; } else if (words < 5) { score -= 6; weakness = "Add a few more words of context"; }
+  if (/\d/.test(h)) score += 10;
+  if (/\?$/.test(h) || /^(why|how|what|did|do|are|is|can|stop|never|don't|dont)\b/.test(low)) score += 10;
+  if (/\b(you|your|you're)\b/.test(low)) score += 10;
+  if (/\b(mistake|secret|truth|stuck|nobody|wrong|fail|stop|never|only|free|without)\b/.test(low)) score += 12;
+  if (/^(hey|hi|hello|so|today|in this video)\b/.test(low)) { score -= 14; weakness = "Skip the greeting, start with the claim"; }
+  score = Math.max(12, Math.min(94, score));
+  if (!weakness) weakness = score >= 75 ? "Strong opening" : /\d/.test(h) ? "Add a bold claim or contrast" : "Add a number or a bold claim";
+  const label = score >= 85 ? "Viral" : score >= 70 ? "Strong" : score >= 50 ? "Okay" : "Weak";
+  return { score, label, weakness };
+}
 function ScoreRing({ score }: { score: number }) {
   const radius = 36, circ = 2*Math.PI*radius, offset = circ-(score/100)*circ;
   const color = score>=75?"#34d399":score>=55?GOLD:score>=35?"#fb923c":"#f87171";
@@ -157,8 +193,9 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function IssueCard({ issue, onFix, fixing }: { issue: any; onFix: ()=>void; fixing: boolean }) {
+function IssueCard({ issue, onFix, onApply, fixing }: { issue: any; onFix: ()=>void; onApply?: (line:string, fix:string)=>boolean; fixing: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const [applied, setApplied] = useState(false);
   const borderColor = issue.severity==="high"?"#f87171":issue.severity==="medium"?"#fb923c":GOLD;
   return (
     <div style={{ borderLeft:`3px solid ${borderColor}` }} className="bg-zinc-900/60 rounded-r-lg p-3 space-y-1.5">
@@ -180,6 +217,11 @@ function IssueCard({ issue, onFix, fixing }: { issue: any; onFix: ()=>void; fixi
             <p className="text-[10px] text-zinc-500 mb-1">✨ Better version:</p>
             <p className="text-[11px] text-zinc-200">"{issue.fix}"</p>
           </div>
+          {issue.fix && onApply && (
+            <Button size="sm" onClick={()=>{ if (onApply(issue.line, issue.fix)) setApplied(true); }} disabled={applied} data-testid="btn-apply-fix" className="h-7 text-[11px] px-3 mr-2 rounded-full font-semibold" style={{ background: applied?"#16a34a":"#2e78ef", color:"#fff" }}>
+              <Check className="w-3 h-3 mr-1"/>{applied?"Applied to script":"Apply fix"}
+            </Button>
+          )}
           <Button size="sm" onClick={onFix} disabled={fixing} className="h-6 text-[10px] px-2 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30">
             {fixing?<Loader2 className="w-3 h-3 animate-spin"/>:<Wand2 className="w-3 h-3"/>}
             <span className="ml-1">{fixing?"Fixing…":"Fix This Line"}</span>
@@ -451,12 +493,12 @@ function ProfileChip({ profile, onEdit }: { profile: any; onEdit: () => void }) 
   if (!profile) return null;
   const tierLabel = profile.follower_tier === "macro" ? "100k+" : profile.follower_tier === "micro" ? "10-100k" : "<10k";
   return (
-    <button onClick={onEdit} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900/80 border border-zinc-700/50 hover:border-zinc-500 transition-all group">
+    <button onClick={onEdit} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-blue-300 shadow-sm transition-all group">
       <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40` }}>
         <User className="w-3 h-3" style={{ color: GOLD }} />
       </div>
       <div className="flex-1 min-w-0 text-left">
-        <p className="text-[11px] font-semibold text-zinc-200 truncate">{profile.niche || "Set your niche"}</p>
+        <p className="text-[11px] font-semibold text-slate-800 truncate">{profile.niche || "Set your niche"}</p>
         <p className="text-[9px] text-zinc-500">{profile.platform || "instagram"} · {tierLabel}</p>
       </div>
       {profile.avg_overall > 0 && (
@@ -477,22 +519,22 @@ function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave:
     content_style: profile?.content_style || "",
   });
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e=>e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style={{ background:"rgba(16,24,40,.35)" }} onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-md mx-4 space-y-4" onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">Your Creator Profile</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xs">✕</button>
+          <h3 className="text-base font-bold" style={{ color:"#101828" }}>Your Creator Profile</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-zinc-300 text-xs">✕</button>
         </div>
-        <p className="text-[11px] text-zinc-400">Coach uses this to give you personalized, niche-specific feedback every session.</p>
+        <p className="text-[11px] text-slate-500">Coach uses this to give you personalized, niche-specific feedback every session.</p>
         <div className="space-y-3">
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Your Niche</label>
-            <Input value={form.niche} onChange={e=>setForm(f=>({...f,niche:e.target.value}))} placeholder="e.g. fitness for busy moms, personal finance" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Your Niche</label>
+            <Input value={form.niche} onChange={e=>setForm(f=>({...f,niche:e.target.value}))} placeholder="e.g. fitness for busy moms, personal finance" className="h-8 text-xs bg-slate-50 border-slate-200"/>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Platform</label>
-              <select value={form.platform} onChange={e=>setForm(f=>({...f,platform:e.target.value}))} className="w-full h-8 text-xs bg-zinc-800 border border-zinc-700 rounded-md px-2 text-zinc-200">
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Platform</label>
+              <select value={form.platform} onChange={e=>setForm(f=>({...f,platform:e.target.value}))} className="w-full h-8 text-xs bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-800">
                 <option value="instagram">Instagram</option>
                 <option value="tiktok">TikTok</option>
                 <option value="youtube">YouTube</option>
@@ -500,8 +542,8 @@ function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave:
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Follower Count</label>
-              <select value={form.follower_tier} onChange={e=>setForm(f=>({...f,follower_tier:e.target.value}))} className="w-full h-8 text-xs bg-zinc-800 border border-zinc-700 rounded-md px-2 text-zinc-200">
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Follower Count</label>
+              <select value={form.follower_tier} onChange={e=>setForm(f=>({...f,follower_tier:e.target.value}))} className="w-full h-8 text-xs bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-800">
                 <option value="nano">Under 10k (Nano)</option>
                 <option value="micro">10k–100k (Micro)</option>
                 <option value="macro">100k+ (Macro)</option>
@@ -509,17 +551,17 @@ function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave:
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Main Goal</label>
-            <Input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="e.g. get clients, grow to 50k, monetize" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Main Goal</label>
+            <Input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="e.g. get clients, grow to 50k, monetize" className="h-8 text-xs bg-slate-50 border-slate-200"/>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Content Style (optional)</label>
-            <Input value={form.content_style} onChange={e=>setForm(f=>({...f,content_style:e.target.value}))} placeholder="e.g. educational, storytelling, humor" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Content Style (optional)</label>
+            <Input value={form.content_style} onChange={e=>setForm(f=>({...f,content_style:e.target.value}))} placeholder="e.g. educational, storytelling, humor" className="h-8 text-xs bg-slate-50 border-slate-200"/>
           </div>
         </div>
         <div className="flex gap-2 pt-1">
-          <Button onClick={onClose} variant="outline" className="flex-1 h-9 text-xs border-zinc-700 text-zinc-400">Cancel</Button>
-          <Button onClick={()=>onSave(form)} className="flex-1 h-9 text-xs font-semibold" style={{ background: GOLD, color: "#000" }}>Save Profile</Button>
+          <Button onClick={onClose} variant="outline" className="flex-1 h-9 text-xs border-slate-200 text-slate-600">Cancel</Button>
+          <Button onClick={()=>onSave(form)} className="flex-1 h-9 text-xs font-semibold" style={{ background: "#2e78ef", color: "#fff" }}>Save Profile</Button>
         </div>
       </div>
     </div>
@@ -527,58 +569,33 @@ function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave:
 }
 
 // ── Welcome Video Modal ───────────────────────────────────────────────────────
-function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
+function WelcomeVideoModal({ onClose }: { onClose: (never: boolean) => void }) {
   const [visible, setVisible] = useState(false);
+  const [never, setNever] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
-
-  const dismiss = () => {
-    setVisible(false);
-    setTimeout(onClose, 280);
-  };
-
+  const dismiss = () => { setVisible(false); setTimeout(() => onClose(never), 280); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={dismiss} />
-      <div
-        style={{
-          transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(12px)",
-          opacity: visible ? 1 : 0,
-          transition: "all 0.28s cubic-bezier(0.32,0.72,0,1)",
-          maxWidth: 640,
-        }}
-        className="relative w-full bg-[#0d0d0d] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
-      >
-        {/* Header */}
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: "rgba(16,24,40,.55)" }} onClick={dismiss} />
+      <div style={{ transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(12px)", opacity: visible ? 1 : 0, transition: "all 0.28s cubic-bezier(0.32,0.72,0,1)", maxWidth: 640, background: "#fff", border: "1px solid #e3e9f3", boxShadow: "0 40px 90px -30px rgba(46,120,239,.55)" }}
+        className="relative w-full rounded-2xl overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-              style={{ background:`${GOLD}15`, border:`1px solid ${GOLD}30` }}>🤙</div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#eaf2fe" }}><Play className="w-4 h-4" style={{ color: "#2e78ef" }} /></div>
             <div>
-              <h2 className="text-[15px] font-black text-white leading-tight">Welcome to AI Content Coach</h2>
-              <p className="text-[11px] text-white/40 mt-0.5">Watch this 2-min walkthrough — then start creating.</p>
+              <h2 className="text-[15px] font-bold leading-tight" style={{ color: "#101828" }}>Welcome to AI Content Coach</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: "#6b7686" }}>A short walkthrough, then start creating.</p>
             </div>
           </div>
-          <button onClick={dismiss}
-            className="w-7 h-7 rounded-full bg-white/6 hover:bg-white/12 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors shrink-0 ml-4">
+          <button onClick={dismiss} aria-label="Close" className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 ml-4" style={{ background: "#eff5fd", color: "#2e78ef" }}>
             <XIcon className="w-3.5 h-3.5"/>
           </button>
         </div>
-
-        {/* Video embed */}
         <div className="px-6">
-          <div className="relative w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/6" style={{ aspectRatio:"16/9" }}>
-            <iframe
-              src={COACH_INTRO_VIDEO_SRC}
-              className="absolute inset-0 w-full h-full"
-              frameBorder="0"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              title="AI Content Coach — Walkthrough"
-            />
+          <div className="relative w-full rounded-xl overflow-hidden" style={{ aspectRatio:"16/9", background: "#eef4fe", border: "1px solid #e3e9f3" }}>
+            <CoachIntroVideo />
           </div>
         </div>
-
-        {/* What's inside quick list */}
         <div className="px-6 py-4 grid grid-cols-2 gap-2">
           {[
             { icon:"🎯", text:"Score your hook before posting" },
@@ -586,20 +603,18 @@ function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
             { icon:"📊", text:"See where viewers drop off" },
             { icon:"🔥", text:"Quick rewrites in one click" },
           ].map(({icon,text}) => (
-            <div key={text} className="flex items-center gap-2 text-[11px] text-white/50">
-              <span>{icon}</span><span>{text}</span>
-            </div>
+            <div key={text} className="flex items-center gap-2 text-[11px]" style={{ color: "#5b6675" }}><span>{icon}</span><span>{text}</span></div>
           ))}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 pb-6 pt-2 border-t border-white/6">
-          <p className="text-[10px] text-white/20">Won't auto-play again. Hit "Watch intro" anytime to rewatch.</p>
-          <Button onClick={dismiss}
-            className="h-9 px-5 font-bold text-sm shrink-0"
-            style={{ background:GOLD, color:"#000" }}>
-            Let's go →
-          </Button>
+        <div className="flex items-center justify-between gap-3 px-6 pb-5 pt-3 flex-wrap" style={{ borderTop: "1px solid #e3e9f3" }}>
+          <label className="inline-flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: "#5b6675" }}>
+            <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} style={{ accentColor: "#2e78ef", width: 16, height: 16 }} />
+            Don't show this again
+          </label>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={dismiss} className="h-9 px-5 font-semibold text-sm" style={{ borderColor: "#d6e4f5", color: "#2e78ef", background: "#fff" }}>Skip</Button>
+            <Button onClick={dismiss} className="h-9 px-5 font-bold text-sm shrink-0" style={{ background: "#2e78ef", color: "#fff" }}>Let's go</Button>
+          </div>
         </div>
       </div>
     </div>
@@ -665,7 +680,7 @@ const POST_ANALYSIS_CHIPS = [
   { id: "clarify", label: "Fix Weakest Line", icon: "🎯" },
 ];
 
-function CoachBubble({ msg, onFixLine, onQuickAction, isLast }: { msg: ChatMessage; onFixLine: (line: string) => void; onQuickAction?: (id: string) => void; isLast?: boolean }) {
+function CoachBubble({ msg, onFixLine, onApplyFix, onQuickAction, isLast }: { msg: ChatMessage; onFixLine: (line: string) => void; onApplyFix?: (line:string, fix:string)=>boolean; onQuickAction?: (id: string) => void; isLast?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [fixingLine, setFixingLine] = useState<string|null>(null);
   const a = msg.analysis;
@@ -703,7 +718,7 @@ function CoachBubble({ msg, onFixLine, onQuickAction, isLast }: { msg: ChatMessa
                 <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-400"/> Issues ({a.issues.length})
                 </p>
-                {a.issues.map((issue,i)=><IssueCard key={i} issue={issue} fixing={fixingLine===issue.line} onFix={()=>handleFix(issue.line)}/>)}
+                {a.issues.map((issue,i)=><IssueCard key={i} issue={issue} fixing={fixingLine===issue.line} onFix={()=>handleFix(issue.line)} onApply={onApplyFix}/>)}
               </div>
             )}
             {a.strengths?.length>0 && (
@@ -840,6 +855,7 @@ export default function AIContentCoach() {
   const [script, setScript] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [goal, setGoal] = useState("viral");
+  const [labView, setLabView] = useState(false);
   const [mode, setMode] = useState("breakdown");
   const [mood, setMood] = useState<Mood>("idle");
   const [thinking, setThinking] = useState(false);
@@ -851,8 +867,8 @@ export default function AIContentCoach() {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   // ── Welcome modal — show once per browser, "Watch again" button reopens it ─
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(COACH_WELCOME_STORAGE_KEY));
-  const dismissWelcome = () => { localStorage.setItem(COACH_WELCOME_STORAGE_KEY, "1"); setShowWelcome(false); };
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(COACH_WELCOME_STORAGE_KEY) && !sessionStorage.getItem(COACH_WELCOME_STORAGE_KEY));
+  const dismissWelcome = (never?: boolean) => { try { (never ? localStorage : sessionStorage).setItem(COACH_WELCOME_STORAGE_KEY, "1"); } catch { /* ignore */ } setShowWelcome(false); };
 
   // ── New feature state ──────────────────────────────────────────────────────
   const [platform, setPlatform] = useState<"reels" | "tiktok" | "shorts">("reels");
@@ -960,14 +976,15 @@ export default function AIContentCoach() {
     const timer = setTimeout(async () => {
       setHookScoring(true);
       try {
-        const d = await apiRequest("POST", "/api/coach/score-hook", { hook: firstSentence, platform });
+        let d = await apiRequest("POST", "/api/coach/score-hook", { hook: firstSentence, platform });
+        if (!d || (!d.score && (!d.label || d.label === "—"))) d = localHookScore(firstSentence);
         setHookScore({
           score: d.score,
           label: d.label,
           color: d.score >= 75 ? "#34d399" : d.score >= 50 ? GOLD : "#f87171",
           weakness: d.weakness || "",
         });
-      } catch {} finally { setHookScoring(false); }
+      } catch { const d = localHookScore(firstSentence); setHookScore({ score: d.score, label: d.label, color: d.score >= 75 ? "#16a34a" : d.score >= 50 ? GOLD : "#ef4444", weakness: d.weakness }); } finally { setHookScoring(false); }
     }, 900);
     return () => clearTimeout(timer);
   }, [script, platform]);
@@ -1169,6 +1186,27 @@ export default function AIContentCoach() {
     finally { setBuildingRoadmap(false); setThinking(false); }
   };
 
+  const applyFix = (line: string, fix: string) => {
+    const norm = (t: string) => t.replace(/\s+/g, " ").trim();
+    if (script.includes(line)) { setScript(script.replace(line, fix)); toast({ title: "Fix applied", description: "Line replaced in your script." }); return true; }
+    const idx = script.split("\n").findIndex(l => norm(l).includes(norm(line)));
+    if (idx >= 0) { const arr = script.split("\n"); arr[idx] = arr[idx].replace(new RegExp(line.trim().split(/\s+/).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("\\s+")), fix); setScript(arr.join("\n")); toast({ title: "Fix applied", description: "Line replaced in your script." }); return true; }
+    toast({ title: "Couldn't find that line", description: "Edit the script and try again, or copy the better version.", variant: "destructive" }); return false;
+  };
+  const [improvingHook, setImprovingHook] = useState(false);
+  const improveHook = async () => {
+    const first = script.split(/[\n.!?]/)[0].trim();
+    if (first.length < 8) return;
+    setImprovingHook(true);
+    try {
+      const d = await apiRequest("POST", "/api/coach/fix-line", { line: first, goal, context: `${platform} hook` });
+      const best = d?.rewrites?.[0];
+      if (best) { setScript(script.replace(first, best)); toast({ title: "Hook improved", description: d.explanation || "Stronger opening applied." }); }
+      else toast({ title: "No rewrite returned", variant: "destructive" });
+    } catch { toast({ title: "Couldn't improve the hook", variant: "destructive" }); }
+    finally { setImprovingHook(false); }
+  };
+
   const handleFixLine = async (line:string) => {
     await sendToAgent(`Fix this specific line for me: "${line}"`, script || undefined);
   };
@@ -1180,6 +1218,20 @@ export default function AIContentCoach() {
 
   const isScriptMode = ["breakdown","pre-post"].includes(mode);
 
+  if (labView) return (
+    <ClientLayout>
+      <div className="min-h-screen bg-background flex flex-col" style={{ maxHeight:"100vh" }}>
+        <div className="border-b border-border px-6 py-3 flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-2"><Sparkles className="w-5 h-5" style={{ color:"#2e78ef" }}/><h1 className="text-lg font-bold text-foreground">AI Content Coach</h1></div>
+          <div className="flex items-center rounded-full p-0.5" style={{ background:"#eef2f8" }} data-testid="coach-view-toggle">
+            <button type="button" onClick={()=>setLabView(false)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ color:"#5b6675" }}>Coach</button>
+            <button type="button" onClick={()=>setLabView(true)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={{ background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)" }}>Growth Lab</button>
+          </div>
+        </div>
+        <CoachLab niche={coachProfile?.niche} />
+      </div>
+    </ClientLayout>
+  );
   return (
     <>
     <ClientLayout>
@@ -1198,6 +1250,10 @@ export default function AIContentCoach() {
             <h1 className="text-lg font-bold text-foreground">AI Content Coach</h1>
           </div>
           <Badge style={{ background:"#d4b46122",color:GOLD,borderColor:"#d4b46130",fontSize:10 }} className="border">AGENT</Badge>
+          <div className="flex items-center rounded-full p-0.5" style={{ background:"#eef2f8" }} data-testid="coach-view-toggle">
+            <button type="button" onClick={()=>setLabView(false)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={!labView?{background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)"}:{color:"#5b6675"}}>Coach</button>
+            <button type="button" onClick={()=>setLabView(true)} className="px-3 py-1 rounded-full text-[12px] font-semibold" style={labView?{background:"#fff",color:"#2e78ef",boxShadow:"0 1px 3px rgba(16,24,40,.12)"}:{color:"#5b6675"}} data-testid="open-growth-lab">Growth Lab</button>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             {GOALS.map(g=>(
               <button key={g.id} onClick={()=>setGoal(g.id)} data-testid={`goal-${g.id}`}
@@ -1416,7 +1472,7 @@ export default function AIContentCoach() {
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {messages.map((msg,i)=>(
                 msg.role==="coach"?(
-                  <CoachBubble key={i} msg={msg} onFixLine={handleFixLine} onQuickAction={handleQuickAction} isLast={i===messages.length-1}/>
+                  <CoachBubble key={i} msg={msg} onFixLine={handleFixLine} onApplyFix={applyFix} onQuickAction={handleQuickAction} isLast={i===messages.length-1}/>
                 ):(
                   <div key={i} className="flex justify-end">
                     <div className="max-w-sm bg-zinc-800 border border-zinc-700/50 rounded-2xl rounded-tr-sm px-4 py-3">
@@ -1455,25 +1511,25 @@ export default function AIContentCoach() {
 
                   {/* Hook score bar */}
                   {script.trim() && (
-                    <div className="flex items-center justify-between px-0.5">
-                      <p className="text-[10px] text-zinc-600">Hook strength</p>
-                      {hookScoring
-                        ? <span className="text-[10px] text-zinc-700 animate-pulse">scoring…</span>
-                        : hookScore
-                          ? <div className="flex items-center gap-2">
-                              {hookScore.weakness && <span className="text-[10px] text-zinc-600 truncate max-w-[120px]" title={hookScore.weakness}>{hookScore.weakness}</span>}
-                              <div className="w-14 h-1 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-                                <div className="h-full rounded-full transition-all duration-700" style={{ width:`${hookScore.score}%`, background:hookScore.color }}/>
-                              </div>
-                              <span className="text-[10px] font-bold shrink-0" style={{ color:hookScore.color }}>{hookScore.score}</span>
-                            </div>
-                          : null
-                      }
+                    <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background:"rgba(255,255,255,.7)", border:"1px solid rgba(46,120,239,.15)", boxShadow:"0 6px 20px rgba(46,120,239,.08)" }} data-testid="hook-score">
+                      <div className="relative w-12 h-12 shrink-0">
+                        <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90"><circle cx="18" cy="18" r="15" fill="none" stroke="#e6edf8" strokeWidth="3.5"/><circle cx="18" cy="18" r="15" fill="none" stroke={hookScore?hookScore.color:"#cbd5e1"} strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${(hookScore?hookScore.score:0)*0.942} 94.2`} style={{ transition:"stroke-dasharray .7s ease" }}/></svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[13px] font-bold" style={{ color:hookScore?hookScore.color:"#94a3b8" }}>{hookScoring?"…":hookScore?hookScore.score:"–"}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-bold" style={{ color:"#101828" }}>Hook strength {hookScore && !hookScoring ? `· ${hookScore.label.replace(/[^\w\s]/g,"").trim()}` : ""}</p>
+                        <p className="text-[11px] truncate" style={{ color:"#5b6675" }} title={hookScore?.weakness}>{hookScoring ? "Scoring your opening line…" : hookScore?.weakness || "Type your first line to score it live"}</p>
+                      </div>
+                      {hookScore && hookScore.score < 75 && !hookScoring && (
+                        <Button size="sm" onClick={improveHook} disabled={improvingHook} data-testid="btn-improve-hook" className="h-8 px-3 rounded-full text-[11px] font-semibold shrink-0" style={{ background:"#2e78ef", color:"#fff" }}>
+                          {improvingHook?<Loader2 className="w-3 h-3 animate-spin"/>:<Wand2 className="w-3 h-3 mr-1"/>}{improvingHook?"":"Improve hook"}
+                        </Button>
+                      )}
                     </div>
                   )}
 
                   <AiRefineButton text={script} onAccept={setScript} context="social media script or hook" />
-                  <Button onClick={()=>{ if(!script.trim()){toast({title:"Add your script first!"});return;} sendToAgent("Analyze my content and give me everything I need to improve it", script); }} disabled={thinking||!script.trim()} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-analyze-script">
+                  <Button onClick={()=>{ if(!script.trim()){toast({title:"Add your script first!"});return;} sendToAgent("Analyze my content and give me everything I need to improve it", script); }} disabled={thinking||!script.trim()} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#fff" }} data-testid="btn-analyze-script">
                     {thinking?<Loader2 className="w-4 h-4 animate-spin mr-2"/>:<Brain className="w-4 h-4 mr-2"/>}
                     {mode==="pre-post"?"Pre-Post Check":"Analyze My Content"}
                   </Button>
@@ -1492,7 +1548,7 @@ export default function AIContentCoach() {
                   <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Competitor Instagram URL or @handle</label>
                   <div className="flex gap-2">
                     <Input value={competitorUrl} onChange={e=>setCompetitorUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&analyzeCompetitor()} placeholder="instagram.com/competitor or @handle" className="flex-1 h-9 text-sm bg-zinc-900/80 border-zinc-700/60" data-testid="input-competitor-url"/>
-                    <Button onClick={analyzeCompetitor} disabled={thinking||!competitorUrl.trim()} className="h-9 px-4 font-semibold shrink-0" style={{ background:GOLD,color:"#000" }} data-testid="btn-analyze-competitor">
+                    <Button onClick={analyzeCompetitor} disabled={thinking||!competitorUrl.trim()} className="h-9 px-4 font-semibold shrink-0" style={{ background:GOLD,color:"#fff" }} data-testid="btn-analyze-competitor">
                       {thinking?<Loader2 className="w-4 h-4 animate-spin"/>:<Instagram className="w-4 h-4"/>}
                     </Button>
                   </div>
@@ -1519,7 +1575,7 @@ export default function AIContentCoach() {
                       <Input value={brandForm.currentBio} onChange={e=>setBrandForm(f=>({...f,currentBio:e.target.value}))} placeholder="Your current Instagram bio" className="h-8 text-xs bg-zinc-900/80 border-zinc-700/60" data-testid="input-brand-bio"/>
                     </div>
                   </div>
-                  <Button onClick={buildBrand} disabled={buildingBrand||thinking||!brandForm.niche||!brandForm.target||!brandForm.goal} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-build-brand">
+                  <Button onClick={buildBrand} disabled={buildingBrand||thinking||!brandForm.niche||!brandForm.target||!brandForm.goal} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#fff" }} data-testid="btn-build-brand">
                     {buildingBrand?<Loader2 className="w-4 h-4 animate-spin mr-2"/>:<User className="w-4 h-4 mr-2"/>}
                     Build My Brand Strategy
                   </Button>
@@ -1546,7 +1602,7 @@ export default function AIContentCoach() {
                       <Input value={roadmapForm.mainProblem} onChange={e=>setRoadmapForm(f=>({...f,mainProblem:e.target.value}))} placeholder="e.g. hooks aren't working" className="h-8 text-xs bg-zinc-900/80 border-zinc-700/60" data-testid="input-roadmap-problem"/>
                     </div>
                   </div>
-                  <Button onClick={buildRoadmap} disabled={buildingRoadmap||thinking||!roadmapForm.niche||!roadmapForm.goal} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-build-roadmap">
+                  <Button onClick={buildRoadmap} disabled={buildingRoadmap||thinking||!roadmapForm.niche||!roadmapForm.goal} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#fff" }} data-testid="btn-build-roadmap">
                     {buildingRoadmap?<Loader2 className="w-4 h-4 animate-spin mr-2"/>:<Map className="w-4 h-4 mr-2"/>}
                     Generate My 30-Day Roadmap
                   </Button>

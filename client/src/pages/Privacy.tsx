@@ -1,4 +1,4 @@
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 function Section({
   num,
@@ -13,7 +13,7 @@ function Section({
 }) {
   return (
     <section id={id ?? `section-${num}`}>
-      <h2 className="text-xl font-semibold text-white mb-3">{num}. {title}</h2>
+      <h2 className="text-xl font-semibold text-slate-900 mb-3">{num}. {title}</h2>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -27,14 +27,14 @@ const email = "support.oravini@gmail.com";
 
 export default function Privacy() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#ffffff] text-slate-900">
       <div className="max-w-3xl mx-auto px-6 py-16">
 
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Privacy Policy</h1>
-          <p className="text-zinc-400 text-sm">Last updated: November 23, 2026</p>
-          <p className="text-zinc-500 text-sm mt-2">
+          <p className="text-slate-500 text-sm">Last updated: November 23, 2026</p>
+          <p className="text-slate-500 text-sm mt-2">
             This policy explains how Oravini collects, uses, stores, and protects your personal data.
             We are committed to full transparency — if anything is unclear, email us at{" "}
             <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.
@@ -42,8 +42,8 @@ export default function Privacy() {
         </div>
 
         {/* Table of Contents */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 mb-10">
-          <p className="text-sm font-bold text-white mb-3">Table of Contents</p>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 mb-10">
+          <p className="text-sm font-bold text-slate-900 mb-3">Table of Contents</p>
           <ol className="space-y-1.5 text-sm" style={{ color: GOLD }}>
             {[
               ["1", "About Us"],
@@ -79,7 +79,7 @@ export default function Privacy() {
           </ol>
         </div>
 
-        <div className="space-y-10 text-zinc-300 leading-relaxed">
+        <div className="space-y-10 text-slate-600 leading-relaxed">
 
           <Section num="1" title="About Us">
             <p>
@@ -96,14 +96,14 @@ export default function Privacy() {
           <Section num="2" title="Information We Collect">
             <p>We collect the following categories of data:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Account information:</strong> Name, email address, and password (stored as a bcrypt hash — never in plain text).</Li>
-              <Li><strong className="text-white">Profile data:</strong> Optional phone number, program type, and plan tier.</Li>
-              <Li><strong className="text-white">Instagram & social data:</strong> Public profile metrics, post engagement, follower counts, and content performance statistics retrieved via the Instagram Graph API or public scraping tools.</Li>
-              <Li><strong className="text-white">Content data:</strong> Posts, captions, scripts, scheduled content, and performance tracking data you upload or create through the platform.</Li>
-              <Li><strong className="text-white">Communication data:</strong> Messages sent through our in-app chat and DM tracking features.</Li>
-              <Li><strong className="text-white">Usage data:</strong> Pages visited, features used, and interactions with the platform (used only to improve the product).</Li>
-              <Li><strong className="text-white">Referral data:</strong> Referral codes and click tracking if you arrive via a referral link.</Li>
-              <Li><strong className="text-white">Survey data:</strong> Onboarding survey responses used to personalise your experience.</Li>
+              <Li><strong className="text-slate-900">Account information:</strong> Name, email address, and password (stored as a bcrypt hash — never in plain text).</Li>
+              <Li><strong className="text-slate-900">Profile data:</strong> Optional phone number, program type, and plan tier.</Li>
+              <Li><strong className="text-slate-900">Instagram & social data:</strong> Public profile metrics, post engagement, follower counts, and content performance statistics retrieved via the Instagram Graph API or public scraping tools.</Li>
+              <Li><strong className="text-slate-900">Content data:</strong> Posts, captions, scripts, scheduled content, and performance tracking data you upload or create through the platform.</Li>
+              <Li><strong className="text-slate-900">Communication data:</strong> Messages sent through our in-app chat and DM tracking features.</Li>
+              <Li><strong className="text-slate-900">Usage data:</strong> Pages visited, features used, and interactions with the platform (used only to improve the product).</Li>
+              <Li><strong className="text-slate-900">Referral data:</strong> Referral codes and click tracking if you arrive via a referral link.</Li>
+              <Li><strong className="text-slate-900">Survey data:</strong> Onboarding survey responses used to personalise your experience.</Li>
             </ul>
           </Section>
 
@@ -119,16 +119,16 @@ export default function Privacy() {
               <Li>To improve and develop the platform based on usage patterns</Li>
               <Li>To comply with legal obligations</Li>
             </ul>
-            <p>We do <strong className="text-white">not</strong> use your data for advertising, profiling, or any purpose outside of operating this platform.</p>
+            <p>We do <strong className="text-slate-900">not</strong> use your data for advertising, profiling, or any purpose outside of operating this platform.</p>
           </Section>
 
           <Section num="4" title="Legal Basis for Processing (GDPR)">
             <p>If you are located in the European Economic Area (EEA) or UK, we process your personal data under the following legal bases:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Contract performance:</strong> Processing necessary to provide the services you signed up for.</Li>
-              <Li><strong className="text-white">Legitimate interests:</strong> Improving the platform, preventing fraud, and ensuring security — where these interests are not overridden by your rights.</Li>
-              <Li><strong className="text-white">Consent:</strong> Where you have explicitly consented (e.g. connecting your Instagram account, accepting cookies).</Li>
-              <Li><strong className="text-white">Legal obligation:</strong> Where we are required to process data to comply with applicable law.</Li>
+              <Li><strong className="text-slate-900">Contract performance:</strong> Processing necessary to provide the services you signed up for.</Li>
+              <Li><strong className="text-slate-900">Legitimate interests:</strong> Improving the platform, preventing fraud, and ensuring security — where these interests are not overridden by your rights.</Li>
+              <Li><strong className="text-slate-900">Consent:</strong> Where you have explicitly consented (e.g. connecting your Instagram account, accepting cookies).</Li>
+              <Li><strong className="text-slate-900">Legal obligation:</strong> Where we are required to process data to comply with applicable law.</Li>
             </ul>
             <p>You may withdraw consent at any time by contacting us at <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.</p>
           </Section>
@@ -136,7 +136,7 @@ export default function Privacy() {
           <Section num="5" title="We Will Never Sell, Share, or Leak Your Information">
             <p>
               This is our core commitment: your personal information, account data, content, social media connections, and usage activity will{" "}
-              <strong className="text-white">never</strong> be sold, rented, traded, shared, or leaked to any third party for commercial purposes — ever.
+              <strong className="text-slate-900">never</strong> be sold, rented, traded, shared, or leaked to any third party for commercial purposes — ever.
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <Li>We do not sell your data to advertisers, data brokers, or any external companies.</Li>
@@ -156,16 +156,16 @@ export default function Privacy() {
           <Section num="6" title="Data Sharing & Disclosure">
             <p>We only share data in the following limited circumstances:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Service providers:</strong> We share data with third-party tools that power the platform (listed in Section 9). These providers are contractually bound to use your data only to provide their service to us.</Li>
-              <Li><strong className="text-white">Legal requirements:</strong> We may disclose data if required by law, court order, or government authority. We will notify you where legally permitted.</Li>
-              <Li><strong className="text-white">Business transfers:</strong> If Oravini is acquired or merges with another company, your data may be transferred as part of that transaction. We will notify you in advance and you will have the right to delete your account.</Li>
-              <Li><strong className="text-white">With your consent:</strong> We will share data with third parties only if you explicitly request or authorise it.</Li>
+              <Li><strong className="text-slate-900">Service providers:</strong> We share data with third-party tools that power the platform (listed in Section 9). These providers are contractually bound to use your data only to provide their service to us.</Li>
+              <Li><strong className="text-slate-900">Legal requirements:</strong> We may disclose data if required by law, court order, or government authority. We will notify you where legally permitted.</Li>
+              <Li><strong className="text-slate-900">Business transfers:</strong> If Oravini is acquired or merges with another company, your data may be transferred as part of that transaction. We will notify you in advance and you will have the right to delete your account.</Li>
+              <Li><strong className="text-slate-900">With your consent:</strong> We will share data with third parties only if you explicitly request or authorise it.</Li>
             </ul>
             <p>We never share data for advertising, marketing, or commercial purposes outside of operating this platform.</p>
           </Section>
 
           <Section num="7" title="Instagram & Meta Data Usage">
-            <p><strong className="text-white">Oravini Content &amp; Analytics:</strong> The new Instagram insights connection uses Meta Unified Login for professional Business or Creator accounts. You choose a business portfolio and the Instagram accounts to share. A Facebook Page is not required for this connection. It is separate from Oravini's messaging integration.</p>
+            <p><strong className="text-slate-900">Oravini Content &amp; Analytics:</strong> The new Instagram insights connection uses Meta Unified Login for professional Business or Creator accounts. You choose a business portfolio and the Instagram accounts to share. A Facebook Page is not required for this connection. It is separate from Oravini's messaging integration.</p>
             <p>For the new connection we store shared Instagram account IDs and usernames, the client business ID, login configuration and app identifiers, an encrypted access token and its expiry when supplied. When you refresh insights, we read and store your latest media IDs, captions, post types, timestamps, Instagram links and available metrics such as views, reach, likes, comments, saves, shares and estimated three-second Reel skip rate. We keep dated metric snapshots with the synced media. Missing data is not treated as zero. Meta may delay or limit metrics.</p>
             <p>This connection supports your own-account content insights. It does not provide competitors' private reach or retention, or a full second-by-second Instagram retention curve. It does not automatically send messages or publish content.</p>
             <p>The new connection's token is encrypted at rest and used only on Oravini's server to call Meta. This insights view does not send the token or your connected-account media to an AI provider. Our hosting and database services process stored data to run the feature; Meta processes authorization and API requests. Other AI features and their processors are described separately below.</p>
@@ -199,21 +199,21 @@ export default function Privacy() {
           <Section num="9" title="Third-Party Services">
             <p>We use the following third-party services. Each governs their own data use:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Meta / Instagram Graph API</strong> — Profile, post metrics, messaging. <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Meta Privacy Policy</a></Li>
-              <Li><strong className="text-white">Apify</strong> — Public Instagram data for competitor analysis. <a href="https://apify.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Apify Privacy Policy</a></Li>
-              <Li><strong className="text-white">Groq</strong> — AI content generation. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Groq Privacy Policy</a></Li>
-              <Li><strong className="text-white">Anthropic</strong> — AI deep analysis features. <a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Anthropic Privacy Policy</a></Li>
-              <Li><strong className="text-white">OpenRouter</strong> — AI analytics and reporting. <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>OpenRouter Privacy Policy</a></Li>
-              <Li><strong className="text-white">Supabase / PostgreSQL</strong> — Secure database hosting for all platform data.</Li>
-              <Li><strong className="text-white">Google APIs</strong> — YouTube data and image generation features.</Li>
-              <Li><strong className="text-white">Nodemailer / Gmail SMTP</strong> — Transactional email delivery (OTP codes, notifications).</Li>
+              <Li><strong className="text-slate-900">Meta / Instagram Graph API</strong> — Profile, post metrics, messaging. <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Meta Privacy Policy</a></Li>
+              <Li><strong className="text-slate-900">Apify</strong> — Public Instagram data for competitor analysis. <a href="https://apify.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Apify Privacy Policy</a></Li>
+              <Li><strong className="text-slate-900">Groq</strong> — AI content generation. <a href="https://groq.com/privacy-policy/" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Groq Privacy Policy</a></Li>
+              <Li><strong className="text-slate-900">Anthropic</strong> — AI deep analysis features. <a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>Anthropic Privacy Policy</a></Li>
+              <Li><strong className="text-slate-900">OpenRouter</strong> — AI analytics and reporting. <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: GOLD }}>OpenRouter Privacy Policy</a></Li>
+              <Li><strong className="text-slate-900">Supabase / PostgreSQL</strong> — Secure database hosting for all platform data.</Li>
+              <Li><strong className="text-slate-900">Google APIs</strong> — YouTube data and image generation features.</Li>
+              <Li><strong className="text-slate-900">Nodemailer / Gmail SMTP</strong> — Transactional email delivery (OTP codes, notifications).</Li>
             </ul>
           </Section>
 
           <Section num="10" title="International Data Transfers">
             <p>
               Your data is stored in a PostgreSQL database hosted on Supabase infrastructure located in the{" "}
-              <strong className="text-white">Asia-Pacific region (Japan)</strong>. AI processing may involve
+              <strong className="text-slate-900">Asia-Pacific region (Japan)</strong>. AI processing may involve
               servers located in the United States (Groq, Anthropic, OpenRouter).
             </p>
             <p>
@@ -226,12 +226,12 @@ export default function Privacy() {
           <Section num="11" title="Data Storage & Security">
             <p>We take security seriously and implement the following measures:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Encrypted connections:</strong> All data is transmitted over HTTPS/TLS.</Li>
-              <Li><strong className="text-white">Hashed passwords:</strong> Passwords are stored using bcrypt — never in plain text and never visible to anyone, including admins.</Li>
-              <Li><strong className="text-white">Session-based authentication:</strong> Secure, server-side sessions with signed cookies.</Li>
-              <Li><strong className="text-white">OAuth tokens:</strong> Instagram access tokens are stored securely and never exposed client-side.</Li>
-              <Li><strong className="text-white">Access controls:</strong> Role-based access ensures users can only access their own data.</Li>
-              <Li><strong className="text-white">No plain-text secrets:</strong> All API keys and credentials are stored as environment variables, never in code.</Li>
+              <Li><strong className="text-slate-900">Encrypted connections:</strong> All data is transmitted over HTTPS/TLS.</Li>
+              <Li><strong className="text-slate-900">Hashed passwords:</strong> Passwords are stored using bcrypt — never in plain text and never visible to anyone, including admins.</Li>
+              <Li><strong className="text-slate-900">Session-based authentication:</strong> Secure, server-side sessions with signed cookies.</Li>
+              <Li><strong className="text-slate-900">OAuth tokens:</strong> Instagram access tokens are stored securely and never exposed client-side.</Li>
+              <Li><strong className="text-slate-900">Access controls:</strong> Role-based access ensures users can only access their own data.</Li>
+              <Li><strong className="text-slate-900">No plain-text secrets:</strong> All API keys and credentials are stored as environment variables, never in code.</Li>
             </ul>
             <p>
               While we implement industry-standard security measures, no system is 100% secure. We encourage
@@ -244,7 +244,7 @@ export default function Privacy() {
               In the event of a data breach that affects your personal information, we will:
             </p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li>Notify affected users by email within <strong className="text-white">72 hours</strong> of becoming aware of the breach.</Li>
+              <Li>Notify affected users by email within <strong className="text-slate-900">72 hours</strong> of becoming aware of the breach.</Li>
               <Li>Describe what data was affected, how it happened, and what we are doing to fix it.</Li>
               <Li>Notify relevant data protection authorities where required by law (e.g. GDPR).</Li>
               <Li>Take immediate steps to contain the breach and prevent further exposure.</Li>
@@ -260,19 +260,19 @@ export default function Privacy() {
               We retain your data for as long as your account is active. Specific retention periods:
             </p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Account data:</strong> Retained until you delete your account.</Li>
-              <Li><strong className="text-white">Content & analytics:</strong> Retained until you delete your account or request removal.</Li>
-              <Li><strong className="text-white">Messages:</strong> Retained until deleted by either party or account deletion.</Li>
-              <Li><strong className="text-white">Referral data:</strong> Retained for 12 months after the referral event.</Li>
-              <Li><strong className="text-white">Legal/compliance data:</strong> May be retained longer where required by law.</Li>
+              <Li><strong className="text-slate-900">Account data:</strong> Retained until you delete your account.</Li>
+              <Li><strong className="text-slate-900">Content & analytics:</strong> Retained until you delete your account or request removal.</Li>
+              <Li><strong className="text-slate-900">Messages:</strong> Retained until deleted by either party or account deletion.</Li>
+              <Li><strong className="text-slate-900">Referral data:</strong> Retained for 12 months after the referral event.</Li>
+              <Li><strong className="text-slate-900">Legal/compliance data:</strong> May be retained longer where required by law.</Li>
             </ul>
-            <p>After account deletion, all personal data is permanently removed within <strong className="text-white">30 days</strong>.</p>
+            <p>After account deletion, all personal data is permanently removed within <strong className="text-slate-900">30 days</strong>.</p>
           </Section>
 
           <Section num="14" title="Account Deletion & Data Erasure">
             <p>You can delete your account at any time. Here's how:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li>Go to <strong className="text-white">Settings → Plan & Account → Delete Account</strong> inside the platform.</Li>
+              <Li>Go to <strong className="text-slate-900">Settings → Plan & Account → Delete Account</strong> inside the platform.</Li>
               <Li>Complete the short exit survey (required to process deletion).</Li>
               <Li>Your account and all associated data will be permanently deleted within 30 days.</Li>
             </ul>
@@ -283,10 +283,10 @@ export default function Privacy() {
           <Section num="15" title="Cookies" id="cookies">
             <p>We use cookies to make Oravini work. Here's exactly what we use:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Essential session cookies:</strong> Required to keep you logged in. Without these, the platform cannot function. These are never used for tracking.</Li>
-              <Li><strong className="text-white">Referral cookies:</strong> If you arrive via a referral link, we store a short-lived cookie (30 days) to credit the referrer. No personal data is stored in this cookie.</Li>
-              <Li><strong className="text-white">No tracking cookies:</strong> We do not use Google Analytics, Facebook Pixel, or any third-party tracking or advertising cookies.</Li>
-              <Li><strong className="text-white">No profiling:</strong> We do not build behavioural profiles or share cookie data with any external party.</Li>
+              <Li><strong className="text-slate-900">Essential session cookies:</strong> Required to keep you logged in. Without these, the platform cannot function. These are never used for tracking.</Li>
+              <Li><strong className="text-slate-900">Referral cookies:</strong> If you arrive via a referral link, we store a short-lived cookie (30 days) to credit the referrer. No personal data is stored in this cookie.</Li>
+              <Li><strong className="text-slate-900">No tracking cookies:</strong> We do not use Google Analytics, Facebook Pixel, or any third-party tracking or advertising cookies.</Li>
+              <Li><strong className="text-slate-900">No profiling:</strong> We do not build behavioural profiles or share cookie data with any external party.</Li>
             </ul>
             <p>
               By continuing to use Oravini, you consent to our use of essential cookies. You can clear
@@ -299,9 +299,9 @@ export default function Privacy() {
               We may send you emails related to your account, such as:
             </p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Transactional emails:</strong> OTP codes, password resets, account notifications. These are required for the platform to function and cannot be opted out of.</Li>
-              <Li><strong className="text-white">Platform updates:</strong> New features, policy changes, and important announcements.</Li>
-              <Li><strong className="text-white">Onboarding sequences:</strong> Automated emails to help you get started after signing up or upgrading.</Li>
+              <Li><strong className="text-slate-900">Transactional emails:</strong> OTP codes, password resets, account notifications. These are required for the platform to function and cannot be opted out of.</Li>
+              <Li><strong className="text-slate-900">Platform updates:</strong> New features, policy changes, and important announcements.</Li>
+              <Li><strong className="text-slate-900">Onboarding sequences:</strong> Automated emails to help you get started after signing up or upgrading.</Li>
             </ul>
             <p>
               To opt out of non-essential emails, click the unsubscribe link in any email or contact us at{" "}
@@ -343,19 +343,19 @@ export default function Privacy() {
           <Section num="19" title="Your Rights">
             <p>You have the following rights regarding your personal data:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Right to access:</strong> Request a copy of all personal data we hold about you.</Li>
-              <Li><strong className="text-white">Right to rectification:</strong> Request correction of inaccurate or incomplete data.</Li>
-              <Li><strong className="text-white">Right to erasure:</strong> Request deletion of your personal data ("right to be forgotten").</Li>
-              <Li><strong className="text-white">Right to restrict processing:</strong> Request that we limit how we use your data.</Li>
-              <Li><strong className="text-white">Right to data portability:</strong> Receive a copy of your data in a machine-readable format (JSON/CSV).</Li>
-              <Li><strong className="text-white">Right to object:</strong> Object to processing based on legitimate interests.</Li>
-              <Li><strong className="text-white">Right to withdraw consent:</strong> Withdraw consent for any processing based on consent at any time.</Li>
-              <Li><strong className="text-white">Right to human review:</strong> Request human review of any automated decision that affects you.</Li>
+              <Li><strong className="text-slate-900">Right to access:</strong> Request a copy of all personal data we hold about you.</Li>
+              <Li><strong className="text-slate-900">Right to rectification:</strong> Request correction of inaccurate or incomplete data.</Li>
+              <Li><strong className="text-slate-900">Right to erasure:</strong> Request deletion of your personal data ("right to be forgotten").</Li>
+              <Li><strong className="text-slate-900">Right to restrict processing:</strong> Request that we limit how we use your data.</Li>
+              <Li><strong className="text-slate-900">Right to data portability:</strong> Receive a copy of your data in a machine-readable format (JSON/CSV).</Li>
+              <Li><strong className="text-slate-900">Right to object:</strong> Object to processing based on legitimate interests.</Li>
+              <Li><strong className="text-slate-900">Right to withdraw consent:</strong> Withdraw consent for any processing based on consent at any time.</Li>
+              <Li><strong className="text-slate-900">Right to human review:</strong> Request human review of any automated decision that affects you.</Li>
             </ul>
             <p>
               To exercise any of these rights, email{" "}
               <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.
-              We will respond within <strong className="text-white">30 days</strong>. We may ask you to verify your identity before processing the request.
+              We will respond within <strong className="text-slate-900">30 days</strong>. We may ask you to verify your identity before processing the request.
             </p>
           </Section>
 
@@ -365,10 +365,10 @@ export default function Privacy() {
               Privacy Act (CCPA):
             </p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Right to know:</strong> Request disclosure of the categories and specific pieces of personal information we have collected about you.</Li>
-              <Li><strong className="text-white">Right to delete:</strong> Request deletion of your personal information, subject to certain exceptions.</Li>
-              <Li><strong className="text-white">Right to opt-out of sale:</strong> We do not sell personal information. There is nothing to opt out of.</Li>
-              <Li><strong className="text-white">Right to non-discrimination:</strong> We will not discriminate against you for exercising your CCPA rights.</Li>
+              <Li><strong className="text-slate-900">Right to know:</strong> Request disclosure of the categories and specific pieces of personal information we have collected about you.</Li>
+              <Li><strong className="text-slate-900">Right to delete:</strong> Request deletion of your personal information, subject to certain exceptions.</Li>
+              <Li><strong className="text-slate-900">Right to opt-out of sale:</strong> We do not sell personal information. There is nothing to opt out of.</Li>
+              <Li><strong className="text-slate-900">Right to non-discrimination:</strong> We will not discriminate against you for exercising your CCPA rights.</Li>
             </ul>
             <p>
               To submit a CCPA request, email{" "}
@@ -382,11 +382,11 @@ export default function Privacy() {
               Oravini operates a tiered access control policy governing what our admin team can view:
             </p>
             <ul className="list-disc pl-5 space-y-2">
-              <Li><strong className="text-white">Elite (Tier 5) clients:</strong> Admin has standard account management access for proactive support.</Li>
-              <Li><strong className="text-white">Tier 1–4 clients:</strong> Admin visibility is restricted to name and email only. No content, usage details, or sensitive data is accessible by default.</Li>
-              <Li><strong className="text-white">Passwords:</strong> Never stored in plain text. Stored as bcrypt hashes. Admins can only reset passwords, never retrieve them.</Li>
-              <Li><strong className="text-white">Access requests:</strong> Any expanded admin access requires a logged internal request with a timestamp and reason. Clients may request an access log by emailing <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.</Li>
-              <Li><strong className="text-white">No tracking without consent:</strong> Admin cannot monitor Tier 1–4 client activity without first logging an access request.</Li>
+              <Li><strong className="text-slate-900">Elite (Tier 5) clients:</strong> Admin has standard account management access for proactive support.</Li>
+              <Li><strong className="text-slate-900">Tier 1–4 clients:</strong> Admin visibility is restricted to name and email only. No content, usage details, or sensitive data is accessible by default.</Li>
+              <Li><strong className="text-slate-900">Passwords:</strong> Never stored in plain text. Stored as bcrypt hashes. Admins can only reset passwords, never retrieve them.</Li>
+              <Li><strong className="text-slate-900">Access requests:</strong> Any expanded admin access requires a logged internal request with a timestamp and reason. Clients may request an access log by emailing <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.</Li>
+              <Li><strong className="text-slate-900">No tracking without consent:</strong> Admin cannot monitor Tier 1–4 client activity without first logging an access request.</Li>
             </ul>
           </Section>
 
@@ -414,10 +414,10 @@ export default function Privacy() {
 
           <Section num="24" title="Contact">
             <p>For any questions, concerns, or requests regarding this Privacy Policy or your data:</p>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 mt-2 space-y-1">
-              <p><strong className="text-white">Oravini</strong></p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-2 space-y-1">
+              <p><strong className="text-slate-900">Oravini</strong></p>
               <p>Email: <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a></p>
-              <p className="text-zinc-500 text-sm">Response time: within 48 hours for general queries, 30 days for formal data requests.</p>
+              <p className="text-slate-500 text-sm">Response time: within 48 hours for general queries, 30 days for formal data requests.</p>
             </div>
           </Section>
 
@@ -434,7 +434,7 @@ export default function Privacy() {
 
         </div>
 
-        <div className="mt-12 pt-8 border-t border-zinc-800 text-center text-zinc-500 text-sm">
+        <div className="mt-12 pt-8 border-t border-slate-200 text-center text-slate-500 text-sm">
           <p>© 2026 Oravini. All rights reserved.</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/terms" className="hover:underline" style={{ color: GOLD }}>Terms of Service</a>

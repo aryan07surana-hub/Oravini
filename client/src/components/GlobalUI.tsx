@@ -1,4 +1,10 @@
 import { useEffect, useRef } from "react";
+import { useLocation } from "wouter";
+import { LandingCursor } from "@/components/landing/LandingCursor";
+
+/* Pages that bring their own cursor and background (blue landing preview). */
+const OWN_CHROME = ["/new-home"];
+const useOwnChrome = () => { const [loc] = useLocation(); return OWN_CHROME.includes(loc); };
 
 const GOLD = "212,180,97";
 
@@ -7,6 +13,11 @@ declare global {
 }
 
 export function CustomCursor() {
+  const own = useOwnChrome();
+  return own ? null : <LandingCursor all />;
+}
+
+function GoldCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const trailRef = useRef<HTMLCanvasElement>(null);
@@ -121,6 +132,11 @@ export function CustomCursor() {
 }
 
 export function GlobalBackground() {
+  const own = useOwnChrome();
+  return own ? null : null;
+}
+
+function GoldBackground() {
   const ref = useRef<HTMLCanvasElement>(null);
   const mouse = useRef({ x: -9999, y: -9999 });
   const active = useRef(false);

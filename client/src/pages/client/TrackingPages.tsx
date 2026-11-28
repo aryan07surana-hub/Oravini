@@ -47,7 +47,7 @@ const TYPE_COLORS: Record<string, string> = {
   video: "bg-red-500/10 text-red-400 border-red-500/20",
   post: "bg-blue-500/10 text-blue-400 border-blue-500/20",
 };
-const CHART_COLORS = ["#d4b461", "#6366f1", "#ec4899", "#22c55e", "#f97316", "#14b8a6"];
+const CHART_COLORS = ["#2e78ef", "#6366f1", "#ec4899", "#22c55e", "#f97316", "#14b8a6"];
 
 // Content Style options (replaces funnel stage for Instagram)
 const CONTENT_STYLES = [
@@ -694,7 +694,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
 
   if (stage === "idle") {
     return (
-      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(212,180,97,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.18),transparent_28%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-6 sm:p-7">
+      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(46,120,239,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.18),transparent_28%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-6 sm:p-7">
         <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
         <div className="relative flex flex-col items-center gap-5 text-center">
           {errorMsg && (
@@ -707,7 +707,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
             </div>
           )}
 
-          <div className="w-16 h-16 rounded-[22px] border border-primary/30 bg-primary/10 backdrop-blur flex items-center justify-center shadow-[0_0_30px_rgba(212,180,97,0.18)]">
+          <div className="w-16 h-16 rounded-[22px] border border-primary/30 bg-primary/10 backdrop-blur flex items-center justify-center shadow-[0_0_30px_rgba(46,120,239,0.18)]">
             <Sparkles className="w-8 h-8 text-primary" />
           </div>
           <div>
@@ -803,7 +803,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
             </div>
           </div>
 
-          <Button onClick={generate} disabled={posts.length === 0 || filteredForReport.length === 0} data-testid="button-generate-ai-report" className="gap-2 h-11 px-6 rounded-2xl bg-primary text-black hover:bg-primary/90 shadow-[0_0_24px_rgba(212,180,97,0.25)]">
+          <Button onClick={generate} disabled={posts.length === 0 || filteredForReport.length === 0} data-testid="button-generate-ai-report" className="gap-2 h-11 px-6 rounded-2xl bg-primary text-black hover:bg-primary/90 shadow-[0_0_24px_rgba(46,120,239,0.25)]">
             <Sparkles className="w-4 h-4" /> Generate AI Report
           </Button>
           {posts.length === 0
@@ -819,11 +819,11 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
 
   if (stage === "loading") {
     return (
-      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top,rgba(212,180,97,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.14),transparent_25%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-8">
+      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top,rgba(46,120,239,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.14),transparent_25%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-8">
         <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
         <div className="relative flex flex-col items-center gap-5 text-center">
           <div className="relative">
-            <div className="w-20 h-20 border border-primary/25 bg-primary/10 rounded-[26px] flex items-center justify-center shadow-[0_0_30px_rgba(212,180,97,0.18)]">
+            <div className="w-20 h-20 border border-primary/25 bg-primary/10 rounded-[26px] flex items-center justify-center shadow-[0_0_30px_rgba(46,120,239,0.18)]">
               <Sparkles className="w-9 h-9 text-primary animate-pulse" />
             </div>
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full animate-ping" />
@@ -851,7 +851,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   if (!report) return null;
 
   return (
-    <div className="relative overflow-hidden rounded-[30px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(212,180,97,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.16),transparent_26%),linear-gradient(145deg,rgba(11,11,17,0.98),rgba(18,18,28,0.95))]">
+    <div className="relative overflow-hidden rounded-[30px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(46,120,239,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.16),transparent_26%),linear-gradient(145deg,rgba(11,11,17,0.98),rgba(18,18,28,0.95))]">
       <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
       <div className="relative bg-black/10 border-b border-primary/20 px-5 py-4 flex items-center justify-between backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
@@ -920,9 +920,9 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
                     <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis yAxisId="left" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
-                    <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(212,180,97,0.25)", borderRadius: 14, fontSize: 12 }} />
+                    <RechartTooltip contentStyle={{ background: "#ffffff", border: "1px solid rgba(46,120,239,0.25)", borderRadius: 14, fontSize: 12 }} />
                     <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="views" stroke="#d4b461" strokeWidth={3} dot={{ r: 3, fill: "#d4b461" }} name="Views" />
+                    <Line yAxisId="left" type="monotone" dataKey="views" stroke="#2e78ef" strokeWidth={3} dot={{ r: 3, fill: "#2e78ef" }} name="Views" />
                     {!isYt && <Line yAxisId="right" type="monotone" dataKey="engagement" stroke="#38bdf8" strokeWidth={2.2} dot={false} name="Engagement %" />}
                   </LineChart>
                 </ResponsiveContainer>
@@ -966,7 +966,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                     <XAxis dataKey="type" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(212,180,97,0.25)", borderRadius: 14, fontSize: 12 }} />
+                    <RechartTooltip contentStyle={{ background: "#ffffff", border: "1px solid rgba(46,120,239,0.25)", borderRadius: 14, fontSize: 12 }} />
                     <Bar dataKey="avgViews" fill="#6366f1" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1212,7 +1212,7 @@ function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: s
                   <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <RechartTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="views" fill="#d4b461" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="views" fill="#2e78ef" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="text-xs text-muted-foreground text-center py-8">No data yet</p>}
@@ -1261,7 +1261,7 @@ function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: s
                   <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
                   <RechartTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                  <Line type="monotone" dataKey="er" stroke="#d4b461" strokeWidth={2} dot={{ fill: "#d4b461", r: 3 }} name="Engagement %" />
+                  <Line type="monotone" dataKey="er" stroke="#2e78ef" strokeWidth={2} dot={{ fill: "#2e78ef", r: 3 }} name="Engagement %" />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -2181,7 +2181,7 @@ function IgHeroDashboard({ posts, trackedProfiles, user }: { posts: any[]; track
     : "0.00";
 
   return (
-    <div className="relative overflow-hidden rounded-[28px] border border-pink-500/20 bg-[radial-gradient(circle_at_top_left,rgba(236,72,153,0.12),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(212,180,97,0.10),transparent_35%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,14,24,0.95))] p-6">
+    <div className="relative overflow-hidden rounded-[28px] border border-pink-500/20 bg-[radial-gradient(circle_at_top_left,rgba(236,72,153,0.12),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(46,120,239,0.10),transparent_35%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,14,24,0.95))] p-6">
       <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
 
       {/* Header */}
@@ -2267,10 +2267,10 @@ function IgHeroDashboard({ posts, trackedProfiles, user }: { posts: any[]; track
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis dataKey="week" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactNum(v)} />
-              <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 12, fontSize: 11 }} />
+              <RechartTooltip contentStyle={{ background: "#ffffff", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 12, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
               <Line type="monotone" dataKey="views" stroke="#ec4899" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: "#ec4899" }} name="Views" />
-              <Line type="monotone" dataKey="interactions" stroke="#d4b461" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: "#d4b461" }} name="Interactions" />
+              <Line type="monotone" dataKey="interactions" stroke="#2e78ef" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: "#2e78ef" }} name="Interactions" />
             </LineChart>
           </ResponsiveContainer>
         </div>
