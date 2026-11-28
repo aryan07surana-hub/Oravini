@@ -21,7 +21,7 @@ export const PROMOS = [
   { id: "aicrm", tag: "AI CRM", title: "Every lead, one clean pipeline.", body: "Leads from DMs, forms and webinars land in one place with the next step already clear." },
   { id: "webstream", tag: "Webinar streaming", title: "Stream once, reach everyone.", body: "Go live from the browser, stream to your audience and keep the replay ready to sell." },
   { id: "live", tag: "Webinar live room", title: "A live room built to convert.", body: "Present, chat and show your offer at the right moment while attendees stay in the room." },
-  { id: "community", tag: "Community", title: "Grow with people on the same path.", body: "Share wins, ask questions and learn from other creators inside the app." },
+  { id: "community", tag: "Oravini Community", title: "Join the Oravini community.", body: "Every Oravini member gets access. Share your wins, ask questions and learn from other creators." },
   { id: "streaks", tag: "Streaks and goals", title: "Stay consistent, hit the goal.", body: "Set an income target, build a daily streak and watch your progress add up." },
 ];
 
