@@ -3296,6 +3296,9 @@ export const webinarFunnels = pgTable("webinar_funnels", {
   offerText: text("offer_text"),
   offerPrice: text("offer_price"),
   offerExpiresAt: timestamp("offer_expires_at"),
+  vipCheckoutUrl: text("vip_checkout_url"), // optional paid VIP tier checkout (https)
+  vipPrice: text("vip_price"),
+  vslUrl: text("vsl_url"),                  // optional VSL video (https)
   durationMinutes: integer("duration_minutes").default(60),
   remindersEnabled: boolean("reminders_enabled").notNull().default(true),
   communityLinks: jsonb("community_links").$type<{label:string;url:string}[]>().notNull().default([]),
@@ -3357,6 +3360,5 @@ export const webinarCtaClicks = pgTable("webinar_cta_clicks", {
   registrationId: varchar("registration_id"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [index("idx_webinar_cta_clicks_webinar").on(t.webinarId)]);
-
 
 export * from "./whopPlatformSchema";
