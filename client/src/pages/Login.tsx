@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { OraviniMark } from "@/components/OraviniLogo";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -11,7 +12,7 @@ import { Eye, EyeOff, Lock, Mail, ArrowLeft, User } from "lucide-react";
 import { SiGoogle, SiFacebook } from "react-icons/si";
 const oraviniLogoPath = "/oravini-logo.png";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 type Tab = "login" | "register" | "forgot";
 
@@ -47,7 +48,7 @@ function AnimatedBackground() {
         if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
         if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(212,180,97,${p.o})`; ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${p.o})`; ctx.fill();
       });
       for (let i = 0; i < ps.length; i++) {
         for (let j = i + 1; j < ps.length; j++) {
@@ -55,7 +56,7 @@ function AnimatedBackground() {
           const d = Math.sqrt(dx * dx + dy * dy);
           if (d < 100) {
             ctx.beginPath(); ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(ps[j].x, ps[j].y);
-            ctx.strokeStyle = `rgba(212,180,97,${0.09 * (1 - d / 100)})`; ctx.lineWidth = 0.5; ctx.stroke();
+            ctx.strokeStyle = `rgba(255,255,255,${0.09 * (1 - d / 100)})`; ctx.lineWidth = 0.5; ctx.stroke();
           }
         }
       }
@@ -115,11 +116,11 @@ export default function Login() {
     if (error === "google_failed") {
       toast({ title: "Google sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Google.", variant: "destructive" });
       window.history.replaceState({}, "", "/login");
-    } else if (error === "whop_failed") {
-      toast({ title: "Whop sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Whop.", variant: "destructive" });
-      window.history.replaceState({}, "", "/login");
     } else if (error === "facebook_failed") {
       toast({ title: "Facebook sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Facebook.", variant: "destructive" });
+      window.history.replaceState({}, "", "/login");
+    } else if (error === "whop_failed") {
+      toast({ title: "Whop sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Whop.", variant: "destructive" });
       window.history.replaceState({}, "", "/login");
     }
   }, []);
@@ -199,6 +200,7 @@ export default function Login() {
   useEffect(() => {
     fetch("/api/auth/whop/enabled").then(r => r.json()).then(d => setWhopEnabled(!!d?.enabled)).catch(() => {});
   }, []);
+
   if (isLoading) return null;
 
   // Build Google auth URL carrying ref code so it survives the OAuth redirect
@@ -225,7 +227,7 @@ export default function Login() {
     <div className="mt-3">
       <a href={`/api/auth/whop${new URLSearchParams(window.location.search).get("ref") ? `?ref=${encodeURIComponent(new URLSearchParams(window.location.search).get("ref") as string)}` : ""}`} data-testid="button-whop-login">
         <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
-          style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.85)" }}>
+          style={{ border: "1px solid #d6dde8", background: "#ffffff", color: "#344054" }}>
           <span className="inline-flex items-center justify-center w-4 h-4 rounded-sm text-[10px] font-bold" style={{ background: "#FA4616", color: "#fff" }}>W</span>
           Continue with Whop
         </Button>
@@ -237,7 +239,7 @@ export default function Login() {
     <div>
       <a href={googleAuthUrl} data-testid="button-google-login">
         <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
-          style={{ border: googleHint ? `1.5px solid ${GOLD}` : "1px solid rgba(255,255,255,0.1)", background: googleHint ? "rgba(212,180,97,0.12)" : "rgba(255,255,255,0.05)", color: googleHint ? GOLD : "rgba(255,255,255,0.85)", boxShadow: googleHint ? "0 0 18px rgba(212,180,97,0.25)" : "none" }}>
+          style={{ border: googleHint ? `1.5px solid ${GOLD}` : "1px solid #d6dde8", background: googleHint ? "rgba(46,120,239,0.12)" : "#ffffff", color: googleHint ? GOLD : "#344054", boxShadow: googleHint ? "0 0 18px rgba(46,120,239,0.25)" : "none" }}>
           <SiGoogle className="w-4 h-4" />
           Continue with Google
         </Button>
@@ -250,7 +252,7 @@ export default function Login() {
     <div className="mt-3">
       <a href={facebookAuthUrl} data-testid="button-facebook-login">
         <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
-          style={{ border: fbHint ? `1.5px solid ${GOLD}` : "1px solid rgba(255,255,255,0.1)", background: fbHint ? "rgba(212,180,97,0.12)" : "rgba(255,255,255,0.05)", color: fbHint ? GOLD : "rgba(255,255,255,0.85)", boxShadow: fbHint ? "0 0 18px rgba(212,180,97,0.25)" : "none" }}>
+          style={{ border: fbHint ? `1.5px solid ${GOLD}` : "1px solid #d6dde8", background: fbHint ? "rgba(46,120,239,0.12)" : "#ffffff", color: fbHint ? GOLD : "#344054", boxShadow: fbHint ? "0 0 18px rgba(46,120,239,0.25)" : "none" }}>
           <SiFacebook className="w-4 h-4" />
           Continue with Facebook
         </Button>
@@ -261,66 +263,66 @@ export default function Login() {
 
   const divider = (
     <div className="flex items-center gap-3 my-4">
-      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
-      <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>or</span>
-      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+      <div className="flex-1 h-px" style={{ background: "#e3e9f3" }} />
+      <span className="text-xs" style={{ color: "#98a2b3" }}>or</span>
+      <div className="flex-1 h-px" style={{ background: "#e3e9f3" }} />
     </div>
   );
 
   const leftPanel = (
-    <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col items-center justify-center" style={{ background: "#050505" }}>
+    <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col items-center justify-center" style={{ background: "linear-gradient(145deg,#2e78ef 0%,#1d4ba8 100%)" }}>
       <AnimatedBackground />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(212,180,97,0.08) 0%, transparent 65%)", pointerEvents: "none" }} />
-      <button onClick={() => navigate("/")} className="absolute top-6 left-6 z-10 flex items-center gap-1.5 group" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-        <ArrowLeft className="w-3.5 h-3.5 group-hover:text-yellow-400 transition-colors" />
-        <span style={{ letterSpacing: "0.04em" }} className="group-hover:text-yellow-400 transition-colors">Back to Oravini</span>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(255,255,255,0.16) 0%, transparent 65%)", pointerEvents: "none" }} />
+      <button onClick={() => navigate("/")} className="absolute top-6 left-6 z-10 flex items-center gap-1.5 group" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+        <ArrowLeft className="w-3.5 h-3.5 group-hover:text-white transition-colors" />
+        <span style={{ letterSpacing: "0.04em" }} className="group-hover:text-white transition-colors">Back to Oravini</span>
       </button>
       <div className="relative z-10 flex flex-col items-center gap-6 text-center px-12">
-        <img src={oraviniLogoPath} alt="Oravini" style={{ width: 110, height: 110, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 16, filter: "drop-shadow(0 0 30px rgba(212,180,97,0.4))" }} />
+        <OraviniMark size={84} />
         <div>
-          <div style={{ fontSize: "clamp(36px, 4vw, 52px)", fontWeight: 900, letterSpacing: "0.1em", background: `linear-gradient(135deg, #f0c84b 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase", lineHeight: 1 }}>
+          <div style={{ fontSize: "clamp(36px, 4vw, 52px)", fontWeight: 900, letterSpacing: "0.1em", color: "#fff", textTransform: "uppercase", lineHeight: 1 }}>
             ORAVINI
           </div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.25em", textTransform: "uppercase", marginTop: 8 }}>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", letterSpacing: "0.25em", textTransform: "uppercase", marginTop: 8 }}>
             Powered by Oravini
           </div>
         </div>
-        <div style={{ width: 60, height: 1, background: `linear-gradient(to right, transparent, rgba(212,180,97,0.5), transparent)` }} />
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", lineHeight: 1.7, maxWidth: 320 }}>
+        <div style={{ width: 60, height: 1, background: `linear-gradient(to right, transparent, rgba(255,255,255,0.5), transparent)` }} />
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.7, maxWidth: 320 }}>
           Your AI-powered content growth platform. 9 tools. One dashboard. Infinite leverage.
         </p>
       </div>
       <div className="absolute bottom-10 left-0 right-0 text-center">
-        <p style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: "rgba(255,255,255,0.15)" }}>Your growth, tracked & amplified</p>
+        <p style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>Your growth, tracked & amplified</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#0a0a0a" }}>
+    <div className="min-h-screen flex" style={{ background: "#f4f7fc" }}>
       {leftPanel}
 
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative" style={{ background: "#0d0d0d" }}>
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative" style={{ background: "#ffffff" }}>
         <div className="w-full max-w-md">
 
           {/* Mobile top */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-            <img src={oraviniLogoPath} alt="Oravini" className="w-16 h-16" style={{ objectFit: "cover", objectPosition: "50% 32%", borderRadius: 10, filter: "drop-shadow(0 0 20px rgba(212,180,97,0.4))" }} />
-            <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.1em", background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Oravini</div>
+            <OraviniMark size={52} />
+            <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.1em", color: "#2e78ef", textTransform: "uppercase" }}>ORAVINI</div>
+            <div style={{ fontSize: 11, color: "#98a2b3", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Oravini</div>
           </div>
-          <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-6 group lg:hidden" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:text-yellow-400 transition-colors" />
-            <span className="group-hover:text-yellow-400 transition-colors" style={{ letterSpacing: "0.04em" }}>Back to Oravini</span>
+          <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-6 group lg:hidden" style={{ background: "none", border: "none", cursor: "pointer", color: "#98a2b3", fontSize: 13 }}>
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:text-blue-600 transition-colors" />
+            <span className="group-hover:text-blue-600 transition-colors" style={{ letterSpacing: "0.04em" }}>Back to Oravini</span>
           </button>
 
           {/* Tabs */}
           {tab !== "forgot" && (
-          <div className="flex rounded-xl p-1 mb-8" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex rounded-xl p-1 mb-8" style={{ background: "#f2f5fa", border: "1px solid #e3e9f3" }}>
             {(["login", "register"] as Tab[]).map(t => (
               <button key={t} data-testid={`tab-${t}`} onClick={() => { setTab(t); setGoogleHint(false); }}
                 className="flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200"
-                style={{ background: tab === t ? "rgba(212,180,97,0.12)" : "transparent", color: tab === t ? GOLD : "rgba(255,255,255,0.4)", border: tab === t ? "1px solid rgba(212,180,97,0.25)" : "1px solid transparent" }}>
+                style={{ background: tab === t ? "rgba(46,120,239,0.12)" : "transparent", color: tab === t ? GOLD : "#667085", border: tab === t ? "1px solid rgba(46,120,239,0.25)" : "1px solid transparent" }}>
                 {t === "login" ? "Sign In" : "Create Account"}
               </button>
             ))}
@@ -331,8 +333,8 @@ export default function Login() {
           {tab === "login" && (
             <>
               <div className="mb-6">
-                <h2 className="text-2xl font-semibold mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>Welcome back</h2>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Sign in to access your Oravini portal</p>
+                <h2 className="text-2xl font-semibold mb-1" style={{ color: "#101828" }}>Welcome back</h2>
+                <p className="text-sm" style={{ color: "#667085" }}>Sign in to access your Oravini portal</p>
               </div>
               {googleBtn}
               {facebookBtn}
@@ -340,23 +342,23 @@ export default function Login() {
               {divider}
               <form onSubmit={e => { e.preventDefault(); if (!email || !password) { toast({ title: "Missing fields", description: "Please enter your email and password", variant: "destructive" }); return; } login.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Email address</Label>
+                  <Label style={{ color: "#475467" }}>Email address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-email" type="email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setGoogleHint(false); setFbHint(false); }} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-email" type="email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setGoogleHint(false); setFbHint(false); }} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="email" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Password</Label>
+                  <Label style={{ color: "#475467" }}>Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="current-password" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 pr-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="current-password" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "#98a2b3" }}>
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
-                <Button type="submit" data-testid="button-login" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={login.isPending}>
+                <Button type="submit" data-testid="button-login" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #2e78ef, #1d5fd6)", color: "#ffffff" }} disabled={login.isPending}>
                   {login.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Signing in...</span> : "Sign In →"}
                 </Button>
               </form>
@@ -365,7 +367,7 @@ export default function Login() {
                   type="button"
                   onClick={() => { setTab("forgot"); setForgotEmail(email); setForgotStep("email"); }}
                   className="text-sm hover:underline transition-colors"
-                  style={{ color: "rgba(212,180,97,0.7)", background: "none", border: "none", cursor: "pointer" }}
+                  style={{ color: "rgba(46,120,239,0.7)", background: "none", border: "none", cursor: "pointer" }}
                 >
                   Forgot your password?
                 </button>
@@ -377,8 +379,8 @@ export default function Login() {
           {tab === "register" && (
             <>
               <div className="mb-6">
-                <h2 className="text-2xl font-semibold mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>Create your account</h2>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>Join Oravini and start growing today</p>
+                <h2 className="text-2xl font-semibold mb-1" style={{ color: "#101828" }}>Create your account</h2>
+                <p className="text-sm" style={{ color: "#667085" }}>Join Oravini and start growing today</p>
               </div>
               {googleBtn}
               {facebookBtn}
@@ -386,43 +388,43 @@ export default function Login() {
               {divider}
               <form onSubmit={e => { e.preventDefault(); register.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Full Name</Label>
+                  <Label style={{ color: "#475467" }}>Full Name</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-reg-name" type="text" placeholder="Jane Smith" value={regName} onChange={e => setRegName(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="name" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-reg-name" type="text" placeholder="Jane Smith" value={regName} onChange={e => setRegName(e.target.value)} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="name" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Email Address</Label>
+                  <Label style={{ color: "#475467" }}>Email Address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-reg-email" type="email" placeholder="you@example.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-reg-email" type="email" placeholder="you@example.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="email" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Password</Label>
+                  <Label style={{ color: "#475467" }}>Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-reg-password" type={showRegPw ? "text" : "password"} placeholder="Min 8 characters" value={regPassword} onChange={e => setRegPassword(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password" />
-                    <button type="button" onClick={() => setShowRegPw(!showRegPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-reg-password" type={showRegPw ? "text" : "password"} placeholder="Min 8 characters" value={regPassword} onChange={e => setRegPassword(e.target.value)} className="pl-10 pr-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="new-password" />
+                    <button type="button" onClick={() => setShowRegPw(!showRegPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "#98a2b3" }}>
                       {showRegPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label style={{ color: "rgba(255,255,255,0.55)" }}>Confirm Password</Label>
+                  <Label style={{ color: "#475467" }}>Confirm Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-reg-confirm" type="password" placeholder="Repeat your password" value={regConfirm} onChange={e => setRegConfirm(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password"
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                    <Input data-testid="input-reg-confirm" type="password" placeholder="Repeat your password" value={regConfirm} onChange={e => setRegConfirm(e.target.value)} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="new-password"
                       style={{ borderColor: regConfirm && regConfirm !== regPassword ? "rgba(239,68,68,0.5)" : undefined }} />
                   </div>
                   {regConfirm && regConfirm !== regPassword && <p style={{ fontSize: 11, color: "rgba(239,68,68,0.8)" }}>Passwords do not match</p>}
                 </div>
-                <Button type="submit" data-testid="button-register" className="w-full h-11 font-semibold border-0 mt-2" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={register.isPending}>
+                <Button type="submit" data-testid="button-register" className="w-full h-11 font-semibold border-0 mt-2" style={{ background: "linear-gradient(135deg, #2e78ef, #1d5fd6)", color: "#ffffff" }} disabled={register.isPending}>
                   {register.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Creating account...</span> : "Create Account & Start Audit →"}
                 </Button>
               </form>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 11, color: "#98a2b3", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
                 After signing up, you'll be taken directly to your free audit.
               </p>
             </>
@@ -432,8 +434,8 @@ export default function Login() {
           {tab === "forgot" && (
             <>
               <div className="mb-6">
-                <h2 className="text-2xl font-semibold mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>Reset your password</h2>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+                <h2 className="text-2xl font-semibold mb-1" style={{ color: "#101828" }}>Reset your password</h2>
+                <p className="text-sm" style={{ color: "#667085" }}>
                   {forgotStep === "email" && "Enter your email and we'll send you a reset code."}
                   {forgotStep === "code" && "Enter the 6-digit code from your email and set a new password."}
                   {forgotStep === "done" && "Your password has been reset successfully."}
@@ -443,13 +445,13 @@ export default function Login() {
               {forgotStep === "email" && (
                 <form onSubmit={e => { e.preventDefault(); if (!forgotEmail.trim()) { toast({ title: "Enter your email", variant: "destructive" }); return; } sendResetCode.mutate(); }} className="space-y-4">
                   <div className="space-y-2">
-                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>Email address</Label>
+                    <Label style={{ color: "#475467" }}>Email address</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                      <Input type="email" placeholder="you@example.com" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                      <Input type="email" placeholder="you@example.com" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="email" />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={sendResetCode.isPending}>
+                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #2e78ef, #1d5fd6)", color: "#ffffff" }} disabled={sendResetCode.isPending}>
                     {sendResetCode.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Sending...</span> : "Send Reset Code →"}
                   </Button>
                 </form>
@@ -458,32 +460,32 @@ export default function Login() {
               {forgotStep === "code" && (
                 <form onSubmit={e => { e.preventDefault(); resetPassword.mutate(); }} className="space-y-4">
                   <div className="space-y-2">
-                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>6-digit code</Label>
-                    <Input type="text" placeholder="123456" value={forgotCode} onChange={e => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20 text-center text-lg tracking-[0.3em] font-mono" maxLength={6} autoComplete="one-time-code" />
+                    <Label style={{ color: "#475467" }}>6-digit code</Label>
+                    <Input type="text" placeholder="123456" value={forgotCode} onChange={e => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-center text-lg tracking-[0.3em] font-mono" maxLength={6} autoComplete="one-time-code" />
                   </div>
                   <div className="space-y-2">
-                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>New Password</Label>
+                    <Label style={{ color: "#475467" }}>New Password</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                      <Input type={showForgotPw ? "text" : "password"} placeholder="Min 8 chars, uppercase, number, symbol" value={forgotNewPw} onChange={e => setForgotNewPw(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password" />
-                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                      <Input type={showForgotPw ? "text" : "password"} placeholder="Min 8 chars, uppercase, number, symbol" value={forgotNewPw} onChange={e => setForgotNewPw(e.target.value)} className="pl-10 pr-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="new-password" />
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "#98a2b3" }}>
                         {showForgotPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>Confirm New Password</Label>
+                    <Label style={{ color: "#475467" }}>Confirm New Password</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                      <Input type="password" placeholder="Repeat new password" value={forgotConfirmPw} onChange={e => setForgotConfirmPw(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password"
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#98a2b3" }} />
+                      <Input type="password" placeholder="Repeat new password" value={forgotConfirmPw} onChange={e => setForgotConfirmPw(e.target.value)} className="pl-10 h-11 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400" autoComplete="new-password"
                         style={{ borderColor: forgotConfirmPw && forgotConfirmPw !== forgotNewPw ? "rgba(239,68,68,0.5)" : undefined }} />
                     </div>
                     {forgotConfirmPw && forgotConfirmPw !== forgotNewPw && <p style={{ fontSize: 11, color: "rgba(239,68,68,0.8)" }}>Passwords do not match</p>}
                   </div>
-                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={resetPassword.isPending}>
+                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #2e78ef, #1d5fd6)", color: "#ffffff" }} disabled={resetPassword.isPending}>
                     {resetPassword.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Resetting...</span> : "Reset Password →"}
                   </Button>
-                  <button type="button" onClick={() => sendResetCode.mutate()} className="w-full text-center text-xs mt-2" style={{ color: "rgba(212,180,97,0.6)", background: "none", border: "none", cursor: "pointer" }}>
+                  <button type="button" onClick={() => sendResetCode.mutate()} className="w-full text-center text-xs mt-2" style={{ color: "rgba(46,120,239,0.6)", background: "none", border: "none", cursor: "pointer" }}>
                     Didn't get the code? Resend
                   </button>
                 </form>
@@ -491,11 +493,11 @@ export default function Login() {
 
               {forgotStep === "done" && (
                 <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                  <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center" style={{ background: "rgba(46,120,239,0.1)", border: "1px solid rgba(46,120,239,0.2)" }}>
                     <Lock className="w-7 h-7" style={{ color: GOLD }} />
                   </div>
-                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Your password has been updated. You can now sign in.</p>
-                  <Button onClick={() => { setTab("login"); setPassword(""); }} className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }}>
+                  <p style={{ color: "#475467", fontSize: 14 }}>Your password has been updated. You can now sign in.</p>
+                  <Button onClick={() => { setTab("login"); setPassword(""); }} className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #2e78ef, #1d5fd6)", color: "#ffffff" }}>
                     Back to Sign In →
                   </Button>
                 </div>
@@ -503,7 +505,7 @@ export default function Login() {
 
               {forgotStep !== "done" && (
                 <div className="text-center mt-4">
-                  <button type="button" onClick={() => setTab("login")} className="text-sm hover:underline" style={{ color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer" }}>
+                  <button type="button" onClick={() => setTab("login")} className="text-sm hover:underline" style={{ color: "#667085", background: "none", border: "none", cursor: "pointer" }}>
                     ← Back to Sign In
                   </button>
                 </div>
