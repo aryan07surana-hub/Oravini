@@ -53,12 +53,12 @@ test("internal AI-cost/margin notes stay in the labelled review preview only",as
 });
 
 
-test("public landing routes use the new pricing wrapper",async()=>{
+test("public landing routes use the new blue landing (which embeds the new pricing)",async()=>{
  const {readFile}=await import("node:fs/promises");
  const app=await readFile("client/src/App.tsx","utf8");
- assert.ok(app.includes('import OraviniLanding from "@/pages/PricingV2Landing";'));
- assert.ok(app.includes('if (!user) return <OraviniLanding />;'));
- assert.ok(app.includes('<Route path="/oravini" component={OraviniLanding} />'));
+ assert.ok(app.includes('import Landing from "@/pages/Landing";'));
+ assert.ok(app.includes('if (!user) return <Landing />;'));
+ assert.ok(app.includes('<Route path="/oravini" component={Landing} />'));
 });
 
 test("public pricing does not depend on the obsolete preview environment flag",async()=>{
@@ -131,3 +131,4 @@ test("Tier 5 uses the original visual block and a real Brandverse route",async()
  assert.ok(!html.includes("Demo only. Booking is disabled."));
  assert.ok(!html.includes('class="buy buy-live"'),"checkout remains closed");
 });
+
