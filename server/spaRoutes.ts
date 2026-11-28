@@ -87,6 +87,7 @@ export const SPA_ROUTES: string[] = [
   "/login",
   "/lp/:slug",
   "/lusion",
+  "/new-home",
   "/manychat-alternative",
   "/onboarding",
   "/oravini",
@@ -193,4 +194,5 @@ export function matchesSpaRoute(pathname: string): boolean {
   }
   return false;
 }
+
 
