@@ -11,6 +11,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerCoachLab } from "./coachLab";
+import { registerKingWebinar, ensureKingWebinarSchema } from "./kingWebinar";
 import { registerFacebookAuth } from "./facebookAuth";
 import { registerOAuthRoutes } from "./oauth";
 import { registerInstagramPublishingRoutes, startPublishingWorker } from "./instagramPublishingRoutes";
@@ -240,6 +241,13 @@ app.use((req, res, next) => {
 });
 
 async function runMigrations() {
+  try {
+    await ensureKingWebinarSchema();
+    console.log("[migration] king_webinar_registrations ensured");
+  } catch (e: any) {
+    console.warn("[migration] king_webinar_registrations skipped:", e.message);
+  }
+
   try {
     await pool.query(`
       ALTER TABLE onboarding_surveys
@@ -1454,6 +1462,7 @@ async function runMigrations() {
   registerFacebookAuth(app);
   await registerRoutes(httpServer, app);
   registerCoachLab(app);
+  registerKingWebinar(app);
   registerOAuthRoutes(app);
   await registerInstagramUnifiedRoutes(app, { query: (text, values) => pool.query(text, values) });
   await registerInstagramPublishingRoutes(app, { query: (text, values) => pool.query(text, values) });

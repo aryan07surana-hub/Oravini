@@ -65,6 +65,9 @@ import RescheduleBooking from "@/pages/RescheduleBooking";
 import EmbedBooking from "@/pages/EmbedBooking";
 import WebinarFunnelLanding from "@/pages/public/WebinarFunnelLanding";
 import WebinarFunnelLive from "@/pages/public/WebinarFunnelLive";
+import KingWebinar from "@/pages/public/KingWebinar";
+import KingWebinarConfirm from "@/pages/public/KingWebinarConfirm";
+import KingWebinarAdmin from "@/pages/public/KingWebinarAdmin";
 import WebinarFunnels from "@/pages/client/WebinarFunnels";
 import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
 import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
@@ -412,6 +415,13 @@ function AppRoutes() {
       <Route path="/c/:slug">{() => <ChannelView />}</Route>
       <Route path="/w/:slug/live">{() => <WebinarFunnelLive />}</Route>
       <Route path="/w/:slug">{() => <WebinarFunnelLanding />}</Route>
+
+      {/* King Astrology webinar funnel (see shared/kingWebinar.ts) */}
+      <Route path="/king-astrology/admin">{() => <KingWebinarAdmin />}</Route>
+      <Route path="/king-astrology/general">{() => <KingWebinarConfirm tier="general" />}</Route>
+      <Route path="/king-astrology/vip">{() => <KingWebinarConfirm tier="vip" />}</Route>
+      <Route path="/king-astrology">{() => <KingWebinar />}</Route>
+      <Route path="/king">{() => <KingWebinar />}</Route>
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={V_ClientDashboard} />}</Route>

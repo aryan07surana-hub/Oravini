@@ -48,3 +48,16 @@ services:
         sync: false
       - key: PLATFORM_SMTP_PASS
         sync: false
+      # Whop — King Astrology webinar VIP tier (plan_uQzQcb8LYeGMF, $15 one-time).
+      # WHOP_WEBHOOK_SECRET is what flips a VIP registration to paid; add it
+      # after registering the webhook at /api/king/whop/webhook.
+      - key: WHOP_WEBHOOK_SECRET
+        sync: false
+      - key: WHOP_API_KEY
+        sync: false
+      # King Astrology host dashboard (/king-astrology/admin). Unset falls back
+      # to king@gmail.com; set KING_ADMIN_PASSWORD to replace the default.
+      - key: KING_ADMIN_EMAIL
+        sync: false
+      - key: KING_ADMIN_PASSWORD
+        sync: false
