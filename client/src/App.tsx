@@ -143,6 +143,7 @@ import Sessions from "@/pages/client/Sessions";
 import Credits from "@/pages/client/Credits";
 import PlanSettings from "@/pages/client/PlanSettings";
 import Payments from "@/pages/client/Payments";
+import GetPaid from "@/pages/client/GetPaid";
 import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
@@ -482,6 +483,7 @@ function AppRoutes() {
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
+      <Route path="/get-paid">{() => <Guard component={GetPaid} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={V_ClientVideoMarketing} />}</Route>
       {/* Top-level "Video Hosting" sidebar entry: same studio, opened on its hosting section. */}
       <Route path="/video-hosting">{() => <Guard component={V_ClientVideoMarketing} section="video-hosting" />}</Route>
@@ -574,3 +576,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+

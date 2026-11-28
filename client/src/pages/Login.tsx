@@ -119,6 +119,9 @@ export default function Login() {
     } else if (error === "facebook_failed") {
       toast({ title: "Facebook sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Facebook.", variant: "destructive" });
       window.history.replaceState({}, "", "/login");
+    } else if (error === "whop_failed") {
+      toast({ title: "Whop sign-in failed", description: msg ? decodeURIComponent(msg) : "Could not sign in with Whop.", variant: "destructive" });
+      window.history.replaceState({}, "", "/login");
     }
   }, []);
 
@@ -193,6 +196,11 @@ export default function Login() {
     onError: (err: any) => toast({ title: "Reset failed", description: err.message, variant: "destructive" }),
   });
 
+  const [whopEnabled, setWhopEnabled] = useState(false);
+  useEffect(() => {
+    fetch("/api/auth/whop/enabled").then(r => r.json()).then(d => setWhopEnabled(!!d?.enabled)).catch(() => {});
+  }, []);
+
   if (isLoading) return null;
 
   // Build Google auth URL carrying ref code so it survives the OAuth redirect
@@ -214,6 +222,18 @@ export default function Login() {
     const qs = params.toString();
     return `/api/auth/facebook${qs ? `?${qs}` : ""}`;
   })();
+
+  const whopBtn = whopEnabled ? (
+    <div className="mt-3">
+      <a href={`/api/auth/whop${new URLSearchParams(window.location.search).get("ref") ? `?ref=${encodeURIComponent(new URLSearchParams(window.location.search).get("ref") as string)}` : ""}`} data-testid="button-whop-login">
+        <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
+          style={{ border: "1px solid #d6dde8", background: "#ffffff", color: "#344054" }}>
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-sm text-[10px] font-bold" style={{ background: "#FA4616", color: "#fff" }}>W</span>
+          Continue with Whop
+        </Button>
+      </a>
+    </div>
+  ) : null;
 
   const googleBtn = (
     <div>
@@ -318,6 +338,7 @@ export default function Login() {
               </div>
               {googleBtn}
               {facebookBtn}
+              {whopBtn}
               {divider}
               <form onSubmit={e => { e.preventDefault(); if (!email || !password) { toast({ title: "Missing fields", description: "Please enter your email and password", variant: "destructive" }); return; } login.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
@@ -363,6 +384,7 @@ export default function Login() {
               </div>
               {googleBtn}
               {facebookBtn}
+              {whopBtn}
               {divider}
               <form onSubmit={e => { e.preventDefault(); register.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
@@ -495,3 +517,4 @@ export default function Login() {
     </div>
   );
                     }
+

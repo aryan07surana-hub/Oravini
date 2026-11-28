@@ -1471,6 +1471,11 @@ async function runMigrations() {
     const { registerPaymentRoutes } = await import("./paymentsRoutes");
     await registerPaymentRoutes(app);
   }
+  {
+    // Whop for Platforms (sellers get their own Whop subaccount, Oravini takes 1.5%). Off unless WHOP_PLATFORM_ENABLED=true.
+    const { registerWhopPlatformRoutes } = await import("./whopPlatform");
+    await registerWhopPlatformRoutes(app);
+  }
 
   // ── Meta Ads AI Agent — scheduled runs ───────────────────────────────────
   // 24h update: every day at 8:00 AM
@@ -1516,3 +1521,4 @@ async function runMigrations() {
     startPublishingWorker({ query: (text, values) => pool.query(text, values) });
   });
 })();
+

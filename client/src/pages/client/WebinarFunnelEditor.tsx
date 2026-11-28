@@ -16,6 +16,7 @@ import { BackLink, ErrorState, PageHeader, Skeleton, StatusBadge, btn, focusRing
 import type { WebinarFunnelRow } from "./WebinarFunnels";
 import { uploadDeck, type WebinarFunnelFull } from "@/components/webinar-funnel/hostUtils";
 import { HostLiveRoom, WebinarAnalyticsPanel } from "@/components/webinar-funnel/HostPanels";
+import { LiveOfferControl } from "@/components/webinar-funnel/LiveOfferControl";
 import { YoutubeLivePanel } from "@/components/webinar-funnel/YoutubeLivePanel";
 import { YOUTUBE_STATUS_KEY, consumeYoutubeConnectResult } from "@/components/webinar-funnel/youtube";
 
@@ -308,7 +309,7 @@ export default function WebinarFunnelEditor({ id }: { id?: string }) {
           </div>
         )}
 
-        {!isNew && existing && tab === "live" && <HostLiveRoom webinar={existing} />}
+        {!isNew && existing && tab === "live" && (<><LiveOfferControl funnelId={existing.id} /><HostLiveRoom webinar={existing} /></>)}
         {!isNew && existing && tab === "analytics" && <WebinarAnalyticsPanel webinar={existing} />}
 
         <div hidden={!isNew && tab !== "details"}>

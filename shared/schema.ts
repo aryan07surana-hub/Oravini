@@ -3360,3 +3360,5 @@ export const webinarCtaClicks = pgTable("webinar_cta_clicks", {
   registrationId: varchar("registration_id"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [index("idx_webinar_cta_clicks_webinar").on(t.webinarId)]);
+
+export * from "./whopPlatformSchema";
