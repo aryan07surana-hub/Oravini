@@ -42,8 +42,8 @@ export function LaunchVideo() {
     v.loop = false; v.currentTime = 0; v.muted = false; v.volume = vol;
     setStarted(true); setWait(v.readyState < 3);
     v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
-    // Watchdog: if nothing moves after 4s, reload the source and try again once.
-    window.setTimeout(() => { const x = ref.current; if (x && !x.paused && x.currentTime === 0) { x.load(); x.muted = false; x.play().catch(() => { x.muted = true; x.play().catch(() => {}); }); } }, 4000);
+    // Watchdog: never reload (that discards the buffer on slow links). If still stuck at 0 after 5s, retry play muted.
+    window.setTimeout(() => { const x = ref.current; if (x && x.currentTime === 0) { x.muted = true; x.play().catch(() => {}); } }, 5000);
   };
   const startedRef = useRef(false); startedRef.current = started;
   // Muted looping preview that plays whenever the video is on screen.
@@ -161,3 +161,4 @@ export function LandingShowcase() {
     </section>
   );
 }
+
