@@ -132,4 +132,3 @@ test("Tier 5 uses the original visual block and a real Brandverse route",async()
  assert.ok(!html.includes('class="buy buy-live"'),"checkout remains closed");
 });
 
-
