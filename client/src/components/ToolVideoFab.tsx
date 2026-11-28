@@ -14,7 +14,7 @@ const TITLES: Record<string, string> = {
   hero: "Your dashboard at a glance",
   dashboard: "Your dashboard at a glance",
   video: "Host and share your videos",
-  community: "Learn and grow with the community",
+  community: "Join the Oravini community",
   streaks: "Streaks and goals that keep you going",
   funnels: "Funnels and CRM in one place",
   live: "Inside the webinar live room",
@@ -59,7 +59,7 @@ const INTRO: Record<string, { name: string; sub: string; bullets: string[] }> = 
   dashboard: { name: "your dashboard", sub: "A quick tour of your home screen.", bullets: ["See credits, leads and registrations", "Check your next best step", "Track your goal and streak", "Jump into any tool"] },
   hero: { name: "Oravini", sub: "One place for ideas, posts, leads and webinars.", bullets: ["Everything shares the same data", "Nothing copied between apps", "AI built into every tool", "Made for creators and coaches"] },
   video: { name: "Video Hosting", sub: "Host videos that look like you.", bullets: ["Upload once, share a clean player", "Embed it anywhere", "See who watched and how long", "Add your offer at the right second"] },
-  community: { name: "Community", sub: "Grow with creators on the same path.", bullets: ["Share wins and get feedback", "Ask questions, get real answers", "Learn from other creators", "Stay accountable"] },
+  community: { name: "Oravini Community", sub: "Join the Oravini creator community and grow alongside other members.", bullets: ["Join the Oravini community in one click", "Share your wins and get feedback from members", "Ask questions and get real answers", "Learn from other Oravini creators"] },
   streaks: { name: "Streaks and goals", sub: "Stay consistent and hit your goal.", bullets: ["Set an income target", "Build a daily streak", "Watch your progress add up", "Earn your creator score"] },
   funnels: { name: "Pages and Funnels", sub: "From first click to paying client.", bullets: ["Build a page in minutes", "Capture the lead", "Follow up automatically", "Track every step"] },
   aicrm: { name: "AI CRM", sub: "Every lead in one clean pipeline.", bullets: ["Leads from DMs, forms and webinars", "Tagged and scored for you", "Next step always clear", "Nothing falls through"] },
@@ -179,3 +179,4 @@ export function withToolVideo<P extends object>(Page: React.ComponentType<P>, id
     return (<><Page {...props} /><ToolVideoFab id={id} /></>);
   };
 }
+
