@@ -142,7 +142,7 @@ export function ToolVideoFab({ id: ids }: { id: keyof typeof TITLES | (keyof typ
               </div>
             )}
             <div style={{ padding: "0 24px" }}>
-              <video key={shape + id} poster={`${mediaFor(id)}${id}.jpg`} autoPlay muted={auto} loop playsInline controls preload="auto" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eef4fe", objectFit: "cover", borderRadius: 12, border: "1px solid #e3e9f3" }}>
+              <video key={shape + id} ref={(el) => { if (el && !el.dataset.init) { el.dataset.init = "1"; el.muted = auto; const go = () => { const p = el.play(); if (p) p.catch(() => { el.muted = true; el.play().catch(() => {}); }); }; go(); el.addEventListener("canplay", () => { if (el.paused && el.currentTime === 0) go(); }, { once: true }); } }} poster={`${mediaFor(id)}${id}.jpg`} autoPlay muted={auto} loop playsInline controls preload="auto" style={{ display: "block", width: "100%", aspectRatio: tall ? "9/16" : "16/9", background: "#eef4fe", objectFit: "cover", borderRadius: 12, border: "1px solid #e3e9f3" }}>
                 {!tall && !NO_WEBM.has(id) && <source src={`${mediaFor(id)}${id}_${shape}.webm`} type="video/webm" />}
                 <source src={`${mediaFor(id)}${id}_${shape}.mp4`} type="video/mp4" />
               </video>
