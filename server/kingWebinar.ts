@@ -208,9 +208,16 @@ export function registerKingWebinar(app: Express): void {
     try {
       const e = readWhopEvent(req.body);
       if (!e.isPaid) return res.json({ ok: true, ignored: `event ${e.event || "unknown"}` });
-      if (!eventIsForKingPlan(e)) return res.json({ ok: true, ignored: "different plan" });
+      if (!eventIsForKingPlan(e, process.env.KING_WHOP_PRODUCT_ID)) {
+        // Logged with the id that actually arrived: if this ever fires for a
+        // real sale, set KING_WHOP_PRODUCT_ID to the value printed here.
+        console.warn(`[king] whop ${e.event}: ignored, product_id=${e.productId || "none"} plan_id=${e.planId || "none"} (expected product ${process.env.KING_WHOP_PRODUCT_ID || KING_WHOP.productId})`);
+        return res.json({ ok: true, ignored: "different product" });
+      }
       if (!EMAIL_RE.test(e.email)) {
-        console.warn(`[king] whop ${e.event}: no usable email in payload`);
+        // Whop sends customer_email as null unless the webhook has the
+        // member:email:read permission — the usual cause of this line.
+        console.warn(`[king] whop ${e.event}: no usable email in payload (check the webhook has member:email:read)`);
         return res.json({ ok: true, ignored: "no email" });
       }
 
@@ -219,20 +226,21 @@ export function registerKingWebinar(app: Express): void {
       // show up and still get the VIP page.
       const { rows } = await pool.query(
         `INSERT INTO king_webinar_registrations
-           (name, email, tier, paid, paid_at, paid_source, whop_payment_id, whop_membership_id, amount_cents, currency)
-         VALUES ($1, $2, 'vip', TRUE, NOW(), 'whop-webhook', $3, $4, $5, $6)
+           (name, email, phone, tier, paid, paid_at, paid_source, whop_payment_id, whop_membership_id, amount_cents, currency)
+         VALUES ($1, $2, $7, 'vip', TRUE, NOW(), 'whop-webhook', $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE SET
            tier               = 'vip',
            paid               = TRUE,
            paid_at            = COALESCE(king_webinar_registrations.paid_at, NOW()),
            paid_source        = 'whop-webhook',
+           phone              = COALESCE(king_webinar_registrations.phone, EXCLUDED.phone),
            whop_payment_id    = COALESCE(EXCLUDED.whop_payment_id, king_webinar_registrations.whop_payment_id),
            whop_membership_id = COALESCE(EXCLUDED.whop_membership_id, king_webinar_registrations.whop_membership_id),
            amount_cents       = COALESCE(EXCLUDED.amount_cents, king_webinar_registrations.amount_cents),
            currency           = COALESCE(EXCLUDED.currency, king_webinar_registrations.currency),
            updated_at         = NOW()
          RETURNING id`,
-        [e.email.split("@")[0], e.email, e.paymentId || null, e.membershipId || null, e.amountCents, e.currency],
+        [e.email.split("@")[0], e.email, e.paymentId || null, e.membershipId || null, e.amountCents, e.currency, e.phone || null],
       );
       console.log(`[king] VIP payment confirmed for ${e.email} (${e.event})`);
       res.json({ ok: true, registrationId: rows[0]?.id });

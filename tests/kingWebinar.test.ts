@@ -151,6 +151,40 @@ test('a payment.succeeded payload is read as a paid event for our plan', () => {
   assert.ok(eventIsForKingPlan(e));
 });
 
+test("a real Whop payment.succeeded payload is parsed (type + customer_email + decimal amount)", () => {
+  // Shape per Whop's docs: top-level `type`, payment object in `data`, the
+  // buyer's address in `customer_email`, `amount` a decimal string in major
+  // units, currency lowercase ISO 4217, and no plan_id on a payment at all.
+  const e = readWhopEvent({
+    type: 'payment.succeeded',
+    data: {
+      id: 'pay_abc123', product_id: KING_WHOP.productId, membership_id: null,
+      customer_email: 'Marcus@Shinetime.example', customer_phone: '+1 555 0123',
+      amount: '15.00', currency: 'usd',
+    },
+  });
+  assert.equal(e.isPaid, true);
+  assert.equal(e.email, 'marcus@shinetime.example');
+  assert.equal(e.phone, '+1 555 0123');
+  assert.equal(e.amountCents, 1500, '"15.00" major units -> 1500 cents');
+  assert.equal(e.currency, 'USD');
+  assert.equal(e.planId, '', 'a payment carries no plan_id');
+  assert.equal(e.paymentId, 'pay_abc123');
+  assert.ok(eventIsForKingPlan(e), 'gated on product_id, which is what actually arrives');
+});
+
+test('a refund amount is never recorded as revenue', () => {
+  const e = readWhopEvent({ type: 'payment.succeeded', data: { customer_email: 'a@b.com', amount: '-1234.56', product_id: KING_WHOP.productId } });
+  assert.equal(e.amountCents, null, 'negative amounts are dropped, not stored');
+});
+
+test('KING_WHOP_PRODUCT_ID can correct a product mismatch without a deploy', () => {
+  const e = readWhopEvent({ type: 'payment.succeeded', data: { customer_email: 'a@b.com', product_id: 'prod_different' } });
+  assert.equal(eventIsForKingPlan(e), false, 'rejected against the built-in product');
+  assert.equal(eventIsForKingPlan(e, 'prod_different'), true, 'accepted once overridden');
+  assert.equal(eventIsForKingPlan(e, '   '), false, 'a blank override falls back to the built-in id');
+});
+
 test('membership.went_valid and nested email shapes are handled', () => {
   const e = readWhopEvent({ event: 'membership_went_valid', data: { user: { email: 'x@y.com' }, product_id: KING_WHOP.productId } });
   assert.equal(e.isPaid, true);

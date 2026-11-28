@@ -282,15 +282,20 @@ function pick(obj: any, paths: string[]): string {
 
 export function readWhopEvent(payload: any): {
   event: string; isPaid: boolean; email: string; planId: string; productId: string;
-  paymentId: string; membershipId: string; amountCents: number | null; currency: string;
+  paymentId: string; membershipId: string; phone: string; amountCents: number | null; currency: string;
 } {
   const event = pick(payload, ["action", "event", "type"]);
   const d = payload?.data ?? payload ?? {};
+  // `customer_email` is the documented field on a Whop payment ("The buyer's
+  // email address"). It is null unless the webhook has `member:email:read`, so
+  // the other spellings stay as fallbacks for other event shapes.
   const email = pick(d, [
-    "user_email", "email", "user.email", "member.email", "user.username_email",
-    "checkout.email", "metadata.email", "custom_fields.email",
+    "customer_email", "user_email", "email", "user.email", "member.email",
+    "user.username_email", "checkout.email", "metadata.email", "custom_fields.email",
   ]).toLowerCase();
-  const amountRaw = pick(d, ["final_amount", "amount", "subtotal", "total"]);
+  // `amount` is major units as an exact decimal string ("15.00"), and is
+  // negative on a refund — hence the > 0 guard below.
+  const amountRaw = pick(d, ["amount", "final_amount", "subtotal", "total"]);
   const amount = Number(amountRaw);
   return {
     event,
@@ -299,7 +304,9 @@ export function readWhopEvent(payload: any): {
     planId: pick(d, ["plan_id", "plan.id", "plan"]),
     productId: pick(d, ["product_id", "product.id", "access_pass_id", "product"]),
     paymentId: pick(d, ["id", "payment_id", "receipt_id"]),
+    // Null on a one-off purchase, which this $15 webinar pass is.
     membershipId: pick(d, ["membership_id", "membership.id", "member_id"]),
+    phone: pick(d, ["customer_phone", "user_phone", "phone"]),
     // Whop sends major units (15 = $15); store cents and never a NaN.
     amountCents: Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : null,
     currency: (pick(d, ["currency"]) || KING_WHOP.currency).toUpperCase(),
@@ -307,12 +314,19 @@ export function readWhopEvent(payload: any): {
 }
 
 /**
- * Whether an event belongs to this webinar's plan. When the payload names a
- * plan or product, it must be ours; when it names neither (some event shapes
- * omit both), it is accepted — the webhook endpoint is per-business already.
+ * Whether an event belongs to this webinar's offer.
+ *
+ * A Whop payment carries `product_id` but no `plan_id`, so the product is the
+ * identifier that actually arrives; the plan is still checked for event shapes
+ * that include it. When the payload names neither, it is accepted — the
+ * webhook endpoint is registered against this one business already.
+ *
+ * KING_WHOP_PRODUCT_ID overrides the built-in product id, so a mismatch can be
+ * corrected without a deploy (the handler logs the id it actually received).
  */
-export function eventIsForKingPlan(e: { planId: string; productId: string }): boolean {
+export function eventIsForKingPlan(e: { planId: string; productId: string }, productIdOverride?: string): boolean {
+  const product = (productIdOverride || "").trim() || KING_WHOP.productId;
   if (e.planId && e.planId === KING_WHOP.planId) return true;
-  if (e.productId && e.productId === KING_WHOP.productId) return true;
+  if (e.productId && e.productId === product) return true;
   return !e.planId && !e.productId;
 }

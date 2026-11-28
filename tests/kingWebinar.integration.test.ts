@@ -141,9 +141,14 @@ test("king astrology webinar funnel (Postgres)", { skip: !url && "TEST_DATABASE_
       },
     });
   };
+  // The real Whop shape: top-level `type`, `customer_email`, `amount` as a
+  // decimal string in major units, `product_id` (a payment has no plan_id).
   const paymentFor = (email: string, extra: Record<string, unknown> = {}) => ({
-    action: "payment.succeeded",
-    data: { id: "pay_int_1", user_email: email, plan_id: KING_WHOP.planId, final_amount: 15, currency: "usd", membership_id: "mem_int_1", ...extra },
+    type: "payment.succeeded",
+    data: {
+      id: "pay_int_1", customer_email: email, product_id: KING_WHOP.productId,
+      amount: "15.00", currency: "usd", membership_id: null, customer_phone: "+1 555 0404", ...extra,
+    },
   });
 
   await t.test("an unsigned or wrongly signed webhook never marks anyone paid", async () => {
@@ -168,7 +173,7 @@ test("king astrology webinar funnel (Postgres)", { skip: !url && "TEST_DATABASE_
     assert.equal(row.currency, "USD");
     assert.equal(row.paid_source, "whop-webhook");
     assert.equal(row.whop_payment_id, "pay_int_1");
-    assert.equal(row.whop_membership_id, "mem_int_1");
+    assert.equal(row.whop_membership_id, null, "one-off purchases carry no membership");
     assert.ok(row.paid_at, "paid_at recorded");
   });
 
@@ -178,13 +183,14 @@ test("king astrology webinar funnel (Postgres)", { skip: !url && "TEST_DATABASE_
     const row = await rowFor("walkin@example.com");
     assert.equal(row.tier, "vip");
     assert.equal(row.paid, true);
+    assert.equal(row.phone, "+1 555 0404", "phone captured from the payment");
   });
 
   await t.test("a payment for a different plan, or a non-payment event, is ignored", async () => {
-    const otherPlan = await sendWebhook(paymentFor("fiona@example.com", { plan_id: "plan_someoneelse" }));
-    assert.match((await otherPlan.json()).ignored, /different plan/);
-    const refund = await sendWebhook({ action: "payment.failed", data: { user_email: "fiona@example.com", plan_id: KING_WHOP.planId } });
-    assert.match((await refund.json()).ignored, /event payment.failed/);
+    const otherPlan = await sendWebhook(paymentFor("fiona@example.com", { product_id: "prod_someoneelse" }));
+    assert.match((await otherPlan.json()).ignored, /different product/);
+    const refund = await sendWebhook({ type: "payment.failed", data: { customer_email: "fiona@example.com", product_id: KING_WHOP.productId } });
+    assert.match((await refund.json()).ignored, /event payment\.failed/);
     assert.equal((await rowFor("fiona@example.com")).paid, false, "untouched");
   });
 

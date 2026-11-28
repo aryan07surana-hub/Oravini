@@ -55,6 +55,9 @@ services:
         sync: false
       - key: WHOP_API_KEY
         sync: false
+      # Only if the webhook log shows a product_id other than the built-in one.
+      - key: KING_WHOP_PRODUCT_ID
+        sync: false
       # King Astrology host dashboard (/king-astrology/admin). Unset falls back
       # to king@gmail.com; set KING_ADMIN_PASSWORD to replace the default.
       - key: KING_ADMIN_EMAIL
