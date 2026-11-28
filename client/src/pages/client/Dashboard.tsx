@@ -21,6 +21,7 @@ import {
   Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck, MessageCircle, X
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
+import DashboardOverview from "./DashboardOverview";
 import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -29,7 +30,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense
 import { useTimezone } from "@/hooks/use-timezone";
 import { LoadingSkeleton } from "@/components/ui/loading";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 const QUOTES = [
   "Success is not the key to happiness. Happiness is the key to success.",
@@ -84,7 +85,7 @@ const TOOL_LABELS: Record<string, string> = {
    QUICK TOOLS CONFIG
 ───────────────────────────────────────────── */
 const ALL_QUICK_TOOLS = [
-  { href: "/ai-ideas",              label: "Content Ideas",        desc: "AI-generated hooks & scripts",      icon: Sparkles,       gradient: "from-[#d4b461]/20 to-[#d4b461]/5",    iconBg: "bg-[#d4b461]/15",    iconColor: "#d4b461",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
+  { href: "/ai-ideas",              label: "Content Ideas",        desc: "AI-generated hooks & scripts",      icon: Sparkles,       gradient: "from-[#2e78ef]/20 to-[#2e78ef]/5",    iconBg: "bg-[#2e78ef]/15",    iconColor: "#2e78ef",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
   { href: "/ai-coach",              label: "Content Coach",        desc: "Improve hooks, drafts & CTAs",       icon: MessageCircle,  gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15", iconColor: "#34d399", struggles: ["Low engagement on posts", "Knowing what content to create"] },
   { href: "/video-editor",          label: "Video Editor",         desc: "Edit & enhance your videos",        icon: Clapperboard,   gradient: "from-violet-500/20 to-violet-500/5",  iconBg: "bg-violet-500/15",   iconColor: "#a78bfa",  struggles: ["Editing and production quality"] },
   { href: "/competitor-study",      label: "Competitor Study",     desc: "Deep-dive competitor analysis",     icon: ScanSearch,     gradient: "from-blue-500/20 to-blue-500/5",      iconBg: "bg-blue-500/15",     iconColor: "#60a5fa",  struggles: ["Growing my followers", "Standing out in a crowded niche"] },
@@ -110,7 +111,7 @@ const LESSONS = [
     emoji: "🔥",
     duration: "8 min read",
     tag: "Foundation",
-    tagColor: "#d4b461",
+    tagColor: "#2e78ef",
     sections: [
       {
         heading: "🔥 The Content Triad",
@@ -120,7 +121,7 @@ const LESSONS = [
             icon: "👁️", title: "1. Views (Attention)", goal: "Stop the scroll",
             desc: "This is what gets people in.",
             items: ["Transformation videos", "Day-in-the-life content", "Rapid-fire edits", "Reaction videos", "Trend-based clips"],
-            color: "#f97316",
+            color: "#2e78ef",
           },
           {
             icon: "❤️", title: "2. Connection (Relatability)", goal: "Make them feel understood",
@@ -146,7 +147,7 @@ const LESSONS = [
         subheading: "What each type does",
         formats: [
           {
-            label: "👁️ Views Formats", color: "#f97316",
+            label: "👁️ Views Formats", color: "#2e78ef",
             items: [
               { name: "Transformation content", note: "humans are wired to follow progress" },
               { name: "Reaction videos", note: "fast dopamine" },
@@ -186,7 +187,7 @@ const LESSONS = [
         heading: "🏆 Content Tier List",
         subheading: null,
         tiers: [
-          { tier: "S-Tier", label: "Best",    color: "#d4b461", items: ["Parables / storytelling frameworks", '"Gun to the head" bold opinion content'] },
+          { tier: "S-Tier", label: "Best",    color: "#2e78ef", items: ["Parables / storytelling frameworks", '"Gun to the head" bold opinion content'] },
           { tier: "A-Tier", label: "Great",   color: "#34d399", items: ["Myth-busting", "Case studies", "History-style breakdowns", '"Find the mistake" / analysis content'] },
           { tier: "B-Tier", label: "Good",    color: "#60a5fa", items: ["Explanations", "Educational breakdowns"] },
           { tier: "C-Tier", label: "Average", color: "#a78bfa", items: ["Basic talking head"] },
@@ -199,7 +200,7 @@ const LESSONS = [
         revenue: [
           { icon: "❌", label: "Keeps you at $0/month",   color: "#f87171", items: ["Chasing views", "Posting randomly", "Taking random actions", 'Being "busy"'] },
           { icon: "✅", label: "Gets you to $10K/month",  color: "#34d399", items: ["Building proof", "Figuring out what works", "Consistency", "Being intentional"] },
-          { icon: "🚀", label: "Gets you to $30K+/month", color: "#d4b461", items: ["Building authority", "Understanding outliers", "Leveraging systems", "Scaling what already works"] },
+          { icon: "🚀", label: "Gets you to $30K+/month", color: "#2e78ef", items: ["Building authority", "Understanding outliers", "Leveraging systems", "Scaling what already works"] },
         ],
       },
       {
@@ -242,7 +243,7 @@ function ContentMasteryModule() {
               onClick={() => setOpenLesson(lesson.id)}
             >
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "rgba(46,120,239,0.1)", border: "1px solid rgba(46,120,239,0.2)" }}>
                   {lesson.emoji}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -302,7 +303,7 @@ function ContentMasteryModule() {
                     <div className="space-y-1.5">
                       {sec.pipeline.map((step: string, pi: number) => (
                         <div key={pi} className="flex items-center gap-3 text-xs text-zinc-300">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: "rgba(212,180,97,0.15)", color: GOLD }}>{pi + 1}</div>
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: "rgba(46,120,239,0.15)", color: GOLD }}>{pi + 1}</div>
                           {step}
                         </div>
                       ))}
@@ -321,7 +322,7 @@ function ContentMasteryModule() {
                               </div>
                             ))}
                           </div>
-                          {f.warning && <p className="text-[10px] text-amber-500">{f.warning}</p>}
+                          {f.warning && <p className="text-[10px] text-[#2e78ef]">{f.warning}</p>}
                           {f.note && <p className="text-[10px] text-zinc-500">{f.note}</p>}
                         </div>
                       ))}
@@ -378,7 +379,7 @@ function ContentMasteryModule() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-3 gap-3">
                         {sec.finale.map((f: any, fi: number) => (
-                          <div key={fi} className="rounded-xl p-3 text-center" style={{ background: "rgba(212,180,97,0.07)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                          <div key={fi} className="rounded-xl p-3 text-center" style={{ background: "rgba(46,120,239,0.07)", border: "1px solid rgba(46,120,239,0.2)" }}>
                             <span className="text-2xl">{f.icon}</span>
                             <p className="text-xs text-zinc-300 mt-1 font-medium">{f.text}</p>
                           </div>
@@ -498,9 +499,9 @@ function IncomeGoalCard({ userId }: { userId: string }) {
   );
 
   return (
-    <div className="rounded-2xl h-full flex flex-col p-5" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
+    <div className="rounded-2xl h-full flex flex-col p-5" style={{ background: "rgba(46,120,239,0.06)", border: "1px solid rgba(46,120,239,0.2)" }}>
       <div className="flex items-start justify-between mb-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.15)" }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(46,120,239,0.15)" }}>
           <Target className="w-4.5 h-4.5" style={{ color: GOLD }} />
         </div>
         {goal && (
@@ -534,8 +535,8 @@ function IncomeGoalCard({ userId }: { userId: string }) {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Income Goal</p>
         {goal ? (
           <>
-            <p className="text-3xl font-bold text-foreground">${Number(goal.goalAmount).toLocaleString()}</p>
-            <p className="text-xs text-zinc-500 mt-1">in {goal.timeframeMonths} months</p>
+            <p className="text-3xl font-bold text-foreground">${(Number(goal.goalAmount) || 0).toLocaleString()}</p>
+            <p className="text-xs text-zinc-500 mt-1">in {goal.timeframeMonths ?? 0} months</p>
           </>
         ) : (
           <>
@@ -556,7 +557,7 @@ const SCORE_RANKS = [
   { min: 0,   label: "Just Starting",  emoji: "🌱", color: "#71717a",  desc: "Every legend starts somewhere. Let's go!" },
   { min: 50,  label: "Rising Creator", emoji: "🚀", color: "#60a5fa",  desc: "You're building real momentum. Keep pushing." },
   { min: 150, label: "Content Pro",    emoji: "⚡", color: "#a78bfa",  desc: "You're consistent and getting sharper every day." },
-  { min: 300, label: "Creator Beast",  emoji: "🔥", color: "#fb923c",  desc: "You operate at a level most creators never reach." },
+  { min: 300, label: "Creator Beast",  emoji: "🔥", color: "#2e78ef",  desc: "You operate at a level most creators never reach." },
   { min: 500, label: "Elite Status",   emoji: "👑", color: GOLD,       desc: "You're in the top tier. The platform bends to your will." },
 ];
 
@@ -623,7 +624,7 @@ function BigThreeToday() {
     localStorage.setItem(BIG3_KEY, JSON.stringify(next));
   };
 
-  const COLORS = ["#d4b461", "#a78bfa", "#34d399"];
+  const COLORS = ["#2e78ef", "#a78bfa", "#34d399"];
   const LABELS = ["🥇 Top Priority", "🥈 Second Focus", "🥉 Third Action"];
 
   return (
@@ -672,7 +673,7 @@ function BigThreeToday() {
           <button
             onClick={add}
             className="px-3 py-2 rounded-xl text-xs font-bold transition-colors"
-            style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}
+            style={{ background: "rgba(46,120,239,0.15)", color: GOLD, border: "1px solid rgba(46,120,239,0.3)" }}
             data-testid="button-add-big3"
           >
             Add
@@ -839,13 +840,13 @@ const CommunityPulse = memo(function CommunityPulse() {
             <MessageSquare className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
             <p className="text-xs text-zinc-600">No posts yet — be the first to post!</p>
             <Link href="/community">
-              <button className="mt-3 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors" style={{ background: "rgba(212,180,97,0.15)", color: GOLD }}>Start a discussion</button>
+              <button className="mt-3 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors" style={{ background: "rgba(46,120,239,0.15)", color: GOLD }}>Start a discussion</button>
             </Link>
           </div>
         ) : (
           recent.map((post: any) => {
             const initials = (post.authorName || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
-            const colors = ["#d4b461", "#a78bfa", "#34d399", "#f472b6", "#60a5fa"];
+            const colors = ["#2e78ef", "#a78bfa", "#34d399", "#f472b6", "#60a5fa"];
             const color = colors[(post.authorName || "").charCodeAt(0) % colors.length];
             return (
               <Link key={post.id} href="/community">
@@ -878,7 +879,7 @@ const CommunityPulse = memo(function CommunityPulse() {
    WORLD CLOCK
 ───────────────────────────────────────────── */
 const WORLD_CITIES = [
-  { city: "Dubai",    timezone: "Asia/Dubai",        flag: "🇦🇪", color: "#f59e0b" },
+  { city: "Dubai",    timezone: "Asia/Dubai",        flag: "🇦🇪", color: "#2e78ef" },
   { city: "London",   timezone: "Europe/London",     flag: "🇬🇧", color: "#60a5fa" },
   { city: "New York", timezone: "America/New_York",  flag: "🇺🇸", color: "#34d399" },
 ];
@@ -921,8 +922,8 @@ const CREATOR_TIPS = [
   { icon: Hash,      color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  tip: "Use 5–8 niche hashtags rather than 30 generic ones. Quality beats quantity." },
   { icon: Brain,     color: "#a78bfa", bg: "rgba(167,139,250,0.12)", tip: "Hook your viewers in the first 3 seconds — that's when 60% decide to keep watching." },
   { icon: Megaphone, color: "#34d399", bg: "rgba(52,211,153,0.12)",  tip: "Reply to every comment in your first hour. The algorithm rewards early engagement." },
-  { icon: Star,      color: GOLD,      bg: "rgba(212,180,97,0.12)",  tip: "Batch create content on one day. Posting consistently beats posting perfectly." },
-  { icon: TrendingUp,color: "#fb923c", bg: "rgba(251,146,60,0.12)",  tip: "Repurpose your top-performing content to 3 other platforms — don't leave reach on the table." },
+  { icon: Star,      color: GOLD,      bg: "rgba(46,120,239,0.12)",  tip: "Batch create content on one day. Posting consistently beats posting perfectly." },
+  { icon: TrendingUp,color: "#2e78ef", bg: "rgba(46,120,239,0.12)",  tip: "Repurpose your top-performing content to 3 other platforms — don't leave reach on the table." },
   { icon: Coffee,    color: "#f87171", bg: "rgba(248,113,113,0.12)", tip: "Study one competitor's top 5 posts every week. Learn what works before reinventing the wheel." },
   { icon: MonitorPlay,color:"#c084fc", bg: "rgba(192,132,252,0.12)", tip: "Video thumbnails with a face get 38% more clicks. Show up visually." },
 ];
@@ -959,19 +960,19 @@ const PLATFORM_EMOJI: Record<string, string> = {
 const STRUGGLE_TIPS: Record<string, { tip: string; icon: any; color: string; bg: string }> = {
   "Growing my followers":              { tip: "Post 4–5× per week minimum. Follower growth is a volume-consistency game — the algorithm rewards those who show up.",             icon: TrendingUp,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
   "Low engagement on posts":           { tip: "Reply to every comment within the first hour. Early engagement signals push your content to a wider audience.",                  icon: Megaphone,    color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
-  "Coming up with content ideas":      { tip: "Look at your top 3 performing posts. Find the common angle — that's your winning formula. Remix it, don't reinvent.",           icon: Lightbulb,    color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Coming up with content ideas":      { tip: "Look at your top 3 performing posts. Find the common angle — that's your winning formula. Remix it, don't reinvent.",           icon: Lightbulb,    color: GOLD,       bg: "rgba(46,120,239,0.12)"   },
   "Monetising my audience":            { tip: "Your first offer should solve one specific problem. Start under $97 — low friction, high learning, and real revenue proof.",     icon: DollarSign,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
   "Staying consistent":                { tip: "Batch create on one day per week, post from a queue. Showing up consistently always beats posting perfectly.",                   icon: Clock,        color: "#a78bfa",  bg: "rgba(167,139,250,0.12)"  },
   "Understanding analytics":           { tip: "Track 3 metrics only: views, saves, and profile visits. These 3 tell you if your content is actually working.",                 icon: BarChart2,    color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
-  "Managing time efficiently":         { tip: "Block 2–3 hour creation windows, not 20-minute gaps. Deep work creates better content — treat it like a non-negotiable meeting.",icon: Clock,        color: "#fb923c",  bg: "rgba(251,146,60,0.12)"   },
-  "Standing out in a crowded niche":   { tip: "Your unique angle isn't your niche — it's your point of view on it. Develop a consistent take that only you would say.",        icon: Star,         color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Managing time efficiently":         { tip: "Block 2–3 hour creation windows, not 20-minute gaps. Deep work creates better content — treat it like a non-negotiable meeting.",icon: Clock,        color: "#2e78ef",  bg: "rgba(46,120,239,0.12)"   },
+  "Standing out in a crowded niche":   { tip: "Your unique angle isn't your niche — it's your point of view on it. Develop a consistent take that only you would say.",        icon: Star,         color: GOLD,       bg: "rgba(46,120,239,0.12)"   },
   "Converting followers to customers": { tip: "Add one clear CTA to every post: 'Comment X', 'Link in bio', or 'DM me'. Most creators forget this and leave money behind.",   icon: Target,       color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
   "Getting views / reach":             { tip: "Hook your viewer in the first 1.5 seconds. Make them think 'I need to see where this goes' before they scroll away.",            icon: Rocket,       color: "#f472b6",  bg: "rgba(244,114,182,0.12)"  },
   "Building confidence on camera":     { tip: "Record 10 bad videos and throw them away. Confidence on camera is a skill — the only way through is volume.",                   icon: Brain,        color: "#a78bfa",  bg: "rgba(167,139,250,0.12)"  },
   "Editing and production quality":    { tip: "Clean audio matters more than a great camera. A $15 clip-on mic upgrades your content more than any lens or lighting rig.",     icon: Mic2,         color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
   "Dealing with algorithm changes":    { tip: "The algorithm rewards consistency and early engagement, not luck. Track your data daily and respond to what it shows you.",      icon: TrendingUp,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
   "Building a personal brand identity":{ tip: "Pick 3 content pillars and stick to them for 90 days. Consistency of topic trains your audience to expect — and seek — your content.", icon: Palette, color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
-  "Knowing what content to create":    { tip: "Steal the format, not the content. Take your competitor's best-performing video structure and apply your unique perspective.",   icon: Lightbulb,    color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Knowing what content to create":    { tip: "Steal the format, not the content. Take your competitor's best-performing video structure and apply your unique perspective.",   icon: Lightbulb,    color: GOLD,       bg: "rgba(46,120,239,0.12)"   },
   "Building brand partnerships":       { tip: "Brands don't care about your follower count — they care about engagement and niche fit. A 5K engaged audience beats 50K passive.", icon: UserCheck, color: "#34d399", bg: "rgba(52,211,153,0.12)" },
 };
 
@@ -992,11 +993,11 @@ function CreatorBriefing() {
   if (!niche.length && !struggles.length && !primaryGoal && !platforms.length) return null;
 
   return (
-    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(212,180,97,0.2)", background: "rgba(212,180,97,0.025)" }} data-testid="creator-briefing">
+    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(46,120,239,0.2)", background: "rgba(46,120,239,0.025)" }} data-testid="creator-briefing">
       {/* Header */}
-      <div className="px-5 py-4 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: "rgba(212,180,97,0.12)" }}>
+      <div className="px-5 py-4 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: "rgba(46,120,239,0.12)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.15)" }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(46,120,239,0.15)" }}>
             <Target className="w-4 h-4" style={{ color: GOLD }} />
           </div>
           <div>
@@ -1026,7 +1027,7 @@ function CreatorBriefing() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2.5">Niche & Platforms</p>
             <div className="flex flex-wrap gap-2">
               {niche.slice(0, 4).map(n => (
-                <span key={n} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(212,180,97,0.12)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>
+                <span key={n} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(46,120,239,0.12)", color: GOLD, border: "1px solid rgba(46,120,239,0.25)" }}>
                   {n}
                 </span>
               ))}
@@ -1064,7 +1065,7 @@ function CreatorBriefing() {
                 const mapped = STRUGGLE_MAP[s];
                 return (
                   <div key={s} className="flex items-start gap-3 rounded-xl p-3.5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD }}>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold" style={{ background: "rgba(46,120,239,0.15)", color: GOLD }}>
                       {i + 1}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1073,7 +1074,7 @@ function CreatorBriefing() {
                     </div>
                     {mapped && (
                       <Link href={mapped.href}>
-                        <button className="shrink-0 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: "rgba(212,180,97,0.1)", color: GOLD, border: "1px solid rgba(212,180,97,0.2)", whiteSpace: "nowrap" }} data-testid={`briefing-tool-${i}`}>
+                        <button className="shrink-0 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: "rgba(46,120,239,0.1)", color: GOLD, border: "1px solid rgba(46,120,239,0.2)", whiteSpace: "nowrap" }} data-testid={`briefing-tool-${i}`}>
                           {mapped.tool} →
                         </button>
                       </Link>
@@ -1153,9 +1154,9 @@ function GrowthMilestones({ streak, monthActions }: { streak: number; monthActio
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all"
                 style={{
-                  background: achieved ? `rgba(212,180,97,0.2)` : partial ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                  border: achieved ? `1px solid rgba(212,180,97,0.5)` : "1px solid rgba(255,255,255,0.06)",
-                  boxShadow: achieved ? "0 0 12px rgba(212,180,97,0.25)" : "none",
+                  background: achieved ? `rgba(46,120,239,0.2)` : partial ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                  border: achieved ? `1px solid rgba(46,120,239,0.5)` : "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: achieved ? "0 0 12px rgba(46,120,239,0.25)" : "none",
                   filter: achieved ? "none" : "grayscale(0.7) opacity(0.4)",
                 }}
               >
@@ -1176,9 +1177,9 @@ function GrowthMilestones({ streak, monthActions }: { streak: number; monthActio
 export const TIER_DISPLAY: Record<string, { name: string; color: string }> = {
   free:    { name: "Tier 1 · Free",    color: "#71717a" },
   starter: { name: "Tier 2 · Starter", color: "#818cf8" },
-  growth:  { name: "Tier 3 · Growth",  color: "#d4b461" },
+  growth:  { name: "Tier 3 · Growth",  color: "#2e78ef" },
   pro:     { name: "Tier 4 · Pro",     color: "#34d399" },
-  elite:   { name: "Tier 5 · Elite",   color: "#d4b461" },
+  elite:   { name: "Tier 5 · Elite",   color: "#2e78ef" },
 };
 
 const NEXT_TIER_INFO: Record<string, {
@@ -1197,7 +1198,7 @@ const NEXT_TIER_INFO: Record<string, {
   },
   starter: {
     nextName: "Tier 3 · Growth", nextPrice: "$59/mo",
-    color: "#d4b461", bg: "rgba(212,180,97,0.07)", border: "rgba(212,180,97,0.2)",
+    color: "#2e78ef", bg: "rgba(46,120,239,0.07)", border: "rgba(46,120,239,0.2)",
     perks: [
       { icon: Zap,       title: "More than 2× the volume", desc: "350 monthly credits — produce content at full capacity instead of rationing." },
       { icon: Users,     title: "Sharper market edge",     desc: "Spend more time researching what's working before you commit creative effort." },
@@ -1217,7 +1218,7 @@ const NEXT_TIER_INFO: Record<string, {
   },
   pro: {
     nextName: "Tier 5 · Elite", nextPrice: "Application only",
-    color: "#d4b461", bg: "rgba(212,180,97,0.07)", border: "rgba(212,180,97,0.25)",
+    color: "#2e78ef", bg: "rgba(46,120,239,0.07)", border: "rgba(46,120,239,0.25)",
     perks: [
       { icon: Zap,         title: "Unlimited credits, no cap",  desc: "Use every tool as much as you want — no monthly limits, ever." },
       { icon: Crown,       title: "Done-with-you strategy",     desc: "The team works alongside you on your content and growth plan." },
@@ -1321,36 +1322,36 @@ function NextTierBenefits({ plan }: { plan: string }) {
       {plan === "pro" && (
         <div className="relative px-6 pb-2">
           <div className="flex items-center gap-2 mb-3">
-            <div className="flex-1 h-px" style={{ background: "rgba(212,180,97,0.12)" }} />
+            <div className="flex-1 h-px" style={{ background: "rgba(46,120,239,0.12)" }} />
             <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Your dashboard when you upgrade</p>
-            <div className="flex-1 h-px" style={{ background: "rgba(212,180,97,0.12)" }} />
+            <div className="flex-1 h-px" style={{ background: "rgba(46,120,239,0.12)" }} />
           </div>
 
           <div
             className="relative overflow-hidden rounded-2xl"
             style={{
-              background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(0,0,0,0.5) 100%)",
-              border: "1px solid rgba(212,180,97,0.3)",
-              boxShadow: "0 0 60px rgba(212,180,97,0.07)",
+              background: "linear-gradient(135deg, rgba(46,120,239,0.1) 0%, rgba(0,0,0,0.5) 100%)",
+              border: "1px solid rgba(46,120,239,0.3)",
+              boxShadow: "0 0 60px rgba(46,120,239,0.07)",
             }}
           >
             <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.06, transform: "translate(35%, -35%)" }} />
 
             {/* Header */}
-            <div className="relative px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(212,180,97,0.15)" }}>
+            <div className="relative px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(46,120,239,0.15)" }}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
                     <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Mission Briefing</span>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}>Tier 5 · Elite</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(46,120,239,0.15)", color: GOLD, border: "1px solid rgba(46,120,239,0.3)" }}>Tier 5 · Elite</span>
                   </div>
                   <h3 className="text-lg font-black text-white mb-1">Your Mission Control</h3>
                   <p className="text-xs text-zinc-400">Current phase: <span className="font-semibold text-white">Phase 2 · Launch & Growth</span></p>
                 </div>
                 <div
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold opacity-60 cursor-not-allowed select-none"
-                  style={{ background: `linear-gradient(135deg, ${GOLD}, #b89848)`, color: "#000" }}
+                  style={{ background: `linear-gradient(135deg, ${GOLD}, #2e78ef)`, color: "#000" }}
                 >
                   <CalendarPlus className="w-4 h-4" /> Book a Call
                 </div>
@@ -1463,10 +1464,10 @@ function ActivityHeatmap({ weekHistory }: { weekHistory: { date: string; credits
         const bg = intensity === 0
           ? "rgba(255,255,255,0.04)"
           : intensity < 0.3
-            ? "rgba(212,180,97,0.25)"
+            ? "rgba(46,120,239,0.25)"
             : intensity < 0.6
-              ? "rgba(212,180,97,0.55)"
-              : "#d4b461";
+              ? "rgba(46,120,239,0.55)"
+              : "#2e78ef";
 
         return (
           <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5" title={`${dayLabel}: ${day.creditsUsed} credits, ${day.actions} actions`}>
@@ -1475,8 +1476,8 @@ function ActivityHeatmap({ weekHistory }: { weekHistory: { date: string; credits
               style={{
                 height: `${Math.max(12, intensity * 52 + 12)}px`,
                 background: bg,
-                boxShadow: intensity > 0.6 ? `0 0 12px rgba(212,180,97,0.35)` : "none",
-                border: isToday ? `1px solid rgba(212,180,97,0.5)` : "1px solid transparent",
+                boxShadow: intensity > 0.6 ? `0 0 12px rgba(46,120,239,0.35)` : "none",
+                border: isToday ? `1px solid rgba(46,120,239,0.5)` : "1px solid transparent",
               }}
             />
             <p className="text-[9px] font-medium" style={{ color: isToday ? GOLD : "rgba(255,255,255,0.3)" }}>{dayLabel}</p>
@@ -1533,7 +1534,7 @@ const ReferralWidget = memo(function ReferralWidget({ stats }: { stats: any }) {
       style={{
         borderRadius: 20,
         border: `1.5px solid ${GOLD}28`,
-        background: "linear-gradient(145deg, rgba(212,180,97,0.06) 0%, transparent 55%)",
+        background: "linear-gradient(145deg, rgba(46,120,239,0.06) 0%, transparent 55%)",
         overflow: "hidden",
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(12px)",
@@ -1606,11 +1607,11 @@ const ReferralWidget = memo(function ReferralWidget({ stats }: { stats: any }) {
         <div style={{
           display: "flex", alignItems: "flex-start", gap: 8,
           padding: "10px 14px", borderRadius: 10,
-          background: "rgba(251,146,60,0.08)",
-          border: "1px solid rgba(251,146,60,0.2)",
+          background: "rgba(46,120,239,0.08)",
+          border: "1px solid rgba(46,120,239,0.2)",
         }}>
           <span style={{ fontSize: 13, flexShrink: 0 }}>⚠️</span>
-          <p style={{ fontSize: 11, color: "rgba(251,146,60,0.9)", lineHeight: 1.5, margin: 0 }}>
+          <p style={{ fontSize: 11, color: "rgba(46,120,239,0.9)", lineHeight: 1.5, margin: 0 }}>
             You get <strong>25 credits</strong> when your friend signs up free. You both get <strong>100 bonus credits</strong> when they upgrade to any paid plan. Self-referrals are automatically detected and blocked.
           </p>
         </div>
@@ -1740,12 +1741,12 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
   const tierInfo = plan && TIER_DISPLAY[plan] ? TIER_DISPLAY[plan] : null;
 
   const stats = [
-    { label: "Days on Platform",  value: daysSince.toLocaleString(),            icon: Calendar,     color: GOLD,      bg: "rgba(212,180,97,0.1)" },
+    { label: "Days on Platform",  value: daysSince.toLocaleString(),            icon: Calendar,     color: GOLD,      bg: "rgba(46,120,239,0.1)" },
     { label: "Views Generated",   value: totalViews.toLocaleString(),            icon: Eye,          color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
     { label: "Followers Gained",  value: totalFollowers > 0 ? `+${totalFollowers.toLocaleString()}` : "—", icon: Users, color: "#34d399", bg: "rgba(52,211,153,0.1)" },
     { label: "Posts Tracked",     value: totalPosts.toLocaleString(),            icon: FileText,     color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
     { label: "Tool Actions",      value: totalActions.toLocaleString(),          icon: Sparkles,     color: "#f472b6", bg: "rgba(244,114,182,0.1)" },
-    { label: "Tasks Completed",   value: completedTasks.toLocaleString(),        icon: CheckCircle2, color: "#fb923c", bg: "rgba(251,146,60,0.1)" },
+    { label: "Tasks Completed",   value: completedTasks.toLocaleString(),        icon: CheckCircle2, color: "#2e78ef", bg: "rgba(46,120,239,0.1)" },
   ];
 
   return (
@@ -1756,12 +1757,12 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
       {/* Header */}
       <div
         className="px-5 py-4 flex items-center justify-between"
-        style={{ background: "rgba(212,180,97,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ background: "rgba(46,120,239,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex items-center gap-3">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.25) 0%, rgba(212,180,97,0.08) 100%)", border: "1px solid rgba(212,180,97,0.25)" }}
+            style={{ background: "linear-gradient(135deg, rgba(46,120,239,0.25) 0%, rgba(46,120,239,0.08) 100%)", border: "1px solid rgba(46,120,239,0.25)" }}
           >
             <Rocket className="w-4 h-4" style={{ color: GOLD }} />
           </div>
@@ -1925,7 +1926,7 @@ function TierHeroBanner({
 
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: "Day Streak",  value: streak === 0 ? "—" : `${streak}d`, color: "#fb923c" },
+                { label: "Day Streak",  value: streak === 0 ? "—" : `${streak}d`, color: "#2e78ef" },
                 { label: "This Month",  value: monthActions,                        color: "#818cf8" },
                 { label: "Lifetime",    value: lifetimeTotalActions,                color: "#34d399" },
               ].map(({ label, value, color }) => (
@@ -1939,7 +1940,7 @@ function TierHeroBanner({
 
           <div className="lg:w-56 shrink-0">
             <Link href="/settings/plan">
-              <div className="h-full rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity flex flex-col justify-between" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.12) 0%, rgba(212,180,97,0.04) 100%)", border: "1px solid rgba(212,180,97,0.2)" }}>
+              <div className="h-full rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity flex flex-col justify-between" style={{ background: "linear-gradient(135deg, rgba(46,120,239,0.12) 0%, rgba(46,120,239,0.04) 100%)", border: "1px solid rgba(46,120,239,0.2)" }}>
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2" style={{ color: GOLD }}>Level up</p>
                   <p className="text-base font-black text-white mb-1.5">Upgrade to Growth</p>
@@ -1964,13 +1965,13 @@ function TierHeroBanner({
     const trendColor    = streak > 0 ? "#34d399" : GOLD;
 
     return (
-      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)", border: "1px solid rgba(212,180,97,0.25)" }}>
+      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(46,120,239,0.1) 0%, rgba(46,120,239,0.03) 100%)", border: "1px solid rgba(46,120,239,0.25)" }}>
         <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.07, transform: "translate(35%, -35%)" }} />
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Growth Phase</span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>Tier 3 · Growth</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(46,120,239,0.15)", color: GOLD, border: "1px solid rgba(46,120,239,0.25)" }}>Tier 3 · Growth</span>
             </div>
             <h2 className="text-2xl font-black text-white leading-tight mb-1.5">You're in the growth phase — outpace your niche.</h2>
             <p className="text-sm text-zinc-400 mb-5 leading-relaxed">Live benchmarks from your niche. Know where you stand, then go harder.</p>
@@ -1989,7 +1990,7 @@ function TierHeroBanner({
             </div>
 
             <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
-              <span className="flex items-center gap-1.5"><Flame className="w-3 h-3" style={{ color: "#fb923c" }} />{streak > 0 ? `${streak}-day streak` : "No streak yet"}</span>
+              <span className="flex items-center gap-1.5"><Flame className="w-3 h-3" style={{ color: "#2e78ef" }} />{streak > 0 ? `${streak}-day streak` : "No streak yet"}</span>
               <span className="w-1 h-1 rounded-full bg-zinc-700" />
               <span>{monthActions} actions this month</span>
             </div>
@@ -2037,7 +2038,7 @@ function TierHeroBanner({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {[
             { label: "Posts Tracked",    value: contentPostCount,                       icon: FileText,  color: "#a78bfa" },
-            { label: "Day Streak",       value: streak === 0 ? "—" : `${streak}d`,      icon: Flame,     color: "#fb923c" },
+            { label: "Day Streak",       value: streak === 0 ? "—" : `${streak}d`,      icon: Flame,     color: "#2e78ef" },
             { label: "Monthly Actions",  value: monthActions,                            icon: BarChart2, color: "#34d399" },
             { label: "Lifetime Actions", value: lifetimeTotalActions,                    icon: Zap,       color: GOLD      },
           ].map(({ label, value, icon: Icon, color }) => (
@@ -2052,7 +2053,7 @@ function TierHeroBanner({
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-xs text-zinc-500">{performanceMsg}</p>
           <Link href="/settings/plan">
-            <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-2 transition-all hover:opacity-80" style={{ background: "rgba(212,180,97,0.12)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>
+            <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-2 transition-all hover:opacity-80" style={{ background: "rgba(46,120,239,0.12)", color: GOLD, border: "1px solid rgba(46,120,239,0.25)" }}>
               <Crown className="w-3 h-3" /> Explore Elite →
             </button>
           </Link>
@@ -2071,23 +2072,23 @@ function TierHeroBanner({
     const pendingCount = (tasks || []).filter((t: any) => !t.completed).length;
 
     return (
-      <div className="relative overflow-hidden rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(0,0,0,0.5) 100%)", border: "1px solid rgba(212,180,97,0.3)", boxShadow: "0 0 80px rgba(212,180,97,0.07)" }}>
+      <div className="relative overflow-hidden rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(46,120,239,0.1) 0%, rgba(0,0,0,0.5) 100%)", border: "1px solid rgba(46,120,239,0.3)", boxShadow: "0 0 80px rgba(46,120,239,0.07)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.06, transform: "translate(35%, -35%)" }} />
 
         {/* Header */}
-        <div className="relative px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(212,180,97,0.15)" }}>
+        <div className="relative px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(46,120,239,0.15)" }}>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
                 <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Mission Briefing</span>
-                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}>Tier 5 · Elite</span>
+                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(46,120,239,0.15)", color: GOLD, border: "1px solid rgba(46,120,239,0.3)" }}>Tier 5 · Elite</span>
               </div>
               <h2 className="text-2xl font-black text-white mb-1">{firstName}'s Mission Control</h2>
               <p className="text-sm text-zinc-400">Current phase: <span className="font-semibold text-white">{currentPhase}</span></p>
             </div>
             <a href="https://calendly.com/brandversee/30min" target="_blank" rel="noreferrer">
-              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95" style={{ background: `linear-gradient(135deg, ${GOLD}, #b89848)`, color: "#000", boxShadow: "0 4px 20px rgba(212,180,97,0.35)" }}>
+              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95" style={{ background: `linear-gradient(135deg, ${GOLD}, #2e78ef)`, color: "#000", boxShadow: "0 4px 20px rgba(46,120,239,0.35)" }}>
                 <CalendarPlus className="w-4 h-4" /> Book a Call
               </button>
             </a>
@@ -2241,6 +2242,26 @@ export default function ClientDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showMoreInsights, setShowMoreInsights] = useState(false);
+
+  // Calm light theme while the dashboard is open; restored on leave.
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    root.classList.add("calm-light");
+    let link = document.getElementById("calm-inter") as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement("link");
+      link.id = "calm-inter"; link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap";
+      document.head.appendChild(link);
+    }
+    return () => {
+      root.classList.remove("calm-light");
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
   const [vmBannerDismissed, setVmBannerDismissed] = useState(() => localStorage.getItem("vm_addon_banner_dismissed") === "true");
   const autoRefreshRef = useRef(autoRefresh);
   const versionRef = useRef<string | null>(null);
@@ -2355,21 +2376,58 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* ── TIER HERO BANNER ── */}
+          {/* ── OVERVIEW (redesign): next step, live numbers, quick start, weekly results ── */}
           {(user as any)?.plan && (
-            <TierHeroBanner
+            <DashboardOverview
               plan={(user as any).plan}
-              firstName={user?.name?.split(" ")[0] || "Creator"}
               goal={goal}
               lifetimeTotalActions={lifetimeTotalActions}
               contentPostCount={(contentPosts || []).length}
-              streak={streak}
-              monthActions={monthActions}
               weekHistory={weekHistory}
-              projectTracker={projectTracker}
-              tasks={tasks}
+              streak={streak}
             />
           )}
+
+          {/* ── INCOME GOAL + DAILY QUOTE ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="min-h-[160px]" data-testid="income-goal-card">
+              {user?.id && <IncomeGoalCard userId={user.id} />}
+            </div>
+            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(46,120,239,0.12)", border: "1px solid rgba(46,120,239,0.2)" }}>
+                <Quote className="w-4 h-4" style={{ color: GOLD }} />
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
+              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
+              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
+            </div>
+          </div>
+
+          {/* ── WORLD CLOCK ── */}
+          <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-3.5 h-3.5 text-zinc-500" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
+              {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
+                <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
+              ))}
+            </div>
+          </div>
+
+          {/* ── MORE INSIGHTS (collapsed by default) ── */}
+          <button
+            onClick={() => setShowMoreInsights(v => !v)}
+            data-testid="button-toggle-insights"
+            className="w-full flex items-center justify-between rounded-2xl px-5 py-3.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors"
+            style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <span>{showMoreInsights ? "Hide" : "Show"} more insights, tour, community and course</span>
+            <ChevronRight className="w-4 h-4 transition-transform" style={{ transform: showMoreInsights ? "rotate(90deg)" : "none" }} />
+          </button>
+          {showMoreInsights && (<>
 
           {/* ── VIDEO MARKETING ADD-ON UPGRADE BANNER ── */}
           {!vmBannerDismissed && (
@@ -2378,7 +2436,7 @@ export default function ClientDashboard() {
             <div
               style={{
                 background: (user as any)?.plan === "pro"
-                  ? `linear-gradient(135deg, ${GOLD}0d 0%, rgba(212,180,97,0.04) 100%)`
+                  ? `linear-gradient(135deg, ${GOLD}0d 0%, rgba(46,120,239,0.04) 100%)`
                   : "rgba(255,255,255,0.025)",
                 border: `1px solid ${(user as any)?.plan === "pro" ? `${GOLD}30` : "rgba(255,255,255,0.08)"}`,
                 borderRadius: 16,
@@ -2454,12 +2512,12 @@ export default function ClientDashboard() {
           {/* ── TAKE THE TOUR BANNER ── */}
           <div
             className="relative overflow-hidden rounded-2xl px-5 py-3.5 cursor-pointer group"
-            style={{ background: "linear-gradient(135deg, rgba(18,14,30,0.97) 0%, rgba(22,16,36,0.97) 100%)", border: "1px solid rgba(212,180,97,0.2)" }}
+            style={{ background: "linear-gradient(135deg, rgba(18,14,30,0.97) 0%, rgba(22,16,36,0.97) 100%)", border: "1px solid rgba(46,120,239,0.2)" }}
             data-testid="tour-banner"
           >
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 5% 50%, rgba(212,180,97,0.07) 0%, transparent 60%)" }} />
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 5% 50%, rgba(46,120,239,0.07) 0%, transparent 60%)" }} />
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #b89848 0%, #d4b461 50%, #f0d280 100%)", boxShadow: "0 0 14px rgba(212,180,97,0.35)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #2e78ef 0%, #2e78ef 50%, #88c0fd 100%)", boxShadow: "0 0 14px rgba(46,120,239,0.35)" }}>
                 <Bot className="w-4.5 h-4.5 text-black" />
               </div>
               <div className="flex-1 min-w-0">
@@ -2472,35 +2530,6 @@ export default function ClientDashboard() {
 
           {/* ── CREATOR BRIEFING (survey-personalised) ── */}
           <CreatorBriefing />
-
-          {/* ── INCOME GOAL + DAILY QUOTE ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="min-h-[160px]" data-testid="income-goal-card">
-              {user?.id && <IncomeGoalCard userId={user.id} />}
-            </div>
-            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-                <Quote className="w-4 h-4" style={{ color: GOLD }} />
-              </div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
-              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
-              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
-            </div>
-          </div>
-
-          {/* ── WORLD CLOCK ── */}
-          <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="w-3.5 h-3.5 text-zinc-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
-              {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
-                <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
-              ))}
-            </div>
-          </div>
 
           {/* ── CREATOR SCORE ── */}
           <CreatorScore streak={streak} monthActions={monthActions} contentCount={(contentPosts || []).length} />
@@ -2548,8 +2577,8 @@ export default function ClientDashboard() {
                 label="Day Streak"
                 value={streak === 0 ? "—" : `${streak}d`}
                 sub={streak === 0 ? "Use a tool to start" : streak === 1 ? "Keep it going!" : "Incredible consistency"}
-                accentColor="#fb923c"
-                gradient="linear-gradient(135deg, rgba(251,146,60,0.1) 0%, rgba(251,146,60,0.03) 100%)"
+                accentColor="#2e78ef"
+                gradient="linear-gradient(135deg, rgba(46,120,239,0.1) 0%, rgba(46,120,239,0.03) 100%)"
               />
               <ActivityTile
                 icon={BarChart2}
@@ -2571,7 +2600,7 @@ export default function ClientDashboard() {
               </div>
               <div className="flex items-center gap-2 text-[10px] text-zinc-600">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ background: "rgba(255,255,255,0.04)", display: "inline-block" }} /> No activity</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#d4b461]" style={{ display: "inline-block" }} /> Active</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#2e78ef]" style={{ display: "inline-block" }} /> Active</span>
               </div>
             </div>
             <ActivityHeatmap weekHistory={weekHistory} />
@@ -2705,7 +2734,7 @@ export default function ClientDashboard() {
 
           {/* ── FOCUS MUSIC — compact strip ── */}
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900/30" data-testid="focus-music-banner">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.1)" }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(46,120,239,0.1)" }}>
               <Music2 className="w-3.5 h-3.5" style={{ color: GOLD }} />
             </div>
             <div className="flex-1 min-w-0">
@@ -2723,7 +2752,7 @@ export default function ClientDashboard() {
               rel="noreferrer"
               data-testid="book-a-call-banner"
               className="flex items-center gap-5 p-5 rounded-2xl hover:opacity-90 transition-opacity group"
-              style={{ background: `linear-gradient(135deg, ${GOLD} 0%, #b89848 100%)` }}
+              style={{ background: `linear-gradient(135deg, ${GOLD} 0%, #2e78ef 100%)` }}
             >
               <div className="w-10 h-10 bg-black/15 rounded-xl flex items-center justify-center shrink-0">
                 <CalendarPlus className="w-5 h-5 text-white" />
@@ -2854,6 +2883,8 @@ export default function ClientDashboard() {
               <ContentMasteryModule />
             </div>
           </Suspense>
+
+          </>)}
 
           {/* ── FEEDBACK BANNER ── */}
           <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 to-zinc-900/60 p-5 flex items-center justify-between gap-4 flex-wrap">

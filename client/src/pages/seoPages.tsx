@@ -4,7 +4,7 @@
 // inside the SPA for real visitors.
 import React from "react";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 export interface SeoFaq {
   q: string;
@@ -25,16 +25,16 @@ export interface SeoPageConfig {
 
 const CTA = (
   <div style={{ textAlign: "center", margin: "72px auto 24px", maxWidth: 640 }}>
-    <h2 style={{ fontSize: 30, fontWeight: 900, color: "#fff", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+    <h2 style={{ fontSize: 30, fontWeight: 900, color: "#101828", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
       Start free. <span style={{ color: GOLD }}>Scale when ready.</span>
     </h2>
-    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 15, lineHeight: 1.7, margin: "14px 0 26px" }}>
+    <p style={{ color: "rgba(16,24,40,0.67)", fontSize: 15, lineHeight: 1.7, margin: "14px 0 26px" }}>
       Free plan includes 100 app credits every month. No card required.
     </p>
     <a
       href="/login?tab=register"
       style={{
-        display: "inline-block", background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, color: "#000",
+        display: "inline-block", background: `linear-gradient(135deg, #4f93ff, ${GOLD})`, color: "#ffffff",
         fontWeight: 800, fontSize: 15, borderRadius: 12, padding: "15px 38px", textDecoration: "none",
       }}
     >
@@ -48,18 +48,18 @@ const CTA = (
 
 export function SEOPage({ config }: { config: SeoPageConfig }) {
   return (
-    <main style={{ background: "#0a0910", minHeight: "100vh", color: "#fff", fontFamily: "Inter, system-ui, sans-serif" }}>
+    <main style={{ background: "#ffffff", minHeight: "100vh", color: "#101828", fontFamily: "Inter, system-ui, sans-serif" }}>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "96px 24px 80px" }}>
         <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 16 }}>Oravini</div>
         <h1 style={{ fontSize: "clamp(30px, 5vw, 48px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.12, margin: "0 0 22px" }}>
           {config.h1}
         </h1>
-        <p style={{ fontSize: 17, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, margin: "0 0 48px" }}>{config.intro}</p>
+        <p style={{ fontSize: 17, color: "rgba(16,24,40,0.72)", lineHeight: 1.75, margin: "0 0 48px" }}>{config.intro}</p>
 
         {config.sections.map((s) => (
           <section key={s.heading} style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.01em", margin: "0 0 12px" }}>{s.heading}</h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.8, margin: 0 }}>{s.body}</p>
+            <p style={{ fontSize: 15, color: "rgba(16,24,40,0.67)", lineHeight: 1.8, margin: 0 }}>{s.body}</p>
           </section>
         ))}
 
@@ -77,7 +77,7 @@ export function SEOPage({ config }: { config: SeoPageConfig }) {
                 {config.table.rows.map((r) => (
                   <tr key={r[0]}>
                     {r.map((c, i) => (
-                      <td key={i} style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", color: i === 0 ? "#fff" : "rgba(255,255,255,0.55)", lineHeight: 1.6, verticalAlign: "top" }}>{c}</td>
+                      <td key={i} style={{ padding: "12px 14px", borderBottom: "1px solid rgba(16,24,40,0.07)", color: i === 0 ? "#101828" : "rgba(16,24,40,0.67)", lineHeight: 1.6, verticalAlign: "top" }}>{c}</td>
                     ))}
                   </tr>
                 ))}
@@ -90,18 +90,18 @@ export function SEOPage({ config }: { config: SeoPageConfig }) {
           <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 20px" }}>Frequently asked questions</h2>
           {config.faqs.map((f) => (
             <div key={f.q} style={{ marginBottom: 22 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>{f.q}</h3>
-              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.75, margin: 0 }}>{f.a}</p>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#101828", margin: "0 0 6px" }}>{f.q}</h3>
+              <p style={{ fontSize: 14, color: "rgba(16,24,40,0.62)", lineHeight: 1.75, margin: 0 }}>{f.a}</p>
             </div>
           ))}
         </section>
 
         {config.related && config.related.length > 0 && (
-          <section style={{ marginBottom: 24, padding: "22px 24px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, background: "rgba(255,255,255,0.02)" }}>
+          <section style={{ marginBottom: 24, padding: "22px 24px", border: "1px solid rgba(16,24,40,0.08)", borderRadius: 16, background: "rgba(16,24,40,0.02)" }}>
             <div style={{ fontSize: 12, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>From the blog</div>
             {config.related.map((r) => (
               <div key={r.href} style={{ marginBottom: 10 }}>
-                <a href={r.href} style={{ color: "#fff", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
+                <a href={r.href} style={{ color: "#101828", fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
                   {r.label} <span style={{ color: GOLD }}>→</span>
                 </a>
               </div>
@@ -136,6 +136,9 @@ export const MANYCHAT_ALTERNATIVE: SeoPageConfig = {
       heading: "Who should pick which",
       body: "If you only need DM flows for an established funnel, a dedicated DM tool is a fine choice. If you're a creator, coach or personal brand building the whole journey — content → DM → webinar → sale — Oravini replaces the stack: one login, one CRM, one bill.",
     },
+    { href: "/automated-webinar-platform", label: "Automated and evergreen webinar platform" },
+    { href: "/comment-to-dm-automation", label: "Comment-to-DM automation for Instagram" },
+    { href: "/blog/how-to-increase-webinar-attendance", label: "How to increase webinar attendance" },
   ],
   table: {
     head: ["", "Oravini", "ManyChat"],
@@ -248,6 +251,9 @@ export const IG_DM_AUTOMATION: SeoPageConfig = {
       heading: "Built on Meta's official APIs",
       body: "Oravini connects through Meta's reviewed Instagram messaging permissions. Your account stays within Instagram's rules — no gray-hat bots that risk a ban.",
     },
+    { href: "/automated-webinar-platform", label: "Automated and evergreen webinar platform" },
+    { href: "/comment-to-dm-automation", label: "Comment-to-DM automation for Instagram" },
+    { href: "/blog/how-to-increase-webinar-attendance", label: "How to increase webinar attendance" },
   ],
   faqs: [
     {
@@ -736,6 +742,116 @@ export const VS_WEBINARJAM: SeoPageConfig = {
   ],
 };
 
+export const AUTOMATED_WEBINAR: SeoPageConfig = {
+  slug: "automated-webinar-platform",
+  title: "Automated & Evergreen Webinar Platform for Creators and Coaches | Oravini",
+  description:
+    "Run an evergreen webinar funnel: an instant-access registration page, a hosted recording, an offer button and a CRM that tracks who watched and who clicked. Built for creators and coaches.",
+  h1: "An evergreen webinar platform that sells while you are offline",
+  intro:
+    "A live webinar sells once. An evergreen one sells every week. The idea is simple: record your best training, put it behind a registration page, and let your content and DMs send people to it. Oravini gives you the pieces in one place: the page, the hosted video, the offer and the CRM that shows who watched, how long they stayed and who clicked.",
+  sections: [
+    {
+      heading: "Instant-access registration pages",
+      body: "Start from an on-demand training template or describe your training to the funnel copilot. Visitors enter a name and email to get the training. There is no date to pick and no reminder schedule to manage, and every signup lands in your CRM with its source and UTM tags.",
+    },
+    {
+      heading: "Your recording, hosted next to your funnel",
+      body: "Upload the session to Video Hosting or keep it as the replay of a live webinar. The replay page can carry the same offer button you used live, so the pitch is part of the page and not something viewers have to remember. Run it live once, then let the replay do the repeat work.",
+    },
+    {
+      heading: "See what the recording is doing",
+      body: "Show rate, stay rate at 25, 50 and 75 percent, the drop-off curve and offer clicks are tracked per webinar. If most viewers leave at minute twelve, you know which part to re-record. That feedback loop is what separates an evergreen funnel that improves from one that just sits there.",
+    },
+    {
+      heading: "Follow-up based on behavior",
+      body: "A registrant starts as a new lead. Someone who watches ten minutes or more moves to qualified. Someone who clicks your offer moves to proposal and gets flagged as hot. Your pipeline shows where each person stands, so you follow up with the people who raised their hand and leave the rest alone.",
+    },
+    {
+      heading: "Fill it from Instagram without lifting a finger",
+      body: "Evergreen only works if people keep arriving. Comment-to-DM sends your registration link to everyone who comments a keyword on a post or reel, and the signup is tagged to the post that brought it. Content brings the audience, the DM brings the registration, the recording does the selling.",
+    },
+  ],
+  faqs: [
+    {
+      q: "What is the difference between a live, an automated and an evergreen webinar?",
+      a: "A live webinar happens at a set time with you in the room. An automated or evergreen webinar is recorded once and available to every new registrant on demand, so it keeps working long after you recorded it. Many creators run it live first, then reuse the recording.",
+    },
+    {
+      q: "Does Oravini fake a live session on a schedule?",
+      a: "No. Attendees get instant access to a recorded training, or you run a real live session and keep the replay up. Oravini does not present a recording as live, which keeps your audience's trust and avoids the complaints that come with fake-live setups.",
+    },
+    {
+      q: "Can I still run live sessions?",
+      a: "Yes. Live webinars stream through YouTube Live from your own channel, with chat, Q&A, polls and a timed offer button. The recording becomes your replay and can sit behind the same registration funnel afterward.",
+    },
+    {
+      q: "How do I know the recording is converting?",
+      a: "Each webinar has its own dashboard: registrations, attendance, how long people stayed, where they dropped off and who clicked the offer. Poll answers are saved as CRM tags, so you can segment who wanted what.",
+    },
+  ],
+  related: [
+    { href: "/webinar-platform", label: "The full webinar platform tour" },
+    { href: "/blog/how-to-structure-a-webinar-that-sells", label: "How to structure a webinar that sells" },
+    { href: "/comment-to-dm-automation", label: "Send your webinar link to everyone who comments" },
+  ],
+};
+
+export const COMMENT_TO_DM: SeoPageConfig = {
+  slug: "comment-to-dm-automation",
+  title: "Comment-to-DM Automation for Instagram: Reply to Every Comment with a DM | Oravini",
+  description:
+    "Turn Instagram comments into conversations. Set a keyword on a post or reel and Oravini sends the DM with your link, then tracks the lead in your CRM. Setup wizard and logs included.",
+  h1: "Comment-to-DM automation for Instagram, built into your funnel",
+  intro:
+    "Every creator has used the line: comment GUIDE and I will send it to you. Doing that by hand does not scale past a few dozen comments. Oravini watches the comments on the posts and reels you choose, and when someone uses your keyword it sends them a DM with your link. The lead then lands in the same CRM as your webinar registrations and funnel signups.",
+  sections: [
+    {
+      heading: "How it works",
+      body: "Pick a post or reel, choose the keyword, write the DM. When a comment contains the keyword, the commenter gets your message. You can send a lead magnet, a webinar registration page, a booking link or a short question to start a conversation. Setup takes a few minutes in the guided wizard.",
+    },
+    {
+      heading: "More than comment triggers",
+      body: "The same rules engine handles keyword replies for questions you get in DMs every day, a welcome message for new conversations, and thank-you replies when someone mentions you in a story. One tool covers the whole inbox, so you are not running a different automation for each entry point.",
+    },
+    {
+      heading: "Every message is yours",
+      body: "These are rules and templates you write. Nothing improvises on your behalf, and the wording, links and timing stay in your control. A log shows what was sent, to whom and when, so you can check that a campaign is behaving before you scale it.",
+    },
+    {
+      heading: "Leads that do not get lost",
+      body: "A DM tool that stops at the DM leaves you copying names into a spreadsheet. In Oravini the contact is saved to your CRM with its source, then moves through the pipeline as they register for a webinar, watch it and click your offer. You can see which reel brought which client.",
+    },
+    {
+      heading: "Respects how Instagram works",
+      body: "Oravini uses Instagram's official messaging connection for business and creator accounts. Replies go to people who commented or messaged you, which keeps your account in good standing. Instagram sets its own limits on automated messages, and a good setup works inside them instead of fighting them.",
+    },
+  ],
+  faqs: [
+    {
+      q: "Do I need a business or creator account?",
+      a: "Yes. Instagram's messaging connection is only available for professional accounts, and the account has to be linked to a Facebook Page. The setup wizard walks you through connecting it.",
+    },
+    {
+      q: "Can one post have different keywords?",
+      a: "You can set up rules per post or reel and use different keywords for different offers, for example one keyword for a free guide and another for a webinar registration.",
+    },
+    {
+      q: "What should the automated DM say?",
+      a: "Keep it short and specific: thank them, deliver exactly what the post promised, and add one clear next step. Messages that read like a person wrote them get replies. Messages that read like a blast get ignored.",
+    },
+    {
+      q: "Is this the same as ManyChat?",
+      a: "The comment-to-DM idea is the same. The difference is what sits behind it: Oravini has the webinar platform, funnels, video hosting and CRM in the same account, so the DM links straight to pages you built there.",
+    },
+  ],
+  related: [
+    { href: "/instagram-dm-automation", label: "Instagram DM automation: the full feature tour" },
+    { href: "/manychat-alternative", label: "Looking at ManyChat alternatives?" },
+    { href: "/blog/instagram-dm-automation-guide", label: "Instagram DM automation: a practical setup guide" },
+  ],
+};
+
 export const SEO_PAGES: SeoPageConfig[] = [
   MANYCHAT_ALTERNATIVE,
   VS_MANYCHAT,
@@ -750,6 +866,8 @@ export const SEO_PAGES: SeoPageConfig[] = [
   VS_CHATFUEL,
   VS_KAJABI,
   VS_WEBINARJAM,
+  AUTOMATED_WEBINAR,
+  COMMENT_TO_DM,
 ];
 
 export function ManyChatAlternativePage() { return <SEOPage config={MANYCHAT_ALTERNATIVE} />; }
@@ -765,3 +883,5 @@ export function WebinarCourseCreatorsPage() { return <SEOPage config={WEBINAR_CO
 export function VsChatfuelPage() { return <SEOPage config={VS_CHATFUEL} />; }
 export function VsKajabiPage() { return <SEOPage config={VS_KAJABI} />; }
 export function VsWebinarjamPage() { return <SEOPage config={VS_WEBINARJAM} />; }
+export function AutomatedWebinarPage() { return <SEOPage config={AUTOMATED_WEBINAR} />; }
+export function CommentToDmPage() { return <SEOPage config={COMMENT_TO_DM} />; }

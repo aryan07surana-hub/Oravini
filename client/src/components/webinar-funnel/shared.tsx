@@ -21,6 +21,9 @@ export type PublicWebinar = {
   offerText?: string | null;
   offerPrice?: string | null;
   offerExpiresAt?: string | null;
+  vipCheckoutUrl?: string | null;
+  vipPrice?: string | null;
+  vslUrl?: string | null;
   durationMinutes?: number;
   communityLinks?: import("@shared/webinarCommunity").CommunityLink[];
 };

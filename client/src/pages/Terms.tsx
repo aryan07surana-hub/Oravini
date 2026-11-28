@@ -1,10 +1,10 @@
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 const email = "support.oravini@gmail.com";
 
 function Section({ num, title, children }: { num: string; title: string; children: React.ReactNode }) {
   return (
     <section id={`section-${num}`}>
-      <h2 className="text-xl font-semibold text-white mb-3">{num}. {title}</h2>
+      <h2 className="text-xl font-semibold text-slate-900 mb-3">{num}. {title}</h2>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -12,21 +12,21 @@ function Section({ num, title, children }: { num: string; title: string; childre
 
 export default function Terms() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#ffffff] text-slate-900">
       <div className="max-w-3xl mx-auto px-6 py-16">
 
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Terms of Service</h1>
-          <p className="text-zinc-400 text-sm">Last updated: November 23, 2026</p>
-          <p className="text-zinc-500 text-sm mt-2">
+          <p className="text-slate-500 text-sm">Last updated: November 23, 2026</p>
+          <p className="text-slate-500 text-sm mt-2">
             By accessing or using Oravini, you agree to these Terms. If you do not agree, do not use the platform.
             Questions? Email <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>
           </p>
         </div>
 
         {/* TOC */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 mb-10">
-          <p className="text-sm font-bold text-white mb-3">Table of Contents</p>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 mb-10">
+          <p className="text-sm font-bold text-slate-900 mb-3">Table of Contents</p>
           <ol className="space-y-1.5 text-sm" style={{ color: GOLD }}>
             {[
               ["1","Agreement to Terms"],["2","Eligibility"],["3","Your Account"],
@@ -41,7 +41,7 @@ export default function Terms() {
           </ol>
         </div>
 
-        <div className="space-y-10 text-zinc-300 leading-relaxed">
+        <div className="space-y-10 text-slate-600 leading-relaxed">
 
           <Section num="1" title="Agreement to Terms">
             <p>
@@ -242,10 +242,10 @@ export default function Terms() {
 
           <Section num="18" title="Contact">
             <p>For questions about these Terms:</p>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 mt-2 space-y-1">
-              <p><strong className="text-white">Oravini</strong></p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-2 space-y-1">
+              <p><strong className="text-slate-900">Oravini</strong></p>
               <p>Email: <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a></p>
-              <p className="text-zinc-500 text-sm">Response time: within 48 hours.</p>
+              <p className="text-slate-500 text-sm">Response time: within 48 hours.</p>
             </div>
           </Section>
 
@@ -256,7 +256,7 @@ export default function Terms() {
 
         </div>
 
-        <div className="mt-12 pt-8 border-t border-zinc-800 text-center text-zinc-500 text-sm">
+        <div className="mt-12 pt-8 border-t border-slate-200 text-center text-slate-500 text-sm">
           <p>© 2026 Oravini. All rights reserved.</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/privacy" className="hover:underline" style={{ color: GOLD }}>Privacy Policy</a>

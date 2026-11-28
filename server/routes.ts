@@ -11172,6 +11172,12 @@ Rules:
         .transform(v => (v === undefined ? undefined : v ? new Date(v) : null)),
       durationMinutes: z.number().int().min(5).max(600).optional(),
       remindersEnabled: z.boolean().optional(),
+      vipCheckoutUrl: z.union([httpUrl, z.null()]).optional(),
+      vipPrice: optStr(40),
+      vslUrl: z.union([
+        z.string().trim().max(2000).refine(v => v === "" || /^https:\/\//i.test(v) || /^\/vsl\/[A-Za-z0-9._-]+\.(mp4|webm)$/.test(v), "VSL must be an https:// link or a /vsl/ file"),
+        z.null(),
+      ]).optional().transform(v => (v === undefined ? undefined : v ? v : null)),
       communityLinks: communityLinksSchema.optional(),
     });
 
@@ -11266,6 +11272,9 @@ Rules:
           offerExpiresAt: body.offerExpiresAt ?? null,
           durationMinutes: body.durationMinutes ?? 60,
           remindersEnabled: body.remindersEnabled ?? true,
+          vipCheckoutUrl: body.vipCheckoutUrl ?? null,
+          vipPrice: body.vipPrice ?? null,
+          vslUrl: body.vslUrl ?? null,
           communityLinks: body.communityLinks ?? [],
         }).returning();
         res.status(201).json({ ...ownerView(row), registrationCount: 0 });
@@ -11315,6 +11324,9 @@ Rules:
         if (body.offerExpiresAt !== undefined) updates.offerExpiresAt = body.offerExpiresAt;
         if (body.durationMinutes !== undefined) updates.durationMinutes = body.durationMinutes;
         if (body.remindersEnabled !== undefined) updates.remindersEnabled = body.remindersEnabled;
+        if (body.vipCheckoutUrl !== undefined) updates.vipCheckoutUrl = body.vipCheckoutUrl;
+        if (body.vipPrice !== undefined) updates.vipPrice = body.vipPrice;
+        if (body.vslUrl !== undefined) updates.vslUrl = body.vslUrl;
         if (body.communityLinks !== undefined) updates.communityLinks = body.communityLinks;
         if (Object.keys(updates).length === 0) return res.json(ownerView(existing));
         const [row] = await db.update(webinarFunnels).set(updates)
@@ -11352,6 +11364,7 @@ Rules:
       name: z.string().trim().min(1, "Name is required").max(120),
       email: z.string().trim().toLowerCase().max(254).email("Enter a valid email"),
       phone: z.string().trim().max(32).regex(/^[0-9+()\-.\s]*$/, "Enter a valid phone number").optional().nullable(),
+      tier: z.enum(["general", "vip"]).optional(),
     });
 
     // Public: register for a published webinar
@@ -11362,7 +11375,7 @@ Rules:
         if (!funnel || funnel.status !== "published") return res.status(404).json({ message: "Webinar not found" });
         const parsed = registerBody.safeParse(req.body ?? {});
         if (!parsed.success) return res.status(400).json({ message: zodMessage(parsed.error) });
-        const { name, email, phone } = parsed.data;
+        const { name, email, phone, tier } = parsed.data;
         // Idempotent per email: re-registering returns success without a duplicate row
         const [already] = await db.select({ id: webinarFunnelRegistrations.id }).from(webinarFunnelRegistrations)
           .where(and(eq(webinarFunnelRegistrations.webinarId, funnel.id), eq(webinarFunnelRegistrations.email, email)));
@@ -11382,7 +11395,7 @@ Rules:
           userId: funnel.userId,
           email, name, phone,
           source: "webinar",
-          tags: ["webinar-registrant", `webinar:${funnel.slug}`],
+          tags: ["webinar-registrant", `webinar:${funnel.slug}`, ...(tier === "vip" ? ["access:vip-interested"] : tier === "general" ? ["access:general"] : [])],
           activityTitle: already ? `Re-registered for webinar "${funnel.title}"` : `Registered for webinar "${funnel.title}"`,
           activityBody: `Scheduled for ${funnel.scheduledAt.toISOString()}`,
           context: { webinarId: funnel.id, webinarSlug: funnel.slug, scheduledAt: funnel.scheduledAt.toISOString() },
@@ -11425,6 +11438,9 @@ Rules:
         offerText: f.offerText,
         offerPrice: f.offerPrice,
         offerExpiresAt: f.offerExpiresAt,
+        vipCheckoutUrl: f.vipCheckoutUrl,
+        vipPrice: f.vipPrice,
+        vslUrl: f.vslUrl,
         durationMinutes: f.durationMinutes ?? 60,
       });
     });

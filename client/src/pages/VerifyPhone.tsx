@@ -1,3 +1,4 @@
+import { OraviniMark } from "@/components/OraviniLogo";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Phone, Shield, ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
 const oraviniLogoPath = "/oravini-logo.png";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 export default function VerifyPhone() {
   const { user } = useAuth();
@@ -87,17 +88,17 @@ export default function VerifyPhone() {
 
   return (
     <div
-      style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}
+      style={{ minHeight: "100vh", background: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}
     >
       {/* Logo */}
-      <img src={oraviniLogoPath} alt="Oravini" style={{ height: 40, marginBottom: 36, objectFit: "contain" }} />
+      <OraviniMark size={34} />
 
       <div
         style={{
           width: "100%",
           maxWidth: 420,
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(16,24,40,0.03)",
+          border: "1px solid rgba(16,24,40,0.08)",
           borderRadius: 20,
           padding: 36,
           boxShadow: `0 0 60px ${GOLD}10`,
@@ -124,10 +125,10 @@ export default function VerifyPhone() {
               <Phone style={{ color: GOLD, width: 26, height: 26 }} />
             )}
           </div>
-          <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 800, margin: "0 0 8px", letterSpacing: -0.5 }}>
+          <h1 style={{ color: "#101828", fontSize: 22, fontWeight: 800, margin: "0 0 8px", letterSpacing: -0.5 }}>
             {step === "phone" ? "Verify your phone" : "Enter the code"}
           </h1>
-          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+          <p style={{ color: "rgba(16,24,40,0.57)", fontSize: 13, lineHeight: 1.6, margin: 0 }}>
             {step === "phone"
               ? "One phone number per account — this keeps your credits safe and stops misuse."
               : `We sent a 6-digit code to ${phone}. Enter it below to verify.`}
@@ -137,7 +138,7 @@ export default function VerifyPhone() {
         {step === "phone" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={{ display: "block", color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+              <label style={{ display: "block", color: "rgba(16,24,40,0.72)", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
                 Phone Number
               </label>
               <Input
@@ -147,9 +148,9 @@ export default function VerifyPhone() {
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "#fff",
+                  background: "rgba(16,24,40,0.04)",
+                  border: "1px solid rgba(16,24,40,0.1)",
+                  color: "#101828",
                   fontSize: 15,
                   height: 48,
                   borderRadius: 10,
@@ -157,7 +158,7 @@ export default function VerifyPhone() {
                 }}
                 onKeyDown={e => { if (e.key === "Enter" && phone.trim()) requestOtp.mutate(); }}
               />
-              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 5 }}>
+              <p style={{ color: "rgba(16,24,40,0.42)", fontSize: 11, marginTop: 5 }}>
                 Include country code, e.g. +91 for India, +1 for US
               </p>
             </div>
@@ -166,8 +167,8 @@ export default function VerifyPhone() {
               onClick={() => requestOtp.mutate()}
               disabled={!phone.trim() || requestOtp.isPending}
               style={{
-                background: `linear-gradient(135deg, ${GOLD}, #a8892d)`,
-                color: "#000",
+                background: `linear-gradient(135deg, ${GOLD}, #1d5fd6)`,
+                color: "#ffffff",
                 fontWeight: 800,
                 fontSize: 14,
                 height: 48,
@@ -210,10 +211,10 @@ export default function VerifyPhone() {
                     textAlign: "center",
                     fontSize: 22,
                     fontWeight: 800,
-                    background: digit ? `${GOLD}18` : "rgba(255,255,255,0.04)",
-                    border: digit ? `1.5px solid ${GOLD}88` : "1px solid rgba(255,255,255,0.12)",
+                    background: digit ? `${GOLD}18` : "rgba(16,24,40,0.04)",
+                    border: digit ? `1.5px solid ${GOLD}88` : "1px solid rgba(16,24,40,0.12)",
                     borderRadius: 10,
-                    color: "#fff",
+                    color: "#101828",
                     outline: "none",
                     transition: "border-color 0.15s, background 0.15s",
                   }}
@@ -226,8 +227,8 @@ export default function VerifyPhone() {
               onClick={() => verifyOtp.mutate()}
               disabled={!otpComplete || verifyOtp.isPending}
               style={{
-                background: otpComplete ? `linear-gradient(135deg, ${GOLD}, #a8892d)` : "rgba(255,255,255,0.06)",
-                color: otpComplete ? "#000" : "rgba(255,255,255,0.3)",
+                background: otpComplete ? `linear-gradient(135deg, ${GOLD}, #1d5fd6)` : "rgba(16,24,40,0.06)",
+                color: otpComplete ? "#ffffff" : "rgba(16,24,40,0.42)",
                 fontWeight: 800,
                 fontSize: 14,
                 height: 48,
@@ -251,7 +252,7 @@ export default function VerifyPhone() {
             {/* Resend */}
             <div style={{ textAlign: "center" }}>
               {countdown > 0 ? (
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                <span style={{ color: "rgba(16,24,40,0.42)", fontSize: 13 }}>
                   Resend in {countdown}s
                 </span>
               ) : (
@@ -264,11 +265,11 @@ export default function VerifyPhone() {
                   Resend OTP
                 </button>
               )}
-              <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 13, margin: "0 8px" }}>·</span>
+              <span style={{ color: "rgba(16,24,40,0.2)", fontSize: 13, margin: "0 8px" }}>·</span>
               <button
                 data-testid="button-change-phone"
                 onClick={() => setStep("phone")}
-                style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, background: "none", border: "none", cursor: "pointer" }}
+                style={{ color: "rgba(16,24,40,0.52)", fontSize: 13, background: "none", border: "none", cursor: "pointer" }}
               >
                 Change number
               </button>
@@ -281,8 +282,8 @@ export default function VerifyPhone() {
           style={{
             marginTop: 24,
             padding: "10px 14px",
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(16,24,40,0.02)",
+            border: "1px solid rgba(16,24,40,0.06)",
             borderRadius: 10,
             display: "flex",
             alignItems: "center",
@@ -290,7 +291,7 @@ export default function VerifyPhone() {
           }}
         >
           <Shield style={{ color: GOLD, width: 14, height: 14, flexShrink: 0 }} />
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, lineHeight: 1.5, margin: 0 }}>
+          <p style={{ color: "rgba(16,24,40,0.42)", fontSize: 11, lineHeight: 1.5, margin: 0 }}>
             Your number is used for security only — never shared or used for marketing.
           </p>
         </div>

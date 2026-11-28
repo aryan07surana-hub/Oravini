@@ -1,3 +1,4 @@
+import { OraviniMark } from "@/components/OraviniLogo";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -12,8 +13,8 @@ import {
   Plus, TrendingDown, Video
 } from "lucide-react";
 
-const GOLD = "#d4b461";
-const GOLD_BRIGHT = "#f0c84b";
+const GOLD = "#2e78ef";
+const GOLD_BRIGHT = "#5b9bf5";
 
 /* ── Sidebar nav (exact match to real dashboard) ───────────── */
 const SIDEBAR_ITEMS = [
@@ -40,8 +41,8 @@ function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string
   return (
     <div style={{ marginBottom: 24 }}>
       <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase", color: GOLD, margin: "0 0 6px" }}>{eyebrow}</p>
-      <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.02em" }}>{title}</h1>
-      {sub && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", margin: 0 }}>{sub}</p>}
+      <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#101828", margin: "0 0 4px", letterSpacing: "-0.02em" }}>{title}</h1>
+      {sub && <p style={{ fontSize: 13, color: "rgba(16,24,40,0.68)", margin: 0 }}>{sub}</p>}
     </div>
   );
 }
@@ -50,9 +51,9 @@ function StatCard({ label, value, sub, color, icon: Icon }: { label: string; val
   return (
     <div style={{ background: `${color}0d`, border: `1px solid ${color}22`, borderRadius: 14, padding: "16px" }}>
       {Icon && <Icon style={{ width: 15, height: 15, color, marginBottom: 10 }} />}
-      <p style={{ fontSize: 26, fontWeight: 900, color: "#fff", margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0 }}>{label}</p>
-      {sub && <p style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", margin: "3px 0 0" }}>{sub}</p>}
+      <p style={{ fontSize: 26, fontWeight: 900, color: "#101828", margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(16,24,40,0.80)", margin: 0 }}>{label}</p>
+      {sub && <p style={{ fontSize: 10, color: "rgba(16,24,40,0.58)", margin: "3px 0 0" }}>{sub}</p>}
     </div>
   );
 }
@@ -61,10 +62,10 @@ function LockedCTA({ nav }: { nav: (p: string) => void }) {
   return (
     <div style={{ background: `linear-gradient(135deg,${GOLD}0a 0%,transparent 100%)`, border: `1px solid ${GOLD}20`, borderRadius: 16, padding: "22px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 24 }}>
       <div>
-        <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>Want to use this for real?</p>
-        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", margin: 0 }}>Create a free account — no credit card needed.</p>
+        <p style={{ fontSize: 14, fontWeight: 800, color: "#101828", margin: "0 0 4px" }}>Want to use this for real?</p>
+        <p style={{ fontSize: 12, color: "rgba(16,24,40,0.68)", margin: 0 }}>Create a free account — no credit card needed.</p>
       </div>
-      <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color: "#000", fontWeight: 800, fontSize: 13, border: "none", borderRadius: 10, padding: "11px 24px", cursor: "pointer", whiteSpace: "nowrap" }}>
+      <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color:"#fff", fontWeight: 800, fontSize: 13, border: "none", borderRadius: 10, padding: "11px 24px", cursor: "pointer", whiteSpace: "nowrap" }}>
         Start for Free →
       </button>
     </div>
@@ -74,7 +75,7 @@ function LockedCTA({ nav }: { nav: (p: string) => void }) {
 function LockBtn({ label, lockAction, icon: Icon, style: extraStyle }: { label: string; lockAction: () => void; icon?: any; style?: React.CSSProperties }) {
   return (
     <button onClick={lockAction} title="Create an account to use this"
-      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, padding: "7px 14px", borderRadius: 8, background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer", fontWeight: 600, ...extraStyle }}>
+      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, padding: "7px 14px", borderRadius: 8, background: "rgba(46,120,239,0.070)", color: "rgba(16,24,40,0.60)", border: "1px solid rgba(16,24,40,0.09)", cursor: "pointer", fontWeight: 600, ...extraStyle }}>
       <Lock style={{ width: 10, height: 10 }} />
       {Icon && <Icon style={{ width: 11, height: 11 }} />}
       {label}
@@ -94,36 +95,36 @@ function DashboardView({ nav, lockAction }: { nav: (p: string) => void; lockActi
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}>Mission Briefing</span>
-            <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}30` }}>Tier 5 · Elite</span>
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(16,24,40,0.75)" }}>Mission Briefing</span>
+            <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}30` }}>Pro</span>
           </div>
-          <h1 style={{ fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 900, color: "#fff", margin: "0 0 5px", letterSpacing: "-0.025em" }}>Your Mission Control</h1>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>Current phase: <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 600 }}>Contract & Onboarding</span></p>
+          <h1 style={{ fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 900, color: "#101828", margin: "0 0 5px", letterSpacing: "-0.025em" }}>Your Mission Control</h1>
+          <p style={{ fontSize: 13, color: "rgba(16,24,40,0.70)", margin: 0 }}>Current phase: <span style={{ color: "rgba(16,24,40,0.95)", fontWeight: 600 }}>Contract & Onboarding</span></p>
         </div>
         <LockBtn label="Book a Call" lockAction={lockAction} icon={CalendarPlus}
           style={{ padding: "10px 20px", borderRadius: 12, fontSize: 13, background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}35` }} />
       </div>
 
       {/* Mission Progress card */}
-      <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.025)", marginBottom: 16, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ borderRadius: 16, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.035)", marginBottom: 16, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid rgba(16,24,40,0.07)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)" }}>Mission Progress</span>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)" }}>Mission Progress</span>
             <span style={{ fontSize: 12, fontWeight: 900, color: GOLD }}>2%</span>
           </div>
-          <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+          <div style={{ height: 6, borderRadius: 999, background: "rgba(46,120,239,0.084)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: "2%", background: GOLD, borderRadius: 999 }} />
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr" }}>
           {[
-            { label: "Next Action", value: "Submit your onboarding answers and upload your core assets.", isText: true, color: "rgba(255,255,255,0.6)" },
+            { label: "Next Action", value: "Submit your onboarding answers and upload your core assets.", isText: true, color: "rgba(16,24,40,0.90)" },
             { label: "Pending Tasks", value: "0", isText: false, color: "#a78bfa" },
             { label: "Awaiting Review", value: "9", isText: false, color: "#60a5fa" },
             { label: "Blockers", value: "0", isText: false, color: "#34d399" },
           ].map(({ label, value, isText, color }, i) => (
-            <div key={label} style={{ padding: "14px 18px", borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              <p style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", margin: "0 0 6px" }}>{label}</p>
+            <div key={label} style={{ padding: "14px 18px", borderLeft: i > 0 ? "1px solid rgba(16,24,40,0.07)" : "none", borderTop: "1px solid rgba(16,24,40,0.07)" }}>
+              <p style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(16,24,40,0.55)", margin: "0 0 6px" }}>{label}</p>
               {isText
                 ? <p style={{ fontSize: 11.5, color, margin: 0, lineHeight: 1.5 }}>{value}</p>
                 : <p style={{ fontSize: 30, fontWeight: 900, color, margin: 0, lineHeight: 1 }}>{value}</p>}
@@ -137,8 +138,8 @@ function DashboardView({ nav, lockAction }: { nav: (p: string) => void; lockActi
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🗺️</div>
           <div>
-            <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 2px" }}>New here? Take the guided tour</p>
-            <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.4)", margin: 0 }}>Your AI guide walks you through every tool in 3 minutes.</p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: "#101828", margin: "0 0 2px" }}>New here? Take the guided tour</p>
+            <p style={{ fontSize: 11.5, color: "rgba(16,24,40,0.70)", margin: 0 }}>Your AI guide walks you through every tool in 3 minutes.</p>
           </div>
         </div>
         <LockBtn label="Take a Tour" lockAction={lockAction} style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)", whiteSpace: "nowrap" }} />
@@ -146,76 +147,76 @@ function DashboardView({ nav, lockAction }: { nav: (p: string) => void; lockActi
 
       {/* Income Goal + Daily Quote */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
-          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 12px" }}>Income Goal</p>
-          <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: "0 0 4px", lineHeight: 1 }}>$100</p>
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", margin: 0 }}>in 6 months</p>
+        <div style={{ borderRadius: 14, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.035)", padding: "18px" }}>
+          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)", margin: "0 0 12px" }}>Income Goal</p>
+          <p style={{ fontSize: 36, fontWeight: 900, color: "#101828", margin: "0 0 4px", lineHeight: 1 }}>$100</p>
+          <p style={{ fontSize: 12, color: "rgba(16,24,40,0.65)", margin: 0 }}>in 6 months</p>
           <div style={{ marginTop: 14, display: "flex", gap: 7 }}>
             <LockBtn label="Edit" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 10px" }} />
           </div>
         </div>
-        <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
-          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 16px" }}>Daily Quote</p>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.75)", margin: "0 0 10px", lineHeight: 1.6, fontStyle: "italic" }}>"Act as if what you do makes a difference. It does."</p>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: 0 }}>July 13, 2026</p>
+        <div style={{ borderRadius: 14, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.035)", padding: "18px" }}>
+          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)", margin: "0 0 16px" }}>Daily Quote</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "rgba(16,24,40,0.95)", margin: "0 0 10px", lineHeight: 1.6, fontStyle: "italic" }}>"Act as if what you do makes a difference. It does."</p>
+          <p style={{ fontSize: 11, color: "rgba(16,24,40,0.55)", margin: 0 }}>July 13, 2026</p>
         </div>
       </div>
 
       {/* World Time */}
-      <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: "16px 20px", marginBottom: 16 }}>
-        <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ borderRadius: 14, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.028)", padding: "16px 20px", marginBottom: 16 }}>
+        <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)", margin: "0 0 14px", display: "flex", alignItems: "center", gap: 6 }}>
           <Globe style={{ width: 11, height: 11 }} /> World Time
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
           {[
-            { label: "Your Time", flag: null, time: "07:18:28 PM", day: "Mon, Jul 13", color: "#fff" },
-            { label: "Dubai",     flag: "🇦🇪",  time: "05:48:28 PM", day: "Mon, Jul 13", color: "#fff" },
-            { label: "London",    flag: "🇬🇧",  time: "02:48:28 PM", day: "Mon, Jul 13", color: "#fff" },
+            { label: "Your Time", flag: null, time: "07:18:28 PM", day: "Mon, Jul 13", color: "#101828" },
+            { label: "Dubai",     flag: "🇦🇪",  time: "05:48:28 PM", day: "Mon, Jul 13", color: "#101828" },
+            { label: "London",    flag: "🇬🇧",  time: "02:48:28 PM", day: "Mon, Jul 13", color: "#101828" },
           ].map(({ label, flag, time, day }) => (
-            <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: "14px", textAlign: "center" }}>
-              <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", margin: "0 0 8px", fontWeight: 600 }}>{flag ? `${flag} ` : ""}{label.toUpperCase()}</p>
-              <p style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: "0 0 3px", letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums" }}>{time}</p>
-              <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{day}</p>
+            <div key={label} style={{ background: "rgba(46,120,239,0.042)", borderRadius: 12, padding: "14px", textAlign: "center" }}>
+              <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.70)", margin: "0 0 8px", fontWeight: 600 }}>{flag ? `${flag} ` : ""}{label.toUpperCase()}</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: "#101828", margin: "0 0 3px", letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums" }}>{time}</p>
+              <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.60)", margin: 0 }}>{day}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Creator Score */}
-      <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.025)", padding: "18px 20px", marginBottom: 16 }}>
+      <div style={{ borderRadius: 14, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.035)", padding: "18px 20px", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(52,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🌱</div>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 4px" }}>Creator Score</p>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)", margin: "0 0 4px" }}>Creator Score</p>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <span style={{ fontSize: 34, fontWeight: 900, color: "#fff", lineHeight: 1 }}>30</span>
+                <span style={{ fontSize: 34, fontWeight: 900, color: "#101828", lineHeight: 1 }}>30</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Just Starting</span>
               </div>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "3px 0 0" }}>Every legend starts somewhere. Let's go!</p>
+              <p style={{ fontSize: 11, color: "rgba(16,24,40,0.65)", margin: "3px 0 0" }}>Every legend starts somewhere. Let's go!</p>
             </div>
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", margin: "0 0 5px" }}>Next: 🚀 Rising Creator</p>
-            <div style={{ width: 120, height: 5, borderRadius: 999, background: "rgba(255,255,255,0.06)" }}>
+            <p style={{ fontSize: 10, color: "rgba(16,24,40,0.60)", margin: "0 0 5px" }}>Next: Rising Creator</p>
+            <div style={{ width: 120, height: 5, borderRadius: 999, background: "rgba(46,120,239,0.084)" }}>
               <div style={{ width: "30%", height: "100%", borderRadius: 999, background: "#34d399" }} />
             </div>
-            <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.25)", margin: "4px 0 0" }}>30 pts to go</p>
+            <p style={{ fontSize: 9.5, color: "rgba(16,24,40,0.55)", margin: "4px 0 0" }}>30 pts to go</p>
           </div>
         </div>
       </div>
 
       {/* Since Joining */}
-      <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: "16px 20px" }}>
+      <div style={{ borderRadius: 14, border: "1px solid rgba(16,24,40,0.08)", background: "rgba(46,120,239,0.028)", padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${GOLD}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🚀</div>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${GOLD}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}></div>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 2px" }}>Since Joining Oravini</p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>Member since Apr 21, 2026 · 83d ago</p>
+              <p style={{ fontSize: 13, fontWeight: 800, color: "#101828", margin: "0 0 2px" }}>Since Joining Oravini</p>
+              <p style={{ fontSize: 11, color: "rgba(16,24,40,0.65)", margin: 0 }}>Member since Apr 21, 2026 · 83d ago</p>
             </div>
           </div>
-          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "4px 12px", borderRadius: 999, background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}28` }}>Tier 5 · Elite</span>
+          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "4px 12px", borderRadius: 999, background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}28` }}>Pro</span>
         </div>
       </div>
 
@@ -230,8 +231,8 @@ function DocumentsView({ nav, lockAction }: { nav: (p: string) => void; lockActi
     { name: "Brand Strategy Guide",        updated: "2 days ago",  icon: "📋", color: GOLD },
     { name: "Content SOP v3",              updated: "5 days ago",  icon: "📝", color: "#60a5fa" },
     { name: "Client Onboarding Checklist", updated: "1 week ago",  icon: "✅", color: "#34d399" },
-    { name: "Launch Plan Q3",              updated: "2 weeks ago", icon: "🚀", color: "#a78bfa" },
-    { name: "ICP Document",                updated: "3 weeks ago", icon: "🎯", color: "#f472b6" },
+    { name: "Launch Plan Q3",              updated: "2 weeks ago", icon: "", color: "#a78bfa" },
+    { name: "ICP Document",                updated: "3 weeks ago", icon: "", color: "#f472b6" },
   ];
   return (
     <>
@@ -240,15 +241,15 @@ function DocumentsView({ nav, lockAction }: { nav: (p: string) => void; lockActi
         <LockBtn label="+ New Doc" lockAction={lockAction} style={{ marginTop: -24 }} />
       </div>
       {docs.map(d => (
-        <div key={d.name} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 10, cursor: "pointer" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.025)")}>
+        <div key={d.name} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 13, border: "1px solid rgba(16,24,40,0.07)", background: "rgba(46,120,239,0.035)", marginBottom: 10, cursor: "pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(16,24,40,0.24)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "rgba(16,24,40,0.23)")}>
           <span style={{ fontSize: 22 }}>{d.icon}</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13.5, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{d.name}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>Updated {d.updated}</p>
+            <p style={{ fontSize: 13.5, fontWeight: 700, color: "#101828", margin: "0 0 2px" }}>{d.name}</p>
+            <p style={{ fontSize: 11, color: "rgba(16,24,40,0.65)", margin: 0 }}>Updated {d.updated}</p>
           </div>
-          <Lock style={{ width: 12, height: 12, color: "rgba(255,255,255,0.2)" }} />
+          <Lock style={{ width: 12, height: 12, color: "rgba(16,24,40,0.50)" }} />
         </div>
       ))}
       <LockedCTA nav={nav} />
@@ -269,8 +270,8 @@ function TrackingView({ nav, lockAction }: { nav: (p: string) => void; lockActio
           { label: "Link Clicks",     value: "4,812", sub: "last 30 days",     color: "#a78bfa", icon: ArrowRight },
         ].map(s => <StatCard key={s.label} {...s} />)}
       </div>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 16px" }}>30-Day Follower Growth</p>
+      <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(16,24,40,0.65)", margin: "0 0 16px" }}>30-Day Follower Growth</p>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80 }}>
           {[38,52,45,71,63,88,74,95,82,66,79,90,85,92,88].map((v, i) => (
             <div key={i} style={{ flex: 1, borderRadius: 4, background: i === 14 ? GOLD : `${GOLD}35`, height: `${v}%`, boxShadow: i === 14 ? `0 0 10px ${GOLD}50` : "none" }} />
@@ -285,8 +286,8 @@ function TrackingView({ nav, lockAction }: { nav: (p: string) => void; lockActio
         ].map(({ p, i, f, g, c }) => (
           <div key={p} style={{ background: `${c}09`, border: `1px solid ${c}20`, borderRadius: 14, padding: "14px" }}>
             <p style={{ fontSize: 18, margin: "0 0 6px" }}>{i}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "0 0 3px" }}>{p}</p>
-            <p style={{ fontSize: 20, fontWeight: 900, color: "#fff", margin: "0 0 2px", lineHeight: 1 }}>{f}</p>
+            <p style={{ fontSize: 11, color: "rgba(16,24,40,0.75)", margin: "0 0 3px" }}>{p}</p>
+            <p style={{ fontSize: 20, fontWeight: 900, color: "#101828", margin: "0 0 2px", lineHeight: 1 }}>{f}</p>
             <p style={{ fontSize: 11, color: "#34d399", fontWeight: 700, margin: 0 }}>{g}</p>
           </div>
         ))}
@@ -309,21 +310,21 @@ function CompetitorView({ nav, lockAction }: { nav: (p: string) => void; lockAct
         { h: "@alexhormozi", f: "4.7M",  eng: "7.2%", pattern: "Long-form value, contrarian takes, proof",     c: "#34d399"},
         { h: "@mrbeast",     f: "42M",   eng: "12.1%",pattern: "Extreme challenges, giveaways, high-production",c: "#60a5fa"},
       ].map(({ h, f, eng, pattern, c }) => (
-        <div key={h} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px", marginBottom: 14 }}>
+        <div key={h} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "18px", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ width: 42, height: 42, borderRadius: "50%", background: `${c}18`, border: `1px solid ${c}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🕵️</div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 14, fontWeight: 900, color: "#fff", margin: "0 0 2px" }}>{h}</p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", margin: 0 }}>{f} followers</p>
+              <p style={{ fontSize: 14, fontWeight: 900, color: "#101828", margin: "0 0 2px" }}>{h}</p>
+              <p style={{ fontSize: 11, color: "rgba(16,24,40,0.68)", margin: 0 }}>{f} followers</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <p style={{ fontSize: 20, fontWeight: 900, color: c, margin: 0 }}>{eng}</p>
-              <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>engagement</p>
+              <p style={{ fontSize: 9.5, color: "rgba(16,24,40,0.60)", margin: 0 }}>engagement</p>
             </div>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.12em" }}>Top content pattern</p>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", margin: 0 }}>{pattern}</p>
+          <div style={{ background: "rgba(46,120,239,0.042)", borderRadius: 10, padding: "10px 12px" }}>
+            <p style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(16,24,40,0.60)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.12em" }}>Top content pattern</p>
+            <p style={{ fontSize: 12, color: "rgba(16,24,40,0.90)", margin: 0 }}>{pattern}</p>
           </div>
         </div>
       ))}
@@ -351,15 +352,15 @@ function ContentIdeasView({ nav, lockAction }: { nav: (p: string) => void; lockA
         <LockBtn label="Generate Ideas" lockAction={lockAction} icon={Sparkles} style={{ marginTop: -24, padding: "10px 18px", fontSize: 12 }} />
       </div>
       {ideas.map((idea, i) => (
-        <div key={i} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
+        <div key={i} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 32, height: 32, borderRadius: 10, background: `${GOLD}14`, border: `1px solid ${GOLD}25`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: GOLD, fontSize: 14, flexShrink: 0 }}>{i + 1}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 4px", lineHeight: 1.4 }}>{idea.hook}</p>
-            <span style={{ fontSize: 9.5, padding: "2px 8px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>{idea.type}</span>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: "0 0 4px", lineHeight: 1.4 }}>{idea.hook}</p>
+            <span style={{ fontSize: 9.5, padding: "2px 8px", borderRadius: 999, background: "rgba(46,120,239,0.084)", color: "rgba(16,24,40,0.70)", fontWeight: 600 }}>{idea.type}</span>
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <p style={{ fontSize: 18, fontWeight: 900, color: idea.viral >= 9.3 ? "#34d399" : GOLD, margin: 0 }}>{idea.viral}</p>
-            <p style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", margin: 0 }}>viral score</p>
+            <p style={{ fontSize: 9, color: "rgba(16,24,40,0.60)", margin: 0 }}>viral score</p>
           </div>
         </div>
       ))}
@@ -372,7 +373,7 @@ function ContentIdeasView({ nav, lockAction }: { nav: (p: string) => void; lockA
 function DesignStudioView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
   const templates = [
     { name: "Carousel Template",    type: "Carousel · 10 slides", color: "#f472b6", emoji: "🎨" },
-    { name: "Quote Graphic",        type: "Static · 1080×1080",  color: GOLD,      emoji: "✨" },
+    { name: "Quote Graphic",        type: "Static · 1080×1080",  color: GOLD,      emoji: "" },
     { name: "Story Template",       type: "Story · 1080×1920",   color: "#60a5fa", emoji: "📱" },
     { name: "YouTube Thumbnail",    type: "Thumbnail · 1280×720", color: "#f87171", emoji: "🎬" },
     { name: "LinkedIn Banner",      type: "Banner · 1584×396",   color: "#60a5fa", emoji: "💼" },
@@ -390,8 +391,8 @@ function DesignStudioView({ nav, lockAction }: { nav: (p: string) => void; lockA
             onMouseEnter={e => (e.currentTarget.style.background = `${t.color}18`)}
             onMouseLeave={e => (e.currentTarget.style.background = `${t.color}0a`)}>
             <p style={{ fontSize: 28, margin: "0 0 10px" }}>{t.emoji}</p>
-            <p style={{ fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{t.name}</p>
-            <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", margin: "0 0 10px" }}>{t.type}</p>
+            <p style={{ fontSize: 12.5, fontWeight: 800, color: "#101828", margin: "0 0 4px" }}>{t.name}</p>
+            <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.68)", margin: "0 0 10px" }}>{t.type}</p>
             <span style={{ fontSize: 9.5, color: t.color, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Lock style={{ width: 9, height: 9 }} /> Unlock to use</span>
           </div>
         ))}
@@ -420,18 +421,18 @@ function ContentAnalyserView({ nav, lockAction }: { nav: (p: string) => void; lo
         ].map(s => <StatCard key={s.label} {...s} />)}
       </div>
       {posts.map(p => (
-        <div key={p.title} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
+        <div key={p.title} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 5px" }}>{p.title}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: "0 0 5px" }}>{p.title}</p>
             <div style={{ display: "flex", gap: 14 }}>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>👁 {p.views}</span>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>💬 {p.eng}</span>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>📡 {p.reach}</span>
+              <span style={{ fontSize: 11, color: "rgba(16,24,40,0.65)" }}>👁 {p.views}</span>
+              <span style={{ fontSize: 11, color: "rgba(16,24,40,0.65)" }}>💬 {p.eng}</span>
+              <span style={{ fontSize: 11, color: "rgba(16,24,40,0.65)" }}>📡 {p.reach}</span>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ fontSize: 22, fontWeight: 900, color: p.color, margin: 0 }}>{p.score}</p>
-            <p style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", margin: 0 }}>content score</p>
+            <p style={{ fontSize: 9, color: "rgba(16,24,40,0.60)", margin: 0 }}>content score</p>
           </div>
         </div>
       ))}
@@ -445,23 +446,23 @@ function VideoEditorView({ nav, lockAction }: { nav: (p: string) => void; lockAc
   return (
     <>
       <SectionHeader eyebrow="AI · Video" title="Video Editor" sub="AI-powered editing — captions, cuts, hooks and highlights" />
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "32px", textAlign: "center", marginBottom: 18 }}>
+      <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.08)", borderRadius: 16, padding: "32px", textAlign: "center", marginBottom: 18 }}>
         <p style={{ fontSize: 36, margin: "0 0 14px" }}>🎬</p>
-        <p style={{ fontSize: 15, fontWeight: 800, color: "#fff", margin: "0 0 8px" }}>AI Video Editor</p>
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 20px", lineHeight: 1.7 }}>Upload a raw video — AI adds captions, cuts filler words, adds B-roll cues and creates a hook-first edit automatically.</p>
+        <p style={{ fontSize: 15, fontWeight: 800, color: "#101828", margin: "0 0 8px" }}>AI Video Editor</p>
+        <p style={{ fontSize: 13, color: "rgba(16,24,40,0.70)", margin: "0 0 20px", lineHeight: 1.7 }}>Upload a raw video — AI adds captions, cuts filler words, adds B-roll cues and creates a hook-first edit automatically.</p>
         <LockBtn label="Upload Video to Edit" lockAction={lockAction} style={{ margin: "0 auto", padding: "11px 24px", fontSize: 13 }} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {[
           { emoji: "✂️", label: "Auto-cut filler words",  desc: "Removes ums, ahs and silence",         color: "#f472b6" },
           { emoji: "💬", label: "Auto-captions",          desc: "Accurate captions in 30+ languages",   color: "#60a5fa" },
-          { emoji: "🎯", label: "Hook detector",          desc: "Finds your strongest 3-second hook",   color: GOLD },
+          { emoji: "", label: "Hook detector",          desc: "Finds your strongest 3-second hook",   color: GOLD },
           { emoji: "🎞️", label: "B-roll suggestions",    desc: "AI suggests b-roll at key moments",    color: "#34d399" },
         ].map(f => (
           <div key={f.label} style={{ background: `${f.color}09`, border: `1px solid ${f.color}20`, borderRadius: 13, padding: "16px" }}>
             <p style={{ fontSize: 22, margin: "0 0 8px" }}>{f.emoji}</p>
-            <p style={{ fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{f.label}</p>
-            <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.38)", margin: 0 }}>{f.desc}</p>
+            <p style={{ fontSize: 12.5, fontWeight: 800, color: "#101828", margin: "0 0 4px" }}>{f.label}</p>
+            <p style={{ fontSize: 11.5, color: "rgba(16,24,40,0.68)", margin: 0 }}>{f.desc}</p>
           </div>
         ))}
       </div>
@@ -487,17 +488,17 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
         <div>
           <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase", color: GOLD, margin: "0 0 5px" }}>Video Marketing</p>
-          <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", margin: "0 0 3px", letterSpacing: "-0.02em" }}>Video Marketing Hub</h1>
-          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>Webinar Studio · Video Hosting · VSL Pages · Live Analytics</p>
+          <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#101828", margin: "0 0 3px", letterSpacing: "-0.02em" }}>Video Marketing Hub</h1>
+          <p style={{ fontSize: 12.5, color: "rgba(16,24,40,0.65)", margin: 0 }}>Webinar Studio · Video Hosting · VSL Pages · Live Analytics</p>
         </div>
         <LockBtn label="+ New Webinar" lockAction={lockAction} icon={Video} />
       </div>
 
       {/* Sub-tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)", paddingBottom: 0 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(16,24,40,0.07)", paddingBottom: 0 }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1, transition: "all 0.15s" }}>
+            style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(16,24,40,0.70)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1, transition: "all 0.15s" }}>
             {t.label}
           </button>
         ))}
@@ -526,8 +527,8 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
                 onMouseEnter={e => (e.currentTarget.style.background = `${c.color}16`)}
                 onMouseLeave={e => (e.currentTarget.style.background = `${c.color}09`)}>
                 <p style={{ fontSize: 24, margin: "0 0 10px" }}>{c.icon}</p>
-                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{c.label}</p>
-                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.38)", margin: 0 }}>{c.desc}</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: "#101828", margin: "0 0 4px" }}>{c.label}</p>
+                <p style={{ fontSize: 11.5, color: "rgba(16,24,40,0.68)", margin: 0 }}>{c.desc}</p>
                 <p style={{ fontSize: 11, color: c.color, margin: "10px 0 0", fontWeight: 600 }}>Open →</p>
               </div>
             ))}
@@ -543,20 +544,20 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 8px #ef4444", animation: "pulse 1.5s infinite", flexShrink: 0 }} />
               <div>
-                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 2px" }}>LIVE NOW: How to Build a 6-Figure Personal Brand</p>
-                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", margin: 0 }}>Started 42 min ago · 247 attendees watching</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: "#101828", margin: "0 0 2px" }}>LIVE NOW: How to Build a 6-Figure Personal Brand</p>
+                <p style={{ fontSize: 11.5, color: "rgba(16,24,40,0.75)", margin: 0 }}>Started 42 min ago · 247 attendees watching</p>
               </div>
             </div>
             <LockBtn label="Join Room" lockAction={lockAction} style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }} />
           </div>
 
           {/* Webinar room preview */}
-          <div style={{ background: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ background: "#ffffff", border: "1px solid rgba(16,24,40,0.10)", borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
             {/* Room header */}
-            <div style={{ padding: "12px 18px", background: "#0d0d0f", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "12px 18px", background: "#ffffff", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 6px #ef4444" }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Webinar Room · Live</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#101828" }}>Webinar Room · Live</span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {["🎙 Muted","📷 Camera Off","🖥 Share Screen"].map(btn => (
@@ -566,24 +567,24 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             </div>
             {/* Main stage */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 280px" }}>
-              <div style={{ background: "#0a0a0a", minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "1px solid rgba(255,255,255,0.06)", padding: 24, gap: 12 }}>
+              <div style={{ background: "#f5f8fd", minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "1px solid rgba(16,24,40,0.07)", padding: 24, gap: 12 }}>
                 <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${GOLD}20`, border: `2px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>👤</div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0 }}>Host · Presenting</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: 0 }}>Host · Presenting</p>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
                   {["🎙 Speaking","📊 Slides on","🔴 Recording"].map(tag => (
-                    <span key={tag} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>{tag}</span>
+                    <span key={tag} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(46,120,239,0.084)", color: "rgba(16,24,40,0.80)" }}>{tag}</span>
                   ))}
                 </div>
               </div>
               {/* Chat panel */}
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>Live Chat</span>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(16,24,40,0.80)" }}>Live Chat</span>
                   <span style={{ fontSize: 10, color: GOLD, fontWeight: 700 }}>247 live</span>
                 </div>
                 <div style={{ flex: 1, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, overflowY: "auto" }}>
                   {[
-                    { n: "Sarah K.", m: "This is gold 🔥", c: GOLD },
+                    { n: "Sarah K.", m: "This is gold", c: GOLD },
                     { n: "Marcus T.", m: "How do I get the slides?", c: "#60a5fa" },
                     { n: "Priya S.", m: "Already booked my call!", c: "#34d399" },
                     { n: "Jake R.", m: "Mind blown 🤯", c: "#a78bfa" },
@@ -591,26 +592,26 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
                   ].map(({ n, m, c }) => (
                     <div key={n}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: c }}>{n}: </span>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>{m}</span>
+                      <span style={{ fontSize: 11, color: "rgba(16,24,40,0.85)" }}>{m}</span>
                     </div>
                   ))}
                 </div>
-                <div style={{ padding: "8px 10px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ padding: "8px 10px", borderTop: "1px solid rgba(16,24,40,0.07)" }}>
                   <LockBtn label="Type a message..." lockAction={lockAction} style={{ width: "100%", justifyContent: "flex-start", fontSize: 11 }} />
                 </div>
               </div>
             </div>
             {/* Room footer stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderTop: "1px solid rgba(16,24,40,0.07)" }}>
               {[
                 { label: "Attendees", value: "247", color: "#34d399" },
                 { label: "Registrants", value: "312", color: "#60a5fa" },
                 { label: "Q&A Queue", value: "18", color: GOLD },
                 { label: "Duration", value: "42:18", color: "#a78bfa" },
               ].map(({ label, value, color }, i) => (
-                <div key={label} style={{ padding: "12px 16px", borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", textAlign: "center" }}>
+                <div key={label} style={{ padding: "12px 16px", borderLeft: i > 0 ? "1px solid rgba(16,24,40,0.07)" : "none", textAlign: "center" }}>
                   <p style={{ fontSize: 18, fontWeight: 900, color, margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
-                  <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 9.5, color: "rgba(16,24,40,0.60)", margin: 0 }}>{label}</p>
                 </div>
               ))}
             </div>
@@ -618,39 +619,39 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
 
           {/* Upcoming + recordings */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: 0 }}>Upcoming</p>
+            <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", justifyContent: "space-between" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#101828", margin: 0 }}>Upcoming</p>
                 <LockBtn label="+ Schedule" lockAction={lockAction} style={{ fontSize: 10, padding: "3px 10px" }} />
               </div>
               {[
                 { title: "Content Monetisation 2026", date: "Jul 21 · 7PM", regs: 189 },
                 { title: "Build Your First Funnel",   date: "Jul 28 · 6PM", regs: 94  },
               ].map(w => (
-                <div key={w.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div key={w.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{w.title}</p>
-                    <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>{w.date} · {w.regs} registered</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#101828", margin: "0 0 2px" }}>{w.title}</p>
+                    <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.65)", margin: 0 }}>{w.date} · {w.regs} registered</p>
                   </div>
                   <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: "rgba(96,165,250,0.12)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.25)", fontWeight: 700 }}>Upcoming</span>
                 </div>
               ))}
             </div>
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: 0 }}>Recordings</p>
+            <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(16,24,40,0.07)" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#101828", margin: 0 }}>Recordings</p>
               </div>
               {[
                 { title: "Content Strategy Masterclass",    views: "1,247", dur: "1h 12m" },
                 { title: "Monetise Your Audience in 90 Days",views: "891",  dur: "58m" },
               ].map(r => (
-                <div key={r.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div key={r.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
                   <div onClick={lockAction} style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(52,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                     <Play style={{ width: 13, height: 13, color: "#34d399" }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{r.title}</p>
-                    <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>{r.views} views · {r.dur}</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#101828", margin: "0 0 2px" }}>{r.title}</p>
+                    <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.65)", margin: 0 }}>{r.views} views · {r.dur}</p>
                   </div>
                 </div>
               ))}
@@ -670,7 +671,7 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             ].map(s => <StatCard key={s.label} {...s} />)}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", margin: 0 }}>All Videos</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(16,24,40,0.80)", margin: 0 }}>All Videos</p>
             <div style={{ display: "flex", gap: 8 }}>
               <LockBtn label="Upload Video" lockAction={lockAction} style={{ padding: "7px 14px" }} />
             </div>
@@ -684,18 +685,18 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
               { title: "Free Training Day 1",         dur: "47m 22s", views: "6,331", thumb: "#f472b6", privacy: "Unlisted" },
               { title: "Brand Kit Walkthrough",       dur: "11m 8s",  views: "2,198", thumb: "#fb923c", privacy: "Public" },
             ].map(v => (
-              <div key={v.title} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden" }}>
+              <div key={v.title} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 13, overflow: "hidden" }}>
                 <div onClick={lockAction} style={{ height: 100, background: `linear-gradient(135deg,${v.thumb}25 0%,${v.thumb}08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.15)" }}>
-                    <Play style={{ width: 16, height: 16, color: "#fff", marginLeft: 2 }} />
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(16,24,40,0.15)" }}>
+                    <Play style={{ width: 16, height: 16, color: "#101828", marginLeft: 2 }} />
                   </div>
-                  <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, background: "rgba(0,0,0,0.7)", color: "#fff", padding: "2px 7px", borderRadius: 5, fontWeight: 600 }}>{v.dur}</span>
+                  <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, background: "rgba(0,0,0,0.7)", color: "#101828", padding: "2px 7px", borderRadius: 5, fontWeight: 600 }}>{v.dur}</span>
                 </div>
                 <div style={{ padding: "12px 14px" }}>
-                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{v.title}</p>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "#101828", margin: "0 0 4px" }}>{v.title}</p>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>👁 {v.views}</span>
-                    <span style={{ fontSize: 9.5, padding: "1px 7px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>{v.privacy}</span>
+                    <span style={{ fontSize: 10.5, color: "rgba(16,24,40,0.65)" }}>👁 {v.views}</span>
+                    <span style={{ fontSize: 9.5, padding: "1px 7px", borderRadius: 999, background: "rgba(46,120,239,0.084)", color: "rgba(16,24,40,0.70)" }}>{v.privacy}</span>
                   </div>
                 </div>
               </div>
@@ -723,9 +724,9 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             { name: "Group Programme VSL",        visitors: "2,108", conv: "6.1%",  revenue: "$8.4K",  status: "Live",     color: "#34d399" },
             { name: "Discovery Call Booking",     visitors: "1,532", conv: "12.3%", revenue: "$6.2K",  status: "A/B Test", color: GOLD      },
           ].map(p => (
-            <div key={p.name} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 20px", marginBottom: 12 }}>
+            <div key={p.name} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, padding: "16px 20px", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: 0 }}>{p.name}</p>
+                <p style={{ fontSize: 14, fontWeight: 800, color: "#101828", margin: 0 }}>{p.name}</p>
                 <span style={{ fontSize: 9.5, padding: "3px 10px", borderRadius: 999, background: `${p.color}14`, color: p.color, border: `1px solid ${p.color}28`, fontWeight: 700 }}>{p.status}</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -734,9 +735,9 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
                   { label: "Conversion", value: p.conv, color: "#34d399" },
                   { label: "Revenue", value: p.revenue, color: GOLD },
                 ].map(({ label, value, color }) => (
-                  <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
+                  <div key={label} style={{ background: "rgba(46,120,239,0.042)", borderRadius: 10, padding: "10px 12px" }}>
                     <p style={{ fontSize: 16, fontWeight: 900, color, margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
-                    <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{label}</p>
+                    <p style={{ fontSize: 9.5, color: "rgba(16,24,40,0.60)", margin: 0 }}>{label}</p>
                   </div>
                 ))}
               </div>
@@ -762,23 +763,23 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             ].map(s => <StatCard key={s.label} {...s} />)}
           </div>
           {/* Attendance chart */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>Webinar Attendance Drop-Off</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 16px" }}>Last webinar · 247 peak attendees</p>
+          <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(16,24,40,0.65)", margin: "0 0 4px" }}>Webinar Attendance Drop-Off</p>
+            <p style={{ fontSize: 11, color: "rgba(16,24,40,0.55)", margin: "0 0 16px" }}>Last webinar · 247 peak attendees</p>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
               {[100,94,91,88,82,79,74,72,70,68,65,62,60,58,57,56,54,52,51,50].map((v, i) => (
                 <div key={i} style={{ flex: 1, borderRadius: "3px 3px 0 0", background: i < 10 ? `${GOLD}80` : `${GOLD}35`, height: `${v}%` }} />
               ))}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>0 min</span>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>30 min</span>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>60 min</span>
+              <span style={{ fontSize: 10, color: "rgba(16,24,40,0.55)" }}>0 min</span>
+              <span style={{ fontSize: 10, color: "rgba(16,24,40,0.55)" }}>30 min</span>
+              <span style={{ fontSize: 10, color: "rgba(16,24,40,0.55)" }}>60 min</span>
             </div>
           </div>
           {/* Conversion funnel */}
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px" }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 16px" }}>Conversion Funnel</p>
+          <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 16, padding: "18px" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(16,24,40,0.65)", margin: "0 0 16px" }}>Conversion Funnel</p>
             {[
               { stage: "Registered",    n: 2847, pct: 100, color: "#60a5fa" },
               { stage: "Showed Up",     n: 1537, pct: 54,  color: "#a78bfa" },
@@ -788,10 +789,10 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
             ].map(({ stage, n, pct, color }) => (
               <div key={stage} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>{stage}</span>
-                  <span style={{ fontSize: 12, color, fontWeight: 700 }}>{n.toLocaleString()} <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>({pct}%)</span></span>
+                  <span style={{ fontSize: 12, color: "rgba(16,24,40,0.95)", fontWeight: 500 }}>{stage}</span>
+                  <span style={{ fontSize: 12, color, fontWeight: 700 }}>{n.toLocaleString()} <span style={{ color: "rgba(16,24,40,0.60)", fontWeight: 400 }}>({pct}%)</span></span>
                 </div>
-                <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
+                <div style={{ height: 6, borderRadius: 999, background: "rgba(46,120,239,0.070)", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 999 }} />
                 </div>
               </div>
@@ -814,14 +815,14 @@ function FunnelsView({ nav, lockAction }: { nav: (p: string) => void; lockAction
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
         <div>
           <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>Funnels & Pages</p>
-          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Pages & Funnels</h1>
-          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Build · Launch · Convert</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#101828", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Pages & Funnels</h1>
+          <p style={{ fontSize:12.5, color:"rgba(16,24,40,0.55)", margin:0 }}>Build · Launch · Convert</p>
         </div>
         <LockBtn label="+ New" lockAction={lockAction} />
       </div>
-      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)", paddingBottom:0 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(16,24,40,0.27)", paddingBottom:0 }}>
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(16,24,40,0.60)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
         ))}
       </div>
 
@@ -840,11 +841,11 @@ function FunnelsView({ nav, lockAction }: { nav: (p: string) => void; lockAction
           { name:"VSL → Discovery Call",              steps:5, leads:228, conv:"11.4%", status:"Live",  color:"#34d399"},
           { name:"Free Training → Group Programme",   steps:4, leads:140, conv:"6.1%",  status:"Draft", color:"#60a5fa"},
         ].map(f=>(
-          <div key={f.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:10 }}>
+          <div key={f.name} style={{ background:"rgba(16,24,40,0.23)", border:"1px solid rgba(16,24,40,0.27)", borderRadius:14, padding:"16px 18px", marginBottom:10 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div>
-                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 3px" }}>{f.name}</p>
-                <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{f.steps} steps · {f.leads} leads</p>
+                <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 3px" }}>{f.name}</p>
+                <p style={{ fontSize:11, color:"rgba(16,24,40,0.55)", margin:0 }}>{f.steps} steps · {f.leads} leads</p>
               </div>
               <div style={{ textAlign:"right" }}>
                 <p style={{ fontSize:18, fontWeight:900, color:f.color, margin:"0 0 1px" }}>{f.conv}</p>
@@ -879,14 +880,14 @@ function FunnelsView({ nav, lockAction }: { nav: (p: string) => void; lockAction
             { name:"Discovery Call Booking",      visitors:"3,841", conv:"14.2%", color:"#34d399" },
             { name:"Group Programme Sales Page",  visitors:"2,190", conv:"6.8%",  color:"#a78bfa" },
           ].map(p=>(
-            <div key={p.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, overflow:"hidden" }}>
+            <div key={p.name} style={{ background:"rgba(16,24,40,0.23)", border:"1px solid rgba(16,24,40,0.27)", borderRadius:14, overflow:"hidden" }}>
               <div onClick={lockAction} style={{ height:80, background:`linear-gradient(135deg,${p.color}20,${p.color}06)`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
                 <span style={{ fontSize:9.5, color:p.color, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase" }}>Preview Page</span>
               </div>
               <div style={{ padding:"14px 16px" }}>
-                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 6px" }}>{p.name}</p>
+                <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 6px" }}>{p.name}</p>
                 <div style={{ display:"flex", gap:14 }}>
-                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>👁 {p.visitors}</span>
+                  <span style={{ fontSize:11, color:"rgba(16,24,40,0.55)" }}>👁 {p.visitors}</span>
                   <span style={{ fontSize:11, color:"#34d399", fontWeight:700 }}>{p.conv} conv.</span>
                 </div>
               </div>
@@ -901,14 +902,14 @@ function FunnelsView({ nav, lockAction }: { nav: (p: string) => void; lockAction
           { name:"Masterclass Registration",   responses:892, conv:"71%", color:"#60a5fa" },
           { name:"Audience Research Survey",   responses:184, conv:"28%", color:"#34d399" },
         ].map(f=>(
-          <div key={f.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
+          <div key={f.name} style={{ background:"rgba(16,24,40,0.23)", border:"1px solid rgba(16,24,40,0.27)", borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
             <div style={{ flex:1 }}>
-              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 3px" }}>{f.name}</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{f.responses} responses</p>
+              <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 3px" }}>{f.name}</p>
+              <p style={{ fontSize:11, color:"rgba(16,24,40,0.55)", margin:0 }}>{f.responses} responses</p>
             </div>
             <div style={{ textAlign:"right" }}>
               <p style={{ fontSize:18, fontWeight:900, color:f.color, margin:0 }}>{f.conv}</p>
-              <p style={{ fontSize:9.5, color:"rgba(255,255,255,0.3)", margin:0 }}>completion</p>
+              <p style={{ fontSize:9.5, color:"rgba(16,24,40,0.50)", margin:0 }}>completion</p>
             </div>
           </div>
         ))}
@@ -938,13 +939,13 @@ function DmAutomationView({ nav, lockAction }: { nav: (p: string) => void; lockA
         { trigger: "Comment: 'link in bio'",         action: "Auto-reply with funnel link",  sent: 612, color: "#34d399"},
         { trigger: "New follower (10K+)",            action: "Send welcome + value DM",      sent: 945, color: "#60a5fa"},
       ].map(f => (
-        <div key={f.trigger} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10 }}>
+        <div key={f.trigger} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <span style={{ fontSize: 9.5, padding: "2px 8px", borderRadius: 999, background: `${f.color}15`, color: f.color, fontWeight: 700, border: `1px solid ${f.color}28` }}>Trigger</span>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: 0 }}>{f.trigger}</p>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: "#101828", margin: 0 }}>{f.trigger}</p>
           </div>
-          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", margin: "0 0 8px" }}>→ {f.action}</p>
-          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{f.sent.toLocaleString()} messages sent</p>
+          <p style={{ fontSize: 11.5, color: "rgba(16,24,40,0.80)", margin: "0 0 8px" }}>→ {f.action}</p>
+          <p style={{ fontSize: 10.5, color: "rgba(16,24,40,0.60)", margin: 0 }}>{f.sent.toLocaleString()} messages sent</p>
         </div>
       ))}
       <LockedCTA nav={nav} />
@@ -976,14 +977,14 @@ function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: ()
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
         <div>
           <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>CRM & Outreach</p>
-          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>CRM</h1>
-          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Pipeline · Contacts · Deals</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#101828", margin:"0 0 3px", letterSpacing:"-0.02em" }}>CRM</h1>
+          <p style={{ fontSize:12.5, color:"rgba(16,24,40,0.55)", margin:0 }}>Pipeline · Contacts · Deals</p>
         </div>
         <LockBtn label="+ Add Contact" lockAction={lockAction} />
       </div>
-      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(16,24,40,0.27)" }}>
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(16,24,40,0.60)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
         ))}
       </div>
 
@@ -1001,21 +1002,21 @@ function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: ()
           {stages.map(s=>(
             <div key={s.name} style={{ background:`${s.color}09`, border:`1px solid ${s.color}20`, borderRadius:12, padding:"12px" }}>
               <div style={{ width:8, height:8, borderRadius:"50%", background:s.color, marginBottom:8 }} />
-              <p style={{ fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,0.45)", margin:"0 0 6px", lineHeight:1.3 }}>{s.name}</p>
-              <p style={{ fontSize:22, fontWeight:900, color:"#fff", margin:"0 0 2px", lineHeight:1 }}>{s.count}</p>
+              <p style={{ fontSize:9.5, fontWeight:700, color:"rgba(16,24,40,0.65)", margin:"0 0 6px", lineHeight:1.3 }}>{s.name}</p>
+              <p style={{ fontSize:22, fontWeight:900, color:"#101828", margin:"0 0 2px", lineHeight:1 }}>{s.count}</p>
               <p style={{ fontSize:10, color:s.color, fontWeight:700, margin:0 }}>{s.value}</p>
             </div>
           ))}
         </div>
         {contacts.slice(0,4).map(c=>(
-          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(16,24,40,0.27)", background:"rgba(16,24,40,0.23)", marginBottom:8 }}>
             <div style={{ width:34, height:34, borderRadius:"50%", background:`${c.color}20`, border:`1px solid ${c.color}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:c.color, flexShrink:0 }}>{c.name[0]}</div>
             <div style={{ flex:1 }}>
-              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{c.name}</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{c.stage} · {c.platform}</p>
+              <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 2px" }}>{c.name}</p>
+              <p style={{ fontSize:11, color:"rgba(16,24,40,0.55)", margin:0 }}>{c.stage} · {c.platform}</p>
             </div>
             <div style={{ textAlign:"right" }}>
-              <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 1px" }}>{c.value}</p>
+              <p style={{ fontSize:13, fontWeight:800, color:"#101828", margin:"0 0 1px" }}>{c.value}</p>
               <p style={{ fontSize:9, color:c.color, margin:0, fontWeight:700 }}>Score: {c.score}</p>
             </div>
           </div>
@@ -1024,18 +1025,18 @@ function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: ()
 
       {tab==="contacts" && <>
         <div style={{ marginBottom:14, display:"flex", gap:8 }}>
-          <div style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:9, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
-            <Search style={{ width:13, height:13, color:"rgba(255,255,255,0.3)" }} />
-            <span style={{ fontSize:12, color:"rgba(255,255,255,0.2)" }}>Search contacts...</span>
+          <div style={{ flex:1, background:"rgba(16,24,40,0.24)", border:"1px solid rgba(16,24,40,0.29)", borderRadius:9, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
+            <Search style={{ width:13, height:13, color:"rgba(16,24,40,0.50)" }} />
+            <span style={{ fontSize:12, color:"rgba(16,24,40,0.40)" }}>Search contacts...</span>
           </div>
           <LockBtn label="Import" lockAction={lockAction} style={{ padding:"9px 16px" }} />
         </div>
         {contacts.map(c=>(
-          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 18px", borderRadius:13, border:"1px solid rgba(16,24,40,0.27)", background:"rgba(16,24,40,0.23)", marginBottom:8 }}>
             <div style={{ width:38, height:38, borderRadius:"50%", background:`${c.color}20`, border:`1px solid ${c.color}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:c.color, flexShrink:0 }}>{c.name[0]}</div>
             <div style={{ flex:1 }}>
-              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{c.name}</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>via {c.platform} · {c.stage}</p>
+              <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 2px" }}>{c.name}</p>
+              <p style={{ fontSize:11, color:"rgba(16,24,40,0.55)", margin:0 }}>via {c.platform} · {c.stage}</p>
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <LockBtn label="DM" lockAction={lockAction} style={{ fontSize:10, padding:"4px 10px" }} />
@@ -1059,11 +1060,11 @@ function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: ()
           { name:"Jake R.",   title:"1:1 Coaching Programme",    value:"$3,500", stage:"Negotiation",days:7,color:"#60a5fa"},
           { name:"Marcus T.", title:"Content System Setup",      value:"$4,200", stage:"Call Booked",days:1,color:"#34d399"},
         ].map(d=>(
-          <div key={d.name} style={{ background:"rgba(255,255,255,0.025)", border:`1px solid ${d.color}22`, borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
+          <div key={d.name} style={{ background:"rgba(16,24,40,0.23)", border:`1px solid ${d.color}22`, borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
               <div>
-                <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 2px" }}>{d.title}</p>
-                <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>with {d.name} · {d.days}d in stage</p>
+                <p style={{ fontSize:13, fontWeight:800, color:"#101828", margin:"0 0 2px" }}>{d.title}</p>
+                <p style={{ fontSize:11, color:"rgba(16,24,40,0.55)", margin:0 }}>with {d.name} · {d.days}d in stage</p>
               </div>
               <div style={{ textAlign:"right" }}>
                 <p style={{ fontSize:18, fontWeight:900, color:d.color, margin:"0 0 2px" }}>{d.value}</p>
@@ -1106,11 +1107,11 @@ function ProjectTrackerView({ nav, lockAction }: { nav: (p: string) => void; loc
         ].map(s => <StatCard key={s.label} {...s} />)}
       </div>
       {tasks.map(t => (
-        <div key={t.task} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
+        <div key={t.task} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(16,24,40,0.07)", background: "rgba(46,120,239,0.035)", marginBottom: 9 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{t.task}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>{t.project} · Due {t.due}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: "0 0 2px" }}>{t.task}</p>
+            <p style={{ fontSize: 11, color: "rgba(16,24,40,0.65)", margin: 0 }}>{t.project} · Due {t.due}</p>
           </div>
           <span style={{ fontSize: 9.5, padding: "3px 10px", borderRadius: 999, background: `${t.color}15`, color: t.color, fontWeight: 700, border: `1px solid ${t.color}28`, whiteSpace: "nowrap" }}>{t.status}</span>
         </div>
@@ -1123,9 +1124,9 @@ function ProjectTrackerView({ nav, lockAction }: { nav: (p: string) => void; loc
 /* Generic fallback for remaining sections */
 function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
   const [tab, setTab] = useState<"feed"|"members"|"events">("feed");
-  const tabs = [{id:"feed",label:"🔥 Feed"},{id:"members",label:"👥 Members"},{id:"events",label:"📅 Events"}] as const;
+  const tabs = [{id:"feed",label:" Feed"},{id:"members",label:"👥 Members"},{id:"events",label:"📅 Events"}] as const;
   const posts = [
-    { name:"Alex M.",   time:"2m ago",  body:"Just hit 50K followers using AI Ideas + Competitor Study 🔥 The system actually works.", likes:47, replies:12, c:GOLD      },
+    { name:"Alex M.",   time:"2m ago",  body:"Just hit 50K followers using AI Ideas + Competitor Study The system actually works.", likes:47, replies:12, c:GOLD      },
     { name:"Sarah K.",  time:"18m ago", body:"Webinar funnel went live — 340 registrations in the first hour. Email sequence converting at 11%.", likes:38, replies:8, c:"#a78bfa" },
     { name:"Raj P.",    time:"1h ago",  body:"Brand Kit Builder changed everything for my pitch decks. Closed a $8K brand deal using it 💪", likes:62, replies:19, c:"#34d399" },
     { name:"Chen L.",   time:"3h ago",  body:"The Competitor Study tool found a content angle my competitors are completely sleeping on 👀", likes:29, replies:7, c:"#60a5fa" },
@@ -1136,32 +1137,32 @@ function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockActi
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
         <div>
           <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>Community</p>
-          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Community Forum</h1>
-          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Private members-only space · Tier 5 Elite</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#101828", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Community Forum</h1>
+          <p style={{ fontSize:12.5, color:"rgba(16,24,40,0.55)", margin:0 }}>Private members-only space · Pro</p>
         </div>
         <LockBtn label="+ Post" lockAction={lockAction} />
       </div>
-      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(16,24,40,0.27)" }}>
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(16,24,40,0.60)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
         ))}
       </div>
 
       {tab==="feed" && <>
         {posts.map(p=>(
-          <div key={p.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
+          <div key={p.name} style={{ background:"rgba(16,24,40,0.23)", border:"1px solid rgba(16,24,40,0.27)", borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ width:34, height:34, borderRadius:"50%", background:`${p.c}20`, border:`1px solid ${p.c}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:p.c, flexShrink:0 }}>{p.name[0]}</div>
               <div>
-                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 1px" }}>{p.name}</p>
-                <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", margin:0 }}>{p.time}</p>
+                <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 1px" }}>{p.name}</p>
+                <p style={{ fontSize:10, color:"rgba(16,24,40,0.50)", margin:0 }}>{p.time}</p>
               </div>
             </div>
-            <p style={{ fontSize:13, color:"rgba(255,255,255,0.65)", margin:"0 0 12px", lineHeight:1.65 }}>{p.body}</p>
+            <p style={{ fontSize:13, color:"rgba(16,24,40,0.85)", margin:"0 0 12px", lineHeight:1.65 }}>{p.body}</p>
             <div style={{ display:"flex", gap:16 }}>
-              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>❤️ {p.likes}</span>
-              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>💬 {p.replies} replies</span>
-              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>🔁 Share</span>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(16,24,40,0.55)", cursor:"pointer" }}>❤️ {p.likes}</span>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(16,24,40,0.55)", cursor:"pointer" }}>💬 {p.replies} replies</span>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(16,24,40,0.55)", cursor:"pointer" }}>🔁 Share</span>
             </div>
           </div>
         ))}
@@ -1172,22 +1173,22 @@ function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockActi
           {[{label:"Total Members",value:"1,247",color:GOLD},{label:"Online Now",value:"84",color:"#34d399"},{label:"New This Week",value:"31",color:"#60a5fa"}].map(s=><StatCard key={s.label} {...s}/>)}
         </div>
         {[
-          { n:"Alex M.",   role:"Tier 5 · Elite",  score:847, joined:"Jan 2026", c:GOLD      },
-          { n:"Sarah K.",  role:"Tier 5 · Elite",  score:712, joined:"Feb 2026", c:"#a78bfa" },
+          { n:"Alex M.",   role:"Pro",  score:847, joined:"Jan 2026", c:GOLD      },
+          { n:"Sarah K.",  role:"Pro",  score:712, joined:"Feb 2026", c:"#a78bfa" },
           { n:"Raj P.",    role:"Tier 4 · Pro",    score:581, joined:"Mar 2026", c:"#34d399" },
-          { n:"Chen L.",   role:"Tier 5 · Elite",  score:634, joined:"Dec 2025", c:"#60a5fa" },
-          { n:"Priya S.",  role:"Tier 5 · Elite",  score:798, joined:"Nov 2025", c:"#f472b6" },
+          { n:"Chen L.",   role:"Pro",  score:634, joined:"Dec 2025", c:"#60a5fa" },
+          { n:"Priya S.",  role:"Pro",  score:798, joined:"Nov 2025", c:"#f472b6" },
           { n:"Marcus T.", role:"Tier 3 · Growth", score:342, joined:"Apr 2026", c:"#fb923c" },
         ].map(m=>(
-          <div key={m.n} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+          <div key={m.n} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(16,24,40,0.27)", background:"rgba(16,24,40,0.23)", marginBottom:8 }}>
             <div style={{ width:36, height:36, borderRadius:"50%", background:`${m.c}20`, border:`1px solid ${m.c}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:m.c, flexShrink:0 }}>{m.n[0]}</div>
             <div style={{ flex:1 }}>
-              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{m.n}</p>
-              <p style={{ fontSize:10.5, color:"rgba(255,255,255,0.35)", margin:0 }}>{m.role} · Joined {m.joined}</p>
+              <p style={{ fontSize:13, fontWeight:700, color:"#101828", margin:"0 0 2px" }}>{m.n}</p>
+              <p style={{ fontSize:10.5, color:"rgba(16,24,40,0.55)", margin:0 }}>{m.role} · Joined {m.joined}</p>
             </div>
             <div style={{ textAlign:"right" }}>
               <p style={{ fontSize:16, fontWeight:900, color:m.c, margin:0 }}>{m.score}</p>
-              <p style={{ fontSize:9.5, color:"rgba(255,255,255,0.3)", margin:0 }}>creator score</p>
+              <p style={{ fontSize:9.5, color:"rgba(16,24,40,0.50)", margin:0 }}>creator score</p>
             </div>
           </div>
         ))}
@@ -1200,17 +1201,17 @@ function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockActi
           { name:"Q2 Creator Awards Ceremony",   date:"Jul 31 · 8PM GMT", host:"Oravini Team", spots:"All members",     status:"upcoming", c:"#a78bfa" },
           { name:"Build Your First VSL — Live",  date:"Jul 14 · 7PM GMT", host:"Oravini HQ",   spots:"535 attended",    status:"past",     c:"#34d399" },
         ].map(e=>(
-          <div key={e.name} style={{ background:"rgba(255,255,255,0.025)", border:`1px solid ${e.c}22`, borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
+          <div key={e.name} style={{ background:"rgba(16,24,40,0.23)", border:`1px solid ${e.c}22`, borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
             <div style={{ width:42, height:42, borderRadius:12, background:`${e.c}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
               {e.status==="upcoming"?"📅":"🎬"}
             </div>
             <div style={{ flex:1 }}>
-              <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 3px" }}>{e.name}</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.38)", margin:0 }}>{e.date} · {e.spots}</p>
+              <p style={{ fontSize:13, fontWeight:800, color:"#101828", margin:"0 0 3px" }}>{e.name}</p>
+              <p style={{ fontSize:11, color:"rgba(16,24,40,0.58)", margin:0 }}>{e.date} · {e.spots}</p>
             </div>
             {e.status==="upcoming"
               ? <LockBtn label="RSVP" lockAction={lockAction} style={{ background:`${e.c}15`, color:e.c, border:`1px solid ${e.c}28` }} />
-              : <span style={{ fontSize:9.5, padding:"3px 10px", borderRadius:999, background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.4)", fontWeight:700 }}>Ended</span>}
+              : <span style={{ fontSize:9.5, padding:"3px 10px", borderRadius:999, background:"rgba(16,24,40,0.26)", color:"rgba(16,24,40,0.60)", fontWeight:700 }}>Ended</span>}
           </div>
         ))}
       </>}
@@ -1232,7 +1233,7 @@ function OraviniRecorderView({ nav, lockAction }: { nav: (p: string) => void; lo
     <>
       <SectionHeader eyebrow="Video Tools" title="Oravini Recorder" sub="Record your screen, webcam or both — instantly shareable" />
       {/* Recorder UI */}
-      <div style={{ background: "linear-gradient(135deg,rgba(212,180,97,0.08) 0%,rgba(212,180,97,0.02) 100%)", border: `1px solid ${GOLD}25`, borderRadius: 20, padding: "28px", marginBottom: 20, textAlign: "center" }}>
+      <div style={{ background: "linear-gradient(135deg,rgba(46,120,239,0.08) 0%,rgba(46,120,239,0.02) 100%)", border: `1px solid ${GOLD}25`, borderRadius: 20, padding: "28px", marginBottom: 20, textAlign: "center" }}>
         <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: GOLD, margin: "0 0 20px" }}>Recording Studio</p>
         <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 24 }}>
           {[
@@ -1240,29 +1241,29 @@ function OraviniRecorderView({ nav, lockAction }: { nav: (p: string) => void; lo
             { label: "Webcam", icon: "📷", active: true },
             { label: "Mic",    icon: "🎙️", active: true },
           ].map(({ label, icon, active }) => (
-            <div key={label} onClick={lockAction} style={{ background: active ? `${GOLD}15` : "rgba(255,255,255,0.04)", border: `1px solid ${active ? `${GOLD}30` : "rgba(255,255,255,0.09)"}`, borderRadius: 14, padding: "14px 20px", cursor: "pointer", textAlign: "center", minWidth: 90 }}>
+            <div key={label} onClick={lockAction} style={{ background: active ? `${GOLD}15` : "rgba(16,24,40,0.24)", border: `1px solid ${active ? `${GOLD}30` : "rgba(16,24,40,0.29)"}`, borderRadius: 14, padding: "14px 20px", cursor: "pointer", textAlign: "center", minWidth: 90 }}>
               <p style={{ fontSize: 24, margin: "0 0 6px" }}>{icon}</p>
-              <p style={{ fontSize: 11, fontWeight: 700, color: active ? GOLD : "rgba(255,255,255,0.4)", margin: 0 }}>{label}</p>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? GOLD : "rgba(255,255,255,0.15)", margin: "6px auto 0", boxShadow: active ? `0 0 6px ${GOLD}` : "none" }} />
+              <p style={{ fontSize: 11, fontWeight: 700, color: active ? GOLD : "rgba(16,24,40,0.70)", margin: 0 }}>{label}</p>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? GOLD : "rgba(46,120,239,0.120)", margin: "6px auto 0", boxShadow: active ? `0 0 6px ${GOLD}` : "none" }} />
             </div>
           ))}
         </div>
         <LockBtn label="Start Recording" lockAction={lockAction} style={{ margin: "0 auto", padding: "13px 32px", fontSize: 13, background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}35` }} />
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "12px 0 0" }}>Screen + Webcam · Mic on · Auto-save to Vault</p>
+        <p style={{ fontSize: 11, color: "rgba(16,24,40,0.55)", margin: "12px 0 0" }}>Screen + Webcam · Mic on · Auto-save to Vault</p>
       </div>
       {/* Past recordings */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", margin: 0 }}>Recent Recordings</p>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0 }}>34 total · 18.4 GB used</p>
+        <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(16,24,40,0.80)", margin: 0 }}>Recent Recordings</p>
+        <p style={{ fontSize: 11, color: "rgba(16,24,40,0.60)", margin: 0 }}>34 total · 18.4 GB used</p>
       </div>
       {recordings.map(r => (
-        <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
+        <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(16,24,40,0.07)", background: "rgba(46,120,239,0.035)", marginBottom: 9 }}>
           <div onClick={lockAction} style={{ width: 38, height: 38, borderRadius: 10, background: `${r.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
             <Play style={{ width: 14, height: 14, color: r.color }} />
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>{r.title}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>{r.type} · {r.dur} · {r.size} · {r.date}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: "0 0 3px" }}>{r.title}</p>
+            <p style={{ fontSize: 11, color: "rgba(16,24,40,0.65)", margin: 0 }}>{r.type} · {r.dur} · {r.size} · {r.date}</p>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <LockBtn label="Share" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 10px" }} />
@@ -1289,35 +1290,35 @@ function ClipFinderView({ nav, lockAction }: { nav: (p: string) => void; lockAct
   return (
     <>
       <SectionHeader eyebrow="Video Tools" title="Clip Finder" sub="Find the highest-performing clips from your videos — and the web" />
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(16,24,40,0.07)" }}>
         {[{id:"finder",label:"🔍 Viral Clip Finder"},{id:"library",label:"📂 My Clip Library"}].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(16,24,40,0.70)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
         ))}
       </div>
 
       {tab === "finder" && <>
         <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-            <Search style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
-            <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.2)" }}>Search for viral clips, hooks, transitions...</span>
+          <div style={{ flex: 1, background: "rgba(46,120,239,0.056)", border: "1px solid rgba(16,24,40,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Search style={{ width: 13, height: 13, color: "rgba(16,24,40,0.60)" }} />
+            <span style={{ fontSize: 12.5, color: "rgba(16,24,40,0.50)" }}>Search for viral clips, hooks, transitions...</span>
           </div>
           <LockBtn label="🔍 Find Clips" lockAction={lockAction} style={{ padding: "10px 18px", fontSize: 12 }} />
         </div>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 12px" }}>Trending in Your Niche</p>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(16,24,40,0.60)", margin: "0 0 12px" }}>Trending in Your Niche</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {clips.map(c => (
-            <div key={c.title} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden" }}>
+            <div key={c.title} style={{ background: "rgba(46,120,239,0.035)", border: "1px solid rgba(16,24,40,0.07)", borderRadius: 13, overflow: "hidden" }}>
               <div onClick={lockAction} style={{ height: 80, background: `linear-gradient(135deg,${c.color}22,${c.color}06)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
                 <div style={{ width: 34, height: 34, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Play style={{ width: 13, height: 13, color: "#fff", marginLeft: 1 }} />
+                  <Play style={{ width: 13, height: 13, color: "#101828", marginLeft: 1 }} />
                 </div>
-                <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 9.5, background: "rgba(0,0,0,0.7)", color: "#fff", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{c.dur}</span>
+                <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 9.5, background: "rgba(0,0,0,0.7)", color: "#101828", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{c.dur}</span>
                 <span style={{ position: "absolute", top: 8, left: 10, fontSize: 9, padding: "2px 7px", borderRadius: 999, background: `${c.color}30`, color: c.color, fontWeight: 700 }}>{c.source}</span>
               </div>
               <div style={{ padding: "10px 12px" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 5px" }}>{c.title}</p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#101828", margin: "0 0 5px" }}>{c.title}</p>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>👁 {c.views}</span>
+                  <span style={{ fontSize: 10.5, color: "rgba(16,24,40,0.65)" }}>👁 {c.views}</span>
                   <span style={{ fontSize: 10.5, color: "#34d399", fontWeight: 700 }}>{c.eng} eng.</span>
                 </div>
               </div>
@@ -1339,7 +1340,7 @@ function ClipFinderView({ nav, lockAction }: { nav: (p: string) => void; lockAct
           <div key={c.cat} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 13, border: `1px solid ${c.color}22`, background: `${c.color}08`, marginBottom: 10, cursor: "pointer" }}>
             <p style={{ fontSize: 20, margin: 0 }}>{c.cat.split(" ")[0]}</p>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0 }}>{c.cat.split(" ").slice(1).join(" ")}</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#101828", margin: 0 }}>{c.cat.split(" ").slice(1).join(" ")}</p>
             </div>
             <span style={{ fontSize: 16, fontWeight: 900, color: c.color }}>{c.count}</span>
           </div>
@@ -1353,14 +1354,14 @@ function ClipFinderView({ nav, lockAction }: { nav: (p: string) => void; lockAct
 function GenericView({ label, nav, lockAction, emoji }: { label: string; nav: (p: string) => void; lockAction: () => void; emoji?: string }) {
   return (
     <>
-      <SectionHeader eyebrow="Oravini Platform" title={label} sub="Part of your full Tier 5 Elite dashboard" />
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "48px 32px", textAlign: "center", marginBottom: 20 }}>
+      <SectionHeader eyebrow="Oravini Platform" title={label} sub="Part of your full dashboard" />
+      <div style={{ background: "rgba(46,120,239,0.028)", border: "1px solid rgba(16,24,40,0.08)", borderRadius: 20, padding: "48px 32px", textAlign: "center", marginBottom: 20 }}>
         <p style={{ fontSize: 44, margin: "0 0 16px" }}>{emoji ?? "🔮"}</p>
-        <p style={{ fontSize: 16, fontWeight: 800, color: "#fff", margin: "0 0 10px" }}>{label}</p>
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "0 0 28px", lineHeight: 1.7, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>
+        <p style={{ fontSize: 16, fontWeight: 800, color: "#101828", margin: "0 0 10px" }}>{label}</p>
+        <p style={{ fontSize: 13, color: "rgba(16,24,40,0.70)", margin: "0 0 28px", lineHeight: 1.7, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>
           This tool is live in the full platform. Create your free account to access it — no credit card needed.
         </p>
-        <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 11, padding: "13px 32px", cursor: "pointer" }}>
+        <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color:"#fff", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 11, padding: "13px 32px", cursor: "pointer" }}>
           Start for Free →
         </button>
       </div>
@@ -1402,31 +1403,31 @@ function IntroScreen({ onEnter }: { onEnter: () => void }) {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "linear-gradient(180deg,#f6f9ff,#e8f0fd)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
       <div style={{ position: "absolute", top: "50%", left: "50%", width: 600, height: 600, borderRadius: "50%", background: GOLD, opacity: 0.04, filter: "blur(120px)", transform: "translate(-50%,-50%)", pointerEvents: "none" }} />
       <div style={{ opacity: phase >= 1 ? 1 : 0, transform: phase >= 1 ? "translateY(0)" : "translateY(20px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)", marginBottom: 32 }}>
-        <img src={oraviniLogoPath} alt="Oravini" style={{ width: 72, height: 72, borderRadius: 18, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 60px rgba(212,180,97,0.4)` }} />
+        <span style={{ display: "grid", placeItems: "center", width: 76, height: 76, borderRadius: 22, background: "#fff", boxShadow: "0 18px 40px -14px rgba(46,120,239,0.45), 0 0 0 1px rgba(46,120,239,0.08)" }}><OraviniMark size={38} /></span>
       </div>
       <div style={{ opacity: phase >= 2 ? 1 : 0, transform: phase >= 2 ? "translateY(0)" : "translateY(20px)", transition: "all 0.9s cubic-bezier(0.16,1,0.3,1)", marginBottom: 40 }}>
-        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.35em", textTransform: "uppercase", color: GOLD, marginBottom: 16 }}>Tier 5 · Elite Experience</p>
-        <h1 style={{ fontSize: "clamp(28px,5vw,52px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.025em", marginBottom: 20, color: "#fff" }}>
+        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.35em", textTransform: "uppercase", color: GOLD, marginBottom: 16 }}>Creator platform</p>
+        <h1 style={{ fontSize: "clamp(28px,5vw,52px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.025em", marginBottom: 20, color: "#101828" }}>
           Welcome to <span style={{ color: GOLD }}>Oravini.</span>
         </h1>
-        <p style={{ fontSize: "clamp(14px,2.2vw,18px)", color: "rgba(255,255,255,0.55)", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>
+        <p style={{ fontSize: "clamp(14px,2.2vw,18px)", color: "rgba(16,24,40,0.85)", lineHeight: 1.7, maxWidth: 480, margin: "0 auto" }}>
           An AI-powered platform built for creators who are serious about growth.
         </p>
-        <p style={{ fontSize: "clamp(18px,3vw,26px)", fontWeight: 900, color: "#fff", marginTop: 16 }}>
-          Be ready to be a <span style={{ color: GOLD }}>beast.</span> 🔥
+        <p style={{ fontSize: "clamp(18px,3vw,26px)", fontWeight: 900, color: "#101828", marginTop: 16 }}>
+          Built to grow your brand.
         </p>
       </div>
       <div style={{ opacity: phase >= 3 ? 1 : 0, transform: phase >= 3 ? "translateY(0) scale(1)" : "translateY(12px) scale(0.96)", transition: "all 0.7s cubic-bezier(0.16,1,0.3,1)" }}>
         <button onClick={onEnter}
-          style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color: "#000", fontWeight: 900, fontSize: 16, border: "none", borderRadius: 14, padding: "16px 48px", cursor: "pointer", boxShadow: `0 0 60px rgba(212,180,97,0.4)` }}
+          style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color:"#fff", fontWeight: 900, fontSize: 16, border: "none", borderRadius: 14, padding: "16px 48px", cursor: "pointer", boxShadow: `0 0 60px rgba(46,120,239,0.4)` }}
           onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.04)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
           Enter the Platform →
         </button>
-        <p style={{ marginTop: 14, fontSize: 12, color: "rgba(255,255,255,0.22)" }}>Full Tier 5 dashboard · All 23 tools · No login required</p>
+        <p style={{ marginTop: 14, fontSize: 12, color: "rgba(16,24,40,0.52)" }}>Full dashboard · All tools · No login required</p>
       </div>
     </div>
   );
@@ -1456,14 +1457,14 @@ export default function DashboardPreview() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#09090b", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#f5f8fd", color: "#101828", fontFamily: "'Inter', system-ui, sans-serif" }}>
       {showIntro && <IntroScreen onEnter={handleEnter} />}
 
       {/* Lock toast */}
-      <div style={{ position: "fixed", bottom: 28, left: "50%", transform: `translateX(-50%) translateY(${toast ? "0" : "16px"})`, opacity: toast ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", zIndex: 9998, pointerEvents: toast ? "auto" : "none", display: "flex", alignItems: "center", gap: 12, background: "#1a1a1c", border: `1px solid ${GOLD}35`, borderRadius: 14, padding: "13px 20px", boxShadow: `0 8px 32px rgba(0,0,0,0.5),0 0 24px ${GOLD}14`, whiteSpace: "nowrap" }}>
+      <div style={{ position: "fixed", bottom: 28, left: "50%", transform: `translateX(-50%) translateY(${toast ? "0" : "16px"})`, opacity: toast ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", zIndex: 9998, pointerEvents: toast ? "auto" : "none", display: "flex", alignItems: "center", gap: 12, background: "#ffffff", border: `1px solid ${GOLD}35`, borderRadius: 14, padding: "13px 20px", boxShadow: `0 8px 32px rgba(0,0,0,0.5),0 0 24px ${GOLD}14`, whiteSpace: "nowrap" }}>
         <Lock style={{ width: 14, height: 14, color: GOLD, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontWeight: 600 }}>This feature is live in your account</span>
-        <button onClick={() => nav("/login?tab=register")} style={{ fontSize: 12, fontWeight: 800, color: "#000", background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", flexShrink: 0 }}>
+        <span style={{ fontSize: 13, color: "rgba(16,24,40,0.95)", fontWeight: 600 }}>This feature is live in your account</span>
+        <button onClick={() => nav("/login?tab=register")} style={{ fontSize: 12, fontWeight: 800, color:"#fff", background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", flexShrink: 0 }}>
           Sign up free →
         </button>
       </div>
@@ -1474,12 +1475,12 @@ export default function DashboardPreview() {
         <div style={{ background: `linear-gradient(90deg,${GOLD}18,${GOLD}0a,${GOLD}18)`, borderBottom: `1px solid ${GOLD}22`, padding: "9px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
-            <span style={{ fontSize: 11, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase" }}>Tier 5 · Elite Preview</span>
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 4 }}>— Browse every tool. Sign up to go live.</span>
+            <span style={{ fontSize: 11, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase" }}>Live preview</span>
+            <span style={{ fontSize: 11, color: "rgba(16,24,40,0.60)", marginLeft: 4 }}>— Browse every tool. Sign up to go live.</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={goToPricing} style={{ background: "none", border: `1px solid ${GOLD}44`, borderRadius: 7, color: GOLD, fontSize: 11, fontWeight: 600, padding: "5px 14px", cursor: "pointer" }}>See Pricing</button>
-            <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", borderRadius: 7, color: "#000", fontSize: 11, fontWeight: 800, padding: "6px 16px", cursor: "pointer" }}>Create Free Account</button>
+            <button onClick={() => nav("/login?tab=register")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", borderRadius: 7, color:"#fff", fontSize: 11, fontWeight: 800, padding: "6px 16px", cursor: "pointer" }}>Create Free Account</button>
           </div>
         </div>
 
@@ -1487,13 +1488,13 @@ export default function DashboardPreview() {
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
           {/* Sidebar */}
-          <aside style={{ width: 220, background: "#0d0d0f", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          <aside style={{ width: 220, background: "#ffffff", borderRight: "1px solid rgba(16,24,40,0.07)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
             {/* Logo */}
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(16,24,40,0.07)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <img src={oraviniLogoPath} alt="Oravini" style={{ height: 28, width: 28, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6 }} />
               <div>
                 <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, lineHeight: 1, margin: 0 }}>ORAVINI</p>
-                <p style={{ fontSize: 8, color: "rgba(255,255,255,0.28)", letterSpacing: "0.1em", textTransform: "uppercase", margin: "3px 0 0" }}>Tier 5 · Elite</p>
+                <p style={{ fontSize: 8, color: "rgba(16,24,40,0.58)", letterSpacing: "0.1em", textTransform: "uppercase", margin: "3px 0 0" }}>Pro</p>
               </div>
               <div style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: "#34d399", boxShadow: "0 0 6px #34d399" }} />
             </div>
@@ -1505,9 +1506,9 @@ export default function DashboardPreview() {
                 return (
                   <button key={label}
                     onClick={() => setActiveSection(label)}
-                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 9, background: active ? `${GOLD}14` : "none", border: `1px solid ${active ? `${GOLD}28` : "transparent"}`, color: active ? GOLD : "rgba(255,255,255,0.5)", fontSize: 12.5, fontWeight: active ? 700 : 400, cursor: "pointer", transition: "all 0.1s", marginBottom: 1, textAlign: "left" }}
-                    onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}}
-                    onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}}>
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 9, background: active ? `${GOLD}14` : "none", border: `1px solid ${active ? `${GOLD}28` : "transparent"}`, color: active ? GOLD : "rgba(16,24,40,0.80)", fontSize: 12.5, fontWeight: active ? 700 : 400, cursor: "pointer", transition: "all 0.1s", marginBottom: 1, textAlign: "left" }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "rgba(16,24,40,0.24)"; e.currentTarget.style.color = "rgba(16,24,40,0.90)"; }}}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(16,24,40,0.70)"; }}}>
                     <Icon style={{ width: 14, height: 14, flexShrink: 0 }} />
                     <span>{label}</span>
                   </button>
@@ -1516,27 +1517,27 @@ export default function DashboardPreview() {
             </nav>
 
             {/* User area */}
-            <div style={{ padding: "10px 10px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+            <div style={{ padding: "10px 10px", borderTop: "1px solid rgba(16,24,40,0.07)", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", marginBottom: 8, borderRadius: 10, background: `${GOLD}08`, border: `1px solid ${GOLD}18` }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${GOLD}22`, border: `1px solid ${GOLD}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>👑</div>
                 <div>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", margin: 0 }}>Elite Member</p>
-                  <p style={{ fontSize: 9, color: GOLD, fontWeight: 600, margin: 0 }}>Tier 5 · Preview</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(16,24,40,0.95)", margin: 0 }}>Elite Member</p>
+                  <p style={{ fontSize: 9, color: GOLD, fontWeight: 600, margin: 0 }}>Preview</p>
                 </div>
               </div>
-              <button onClick={() => nav("/login?tab=register")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 9, background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+              <button onClick={() => nav("/login?tab=register")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 9, background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, border: "none", color:"#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
                 <ArrowUpRight style={{ width: 13, height: 13 }} /> Create Account
               </button>
             </div>
           </aside>
 
           {/* Main content */}
-          <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px", background: "#09090b" }}>
+          <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px", background: "#f5f8fd" }}>
             <SectionView section={activeSection} nav={nav} lockAction={lockAction} />
             <div style={{ textAlign: "center", paddingBottom: 24, marginTop: 16 }}>
-              <button onClick={() => nav("/")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.18)", fontSize: 12, cursor: "pointer" }}
+              <button onClick={() => nav("/")} style={{ background: "none", border: "none", color: "rgba(16,24,40,0.48)", fontSize: 12, cursor: "pointer" }}
                 onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.18)")}>
+                onMouseLeave={e => (e.currentTarget.style.color = "rgba(16,24,40,0.38)")}>
                 ← Back to Oravini
               </button>
             </div>

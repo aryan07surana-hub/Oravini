@@ -6,7 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
-const GOLD = "#d4b461";
+const GOLD = "#2e78ef";
 
 // ── Step 0 — awareness ───────────────────────────────────────────────────────
 const AWARENESS_OPTIONS = [
@@ -327,9 +327,9 @@ function Chip({ label, selected, onClick, isOther = false }: {
       onClick={onClick}
       style={{
         padding: "10px 16px", borderRadius: 10, textAlign: "left",
-        border: `1.5px solid ${selected ? GOLD : "rgba(255,255,255,0.12)"}`,
-        background: selected ? `${GOLD}18` : "rgba(255,255,255,0.03)",
-        color: selected ? GOLD : isOther ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.65)",
+        border: `1.5px solid ${selected ? GOLD : "rgba(16,24,40,0.12)"}`,
+        background: selected ? `${GOLD}18` : "rgba(16,24,40,0.03)",
+        color: selected ? GOLD : isOther ? "rgba(16,24,40,0.67)" : "rgba(16,24,40,0.77)",
         fontSize: 14, fontWeight: selected ? 700 : 400,
         cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
         transition: "all 0.15s",
@@ -337,11 +337,11 @@ function Chip({ label, selected, onClick, isOther = false }: {
     >
       <span style={{
         width: 16, height: 16, borderRadius: 4,
-        border: `2px solid ${selected ? GOLD : "rgba(255,255,255,0.2)"}`,
+        border: `2px solid ${selected ? GOLD : "rgba(16,24,40,0.2)"}`,
         background: selected ? GOLD : "transparent",
         flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {selected && <span style={{ color: "#000", fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+        {selected && <span style={{ color: "#ffffff", fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
       </span>
       {label}
     </button>
@@ -356,9 +356,9 @@ function Radio({ label, selected, onClick }: { label: string; selected: boolean;
       onClick={onClick}
       style={{
         width: "100%", textAlign: "left", padding: "13px 16px", borderRadius: 10,
-        border: `1.5px solid ${selected ? GOLD : "rgba(255,255,255,0.1)"}`,
-        background: selected ? `${GOLD}15` : "rgba(255,255,255,0.03)",
-        color: selected ? GOLD : "rgba(255,255,255,0.75)",
+        border: `1.5px solid ${selected ? GOLD : "rgba(16,24,40,0.1)"}`,
+        background: selected ? `${GOLD}15` : "rgba(16,24,40,0.03)",
+        color: selected ? GOLD : "rgba(16,24,40,0.87)",
         fontSize: 14, fontWeight: selected ? 700 : 400,
         cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
         transition: "all 0.15s",
@@ -366,11 +366,11 @@ function Radio({ label, selected, onClick }: { label: string; selected: boolean;
     >
       <span style={{
         width: 18, height: 18, borderRadius: "50%",
-        border: `2px solid ${selected ? GOLD : "rgba(255,255,255,0.2)"}`,
+        border: `2px solid ${selected ? GOLD : "rgba(16,24,40,0.2)"}`,
         background: selected ? GOLD : "transparent",
         flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {selected && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#000", display: "block" }} />}
+        {selected && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ffffff", display: "block" }} />}
       </span>
       {label}
     </button>
@@ -388,14 +388,14 @@ function OtherBox({ prompt, placeholder, value, onChange }: {
     <div style={{ marginTop: 12 }}>
       <label style={{
         display: "block", fontSize: 12, fontWeight: 600,
-        color: "rgba(255,255,255,0.5)", marginBottom: 6, letterSpacing: "0.04em",
+        color: "rgba(16,24,40,0.62)", marginBottom: 6, letterSpacing: "0.04em",
       }}>
         {prompt} <span style={{ color: GOLD }}>*</span>
       </label>
       <div style={{
         borderRadius: 10,
-        border: `1.5px solid ${value.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
-        background: "rgba(255,255,255,0.05)",
+        border: `1.5px solid ${value.trim() ? GOLD : "rgba(16,24,40,0.18)"}`,
+        background: "rgba(16,24,40,0.05)",
         transition: "border-color 0.2s",
         overflow: "hidden",
       }}>
@@ -409,7 +409,7 @@ function OtherBox({ prompt, placeholder, value, onChange }: {
           style={{
             display: "block", width: "100%",
             background: "transparent", border: "none", outline: "none",
-            color: "#fff", fontSize: 14, lineHeight: 1.7,
+            color: "#101828", fontSize: 14, lineHeight: 1.7,
             resize: "none", fontFamily: "inherit",
             padding: "12px 14px",
             boxSizing: "border-box",
@@ -564,10 +564,10 @@ export default function Onboarding() {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#080808",
+      minHeight: "100vh", background: "#ffffff",
       display: "flex", flexDirection: "column", alignItems: "center",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
-      color: "#fff",
+      color: "#101828",
     }}>
       {/* Top bar */}
       <div style={{
@@ -575,12 +575,12 @@ export default function Onboarding() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <span style={{ color: GOLD, fontSize: 11, fontWeight: 700, letterSpacing: "0.25em", textTransform: "uppercase" }}>ORAVINI</span>
-        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12 }}>{step + 1} of {total}</span>
+        <span style={{ color: "rgba(16,24,40,0.25)", fontSize: 12 }}>{step + 1} of {total}</span>
       </div>
 
       {/* Progress bar */}
       <div style={{ width: "100%", maxWidth: 600, padding: "14px 24px 0" }}>
-        <div style={{ width: "100%", height: 3, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ width: "100%", height: 3, background: "rgba(16,24,40,0.07)", borderRadius: 2, overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", background: GOLD, borderRadius: 2, transition: "width 0.4s ease" }} />
         </div>
       </div>
@@ -598,11 +598,11 @@ export default function Onboarding() {
               Quick Setup · {total - step} question{total - step !== 1 ? "s" : ""} left
             </span>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.2, margin: "0 0 6px", color: "#fff" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.2, margin: "0 0 6px", color: "#101828" }}>
             {current.title}
           </h1>
           {current.sub && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0, lineHeight: 1.6 }}>{current.sub}</p>
+            <p style={{ fontSize: 13, color: "rgba(16,24,40,0.52)", margin: 0, lineHeight: 1.6 }}>{current.sub}</p>
           )}
         </div>
 
@@ -741,7 +741,7 @@ export default function Onboarding() {
         {step === 12 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(16,24,40,0.57)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 Instagram
               </label>
               <input
@@ -751,16 +751,16 @@ export default function Onboarding() {
                 placeholder="https://instagram.com/yourhandle"
                 style={{
                   width: "100%", padding: "14px 16px", borderRadius: 10,
-                  border: `1.5px solid ${instagramLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#fff", fontSize: 14, outline: "none",
+                  border: `1.5px solid ${instagramLink.trim() ? GOLD : "rgba(16,24,40,0.18)"}`,
+                  background: "rgba(16,24,40,0.04)",
+                  color: "#101828", fontSize: 14, outline: "none",
                   fontFamily: "inherit", boxSizing: "border-box" as const,
                   transition: "border-color 0.2s",
                 }}
               />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(16,24,40,0.57)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 YouTube
               </label>
               <input
@@ -770,9 +770,9 @@ export default function Onboarding() {
                 placeholder="https://youtube.com/@yourchannel"
                 style={{
                   width: "100%", padding: "14px 16px", borderRadius: 10,
-                  border: `1.5px solid ${youtubeLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#fff", fontSize: 14, outline: "none",
+                  border: `1.5px solid ${youtubeLink.trim() ? GOLD : "rgba(16,24,40,0.18)"}`,
+                  background: "rgba(16,24,40,0.04)",
+                  color: "#101828", fontSize: 14, outline: "none",
                   fontFamily: "inherit", boxSizing: "border-box" as const,
                   transition: "border-color 0.2s",
                 }}
@@ -801,8 +801,8 @@ export default function Onboarding() {
       {/* Fixed bottom bar */}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "rgba(8,8,8,0.97)",
-        borderTop: "1px solid rgba(255,255,255,0.07)",
+        background: "rgba(255,255,255,0.97)",
+        borderTop: "1px solid rgba(16,24,40,0.07)",
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
         padding: "14px 24px 20px",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
@@ -812,7 +812,7 @@ export default function Onboarding() {
           {!ok && (
             <p style={{
               textAlign: "center", fontSize: 12,
-              color: isOtherBlocked ? GOLD : "rgba(255,255,255,0.28)",
+              color: isOtherBlocked ? GOLD : "rgba(16,24,40,0.28)",
               margin: "0 0 8px",
             }}>
               {blockReason()}
@@ -825,8 +825,8 @@ export default function Onboarding() {
             disabled={!ok || saveMut.isPending}
             style={{
               width: "100%", padding: "15px 24px", borderRadius: 12, border: "none",
-              background: ok && !saveMut.isPending ? GOLD : "rgba(212,180,97,0.2)",
-              color: ok && !saveMut.isPending ? "#000" : "rgba(212,180,97,0.35)",
+              background: ok && !saveMut.isPending ? GOLD : "rgba(46,120,239,0.2)",
+              color: ok && !saveMut.isPending ? "#ffffff" : "rgba(46,120,239,0.35)",
               fontSize: 15, fontWeight: 800,
               cursor: ok && !saveMut.isPending ? "pointer" : "not-allowed",
               letterSpacing: "0.03em", transition: "all 0.2s",
@@ -845,7 +845,7 @@ export default function Onboarding() {
               style={{
                 width: "100%", marginTop: 6, padding: "10px",
                 background: "transparent", border: "none",
-                color: "rgba(255,255,255,0.22)", fontSize: 13, cursor: "pointer",
+                color: "rgba(16,24,40,0.22)", fontSize: 13, cursor: "pointer",
               }}
             >
               ← Back

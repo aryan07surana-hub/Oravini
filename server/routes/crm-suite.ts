@@ -1622,6 +1622,23 @@ Output ONLY this JSON shape:
      suggest the next move (email, call, wait X days, propose, etc.)
      plus an updated lead score.
   ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/ai/clean-note", requireCrmAccess, async (req, res) => {
+    try {
+      const { contactId, note } = req.body || {};
+      if (typeof note !== "string" || !note.trim()) return res.status(400).json({ message: "Note required" });
+      const [contact] = await db.select().from(crmContacts).where(eq(crmContacts.id, String(contactId)));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) return res.status(403).json({ message: "Not your contact." });
+      const systemPrompt = `You clean up a sales rep's call notes. Output ONLY this JSON: {"summary": string (one clear sentence, max 25 words), "nextStep": string (one concrete next action, max 20 words), "followUpDays": number (1-30, when to follow up)}`;
+      const text = await aiChatJson(systemPrompt, JSON.stringify({ contact: [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email, note: note.slice(0, 3000) }), { maxTokens: 300, temperature: 0.3 });
+      const p = JSON.parse(text);
+      res.json({ ok: true, summary: String(p.summary || "").slice(0, 300), nextStep: String(p.nextStep || "").slice(0, 300), followUpDays: Number(p.followUpDays) || 3 });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, message: err?.message || "AI cleanup failed" });
+    }
+  });
+
   app.post("/api/crm-suite/ai/suggest-action/:contactId", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.contactId);

@@ -94,7 +94,7 @@ export function registerOAuthRoutes(app: Express) {
     if (configId) {
       authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=${encodeURIComponent(configId)}&response_type=code&state=${encodeURIComponent(state)}`;
     } else {
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${META_FALLBACK_SCOPES}&state=${encodeURIComponent(state)}&response_type=code`;
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${META_FALLBACK_SCOPES}${["admin", "all"].includes((process.env.COACH_IG_SYNC || "").toLowerCase()) ? ",instagram_manage_insights" : ""}&state=${encodeURIComponent(state)}&response_type=code`;
     }
     res.redirect(authUrl);
   });

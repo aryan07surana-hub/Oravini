@@ -16,6 +16,7 @@ import {
   fullName, initials, formatMoney, timeAgo,
 } from "./crm-suite/types";
 import { ContactDrawer } from "./crm-suite/ContactDrawer";
+import { CallTracker } from "./crm-suite/CallTracker";
 import { PipelinesTab } from "./crm-suite/PipelinesTab";
 import { ImportCSVModal } from "./crm-suite/ImportCSVModal";
 import { DuplicatesPanel } from "./crm-suite/DuplicatesPanel";
@@ -28,10 +29,11 @@ import { downloadFile } from "./crm-suite/csv";
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
 
-type TabKey = "dashboard" | "contacts" | "pipelines" | "tasks" | "settings";
+type TabKey = "dashboard" | "calls" | "contacts" | "pipelines" | "tasks" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: "dashboard", label: "Dashboard",  icon: LayoutDashboard },
+  { key: "calls",     label: "Call tracker", icon: Phone },
   { key: "contacts",  label: "Contacts",   icon: Users },
   { key: "pipelines", label: "Pipelines",  icon: Columns3 },
   { key: "tasks",     label: "Tasks",      icon: ListTodo },
@@ -203,6 +205,7 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
               onAIQuickAdd={() => setShowAIQuickAdd(true)}
             />
           )}
+          {tab === "calls" && <CallTracker onOpenContact={setOpenContactId} />}
           {tab === "pipelines" && <PipelinesTab onOpenContact={setOpenContactId} />}
           {tab === "tasks" && <TasksTab onOpenContact={setOpenContactId} onNewTask={() => setShowNewTask(true)} />}
           {tab === "settings" && <SettingsTab isAdmin={isAdmin} />}

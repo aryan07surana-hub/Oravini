@@ -22,7 +22,7 @@ const GROQ_BASE = process.env.AI_GROQ_BASE_URL || "https://api.groq.com/openai/v
 const TIMEOUT_MS = 30000;
 const OR_HEADERS = { "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 
-export const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile";
+export const GROQ_DEFAULT_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 // OpenRouter model names (fallback chain)
 const DEFAULT_MODELS = [
@@ -191,7 +191,7 @@ export async function aiChat(
   const { result } = await completeWithFallback("aiChat", {
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
     temperature,
-    max_tokens: Math.min(maxTokens, 32768),
+    max_tokens: Math.min(maxTokens + (/gpt-oss/i.test(GROQ_DEFAULT_MODEL) ? 1500 : 0), 32768),
   }, options, pickText);
   return result;
 }
@@ -206,7 +206,7 @@ export async function aiChatJson(
     const { result } = await completeWithFallback("aiChatJson", {
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       temperature,
-      max_tokens: Math.min(maxTokens, 32768),
+      max_tokens: Math.min(maxTokens + (/gpt-oss/i.test(GROQ_DEFAULT_MODEL) ? 1500 : 0), 32768),
       response_format: { type: "json_object" },
     }, options, (data) => extractJson(pickText(data)));
     return result;
