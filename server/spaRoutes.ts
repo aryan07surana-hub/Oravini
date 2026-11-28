@@ -195,4 +195,3 @@ export function matchesSpaRoute(pathname: string): boolean {
   return false;
 }
 
-
