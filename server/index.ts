@@ -10,6 +10,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
+import { registerCoachLab } from "./coachLab";
 import { registerFacebookAuth } from "./facebookAuth";
 import { registerOAuthRoutes } from "./oauth";
 import { registerInstagramPublishingRoutes, startPublishingWorker } from "./instagramPublishingRoutes";
@@ -1357,6 +1358,9 @@ async function runMigrations() {
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_text TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_price TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS offer_expires_at TIMESTAMP;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS vip_checkout_url TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS vip_price TEXT;
+      ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS vsl_url TEXT;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE webinar_funnels ADD COLUMN IF NOT EXISTS youtube_broadcast_id TEXT;
@@ -1449,6 +1453,7 @@ async function runMigrations() {
   registerBillingV2Routes(app, { db: pool });
   registerFacebookAuth(app);
   await registerRoutes(httpServer, app);
+  registerCoachLab(app);
   registerOAuthRoutes(app);
   await registerInstagramUnifiedRoutes(app, { query: (text, values) => pool.query(text, values) });
   await registerInstagramPublishingRoutes(app, { query: (text, values) => pool.query(text, values) });
