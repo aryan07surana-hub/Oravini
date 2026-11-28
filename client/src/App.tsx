@@ -1,3 +1,4 @@
+import { useCalmLight } from "@/hooks/use-calm-light";
 import WebinarAssistantPage from "@/pages/client/WebinarAssistant";
 import { Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect, useLocation, useSearch } from "wouter";
@@ -17,12 +18,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     if (this.state.error) {
       const err = this.state.error as Error;
       return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0910", color: "#fff", padding: 24, fontFamily: "system-ui, sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f6f8fc", color: "#101828", padding: 24, fontFamily: "system-ui, sans-serif" }}>
           <div style={{ maxWidth: 480, textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(212,180,97,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
-            <h1 style={{ color: "#d4b461", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
-            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#d4b461", color: "#0a0910", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(46,120,239,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
+            <h1 style={{ color: "#101828", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
+            <p style={{ color: "#5b6675", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#2e78ef", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
           </div>
         </div>
       );
@@ -34,11 +35,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
+import { withToolVideo } from "@/components/ToolVideoFab";
 import OraviniLanding from "@/pages/PricingV2Landing";
 import {
   ManyChatAlternativePage, VsManychatPage, IgDmAutomationPage, WebinarPlatformPage,
   DmCoachesPage, DmRealEstatePage, DmFitnessPage, DmSalonsPage,
-  WebinarCoachesPage, WebinarCourseCreatorsPage,
+  WebinarCoachesPage, WebinarCourseCreatorsPage, AutomatedWebinarPage, CommentToDmPage,
   VsChatfuelPage, VsKajabiPage, VsWebinarjamPage,
 } from "@/pages/seoPages";
 import { BlogIndexPage, BlogPostPage } from "@/pages/blogPages";
@@ -68,6 +70,49 @@ import WebinarFunnelEditor from "@/pages/client/WebinarFunnelEditor";
 import WebinarSetupWizard from "@/pages/client/WebinarSetupWizard";
 
 // New webinars start in the guided wizard; "?mode=advanced" opens the plain form.
+const V_ClientDocuments = withToolVideo(ClientDocuments, "documents");
+const V_CompetitorStudy = withToolVideo(CompetitorStudy, "competitor");
+const V_AIDesign = withToolVideo(AIDesign, "design");
+const V_ContentAnalyser = withToolVideo(ContentAnalyser, "analyser");
+const V_AIVideoEditor = withToolVideo(AIVideoEditor, "aivideo");
+const V_VideoClipEditor = withToolVideo(VideoClipEditor, "editor");
+const V_VideoEditorStudio = withToolVideo(VideoEditorStudio, "editor");
+const V_ScreenRecorder = withToolVideo(ScreenRecorder, "recorder");
+const V_Recordings = withToolVideo(Recordings, "recorder");
+const V_ClientProjectTracker = withToolVideo(ClientProjectTracker, "projecttracker");
+const V_ToolsHub = withToolVideo(ToolsHub, "tools");
+const V_ContentAnalyserYouTube = withToolVideo(ContentAnalyserYouTube, "analyser");
+const V_ContentAnalyserInstagram = withToolVideo(ContentAnalyserInstagram, "analyser");
+const V_ClientDashboard = withToolVideo(ClientDashboard, ["dashboard", "hero"]);
+const V_AIIdeas = withToolVideo(AIIdeas, "ideas");
+const V_InstagramScheduler = withToolVideo(InstagramScheduler, "sched");
+const V_DMAutomation = withToolVideo(DMAutomation, ["aisetter", "dm"]);
+const V_WebinarFunnels = withToolVideo(WebinarFunnels, ["webinar", "ytlive"]);
+const V_WebinarStudio = withToolVideo(WebinarStudio, "live");
+const V_ClientCRM = withToolVideo(ClientCRM, "aicrm");
+const V_Community = withToolVideo(Community, "community");
+const V_ClientProgress = withToolVideo(ClientProgress, "streaks");
+const V_PagesHub = withToolVideo(PagesHub, ["funnels", "aicrm"]);
+const V_AIContentPlanner = withToolVideo(AIContentPlanner, "ideas");
+const V_ContentCalendar = withToolVideo(ContentCalendar, "sched");
+const V_TwitterScheduler = withToolVideo(TwitterScheduler, "sched");
+const V_LinkedInScheduler = withToolVideo(LinkedInScheduler, "sched");
+const V_YouTubeScheduler = withToolVideo(YouTubeScheduler, "sched");
+const V_DMTracker = withToolVideo(DMTracker, ["aisetter", "dm"]);
+const V_DMHub = withToolVideo(DMHub, ["aisetter", "dm"]);
+const V_SendDM = withToolVideo(SendDM, ["aisetter", "dm"]);
+const V_FormsHub = withToolVideo(FormsHub, "funnels");
+const V_FormsCRM = withToolVideo(FormsCRM, "aicrm");
+const V_WebinarFunnelNew = withToolVideo(WebinarFunnelNew, ["webinar", "ytlive"]);
+const V_WebinarAssistantPage = withToolVideo(WebinarAssistantPage, ["webinar", "ytlive"]);
+const V_WebinarFunnelRegistrations = withToolVideo(WebinarFunnelRegistrations, ["webinar", "ytlive"]);
+const V_WebinarAnalytics = withToolVideo(WebinarAnalytics, "live");
+const V_ClientVideoMarketing = withToolVideo(ClientVideoMarketing, "video");
+const V_TrackingHome = withToolVideo(TrackingHome, "tracking");
+const V_ContentTrackingIndex = withToolVideo(ContentTrackingIndex, "tracking");
+const V_InstagramTracking = withToolVideo(InstagramTracking, "tracking");
+const V_YouTubeTracking = withToolVideo(YouTubeTracking, "tracking");
+
 function WebinarFunnelNew() {
   const advanced = new URLSearchParams(useSearch()).get("mode") === "advanced";
   return advanced ? <WebinarFunnelEditor id="new" /> : <WebinarSetupWizard />;
@@ -199,8 +244,8 @@ import SuperAdminContentTracker from "@/pages/super-admin/ContentTracker";
 function PortalGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -211,9 +256,10 @@ function PortalGuard({ component: Component, ...props }: any) {
 
 function SuperAdminGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
+  useCalmLight();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -223,9 +269,10 @@ function SuperAdminGuard({ component: Component, ...props }: any) {
 
 function Guard({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
+  useCalmLight();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (!user) return <Redirect to="/login" />;
@@ -239,11 +286,11 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
 function HomeRedirect() {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
-  if (!user) return <OraviniLanding />;
+  if (!user) return <Landing />;
   if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/overview" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
@@ -271,8 +318,8 @@ function HostGate({ children }: { children: React.ReactNode }) {
     fetch("/api/public/resolve-host").then(r => (r.ok ? r.json() : { kind: "app" })).catch(() => ({ kind: "app" })).then(setRes);
   }, []);
   if (!res) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
-      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#2e78ef", borderTopColor: "transparent" }} />
     </div>
   );
   if (res.kind === "landing") return <PublicLandingPage slugOverride={res.slug} />;
@@ -311,10 +358,11 @@ function AppRoutes() {
     <Switch>
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
-      <Route path="/oravini" component={OraviniLanding} />
-      <Route path="/lusion" component={LusionInspired} />
+      <Route path="/oravini" component={Landing} />
+      <Route path="/new-home" component={Landing} />
+      <Route path="/lusion" component={Landing} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
-      <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
+      <Route path="/video-marketing-landing" component={Landing} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
@@ -330,6 +378,8 @@ function AppRoutes() {
       <Route path="/dm-automation-for-real-estate-agents" component={DmRealEstatePage} />
       <Route path="/dm-automation-for-fitness-coaches" component={DmFitnessPage} />
       <Route path="/dm-automation-for-salons" component={DmSalonsPage} />
+      <Route path="/automated-webinar-platform" component={AutomatedWebinarPage} />
+      <Route path="/comment-to-dm-automation" component={CommentToDmPage} />
       <Route path="/webinar-platform-for-coaches" component={WebinarCoachesPage} />
       <Route path="/webinar-platform-for-course-creators" component={WebinarCourseCreatorsPage} />
       <Route path="/vs/chatfuel" component={VsChatfuelPage} />
@@ -364,38 +414,38 @@ function AppRoutes() {
       <Route path="/w/:slug">{() => <WebinarFunnelLanding />}</Route>
 
       {/* Client — protected */}
-      <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
-      <Route path="/documents">{() => <Guard component={ClientDocuments} />}</Route>
+      <Route path="/dashboard">{() => <Guard component={V_ClientDashboard} />}</Route>
+      <Route path="/documents">{() => <Guard component={V_ClientDocuments} />}</Route>
       <Route path="/chat">{() => <Guard component={ClientChat} />}</Route>
-      <Route path="/community">{() => <Guard component={Community} />}</Route>
-      <Route path="/progress">{() => <Guard component={ClientProgress} />}</Route>
+      <Route path="/community">{() => <Guard component={V_Community} />}</Route>
+      <Route path="/progress">{() => <Guard component={V_ClientProgress} />}</Route>
       <Route path="/calls">{() => <Guard component={ClientCalls} />}</Route>
-      <Route path="/ai-ideas">{() => <Guard component={AIIdeas} />}</Route>
+      <Route path="/ai-ideas">{() => <Guard component={V_AIIdeas} />}</Route>
       <Route path="/carousel-studio">{() => <Guard component={CarouselStudio} />}</Route>
-      <Route path="/ai-design">{() => <Guard component={AIDesign} />}</Route>
+      <Route path="/ai-design">{() => <Guard component={V_AIDesign} />}</Route>
       <Route path="/lead-magnet">{() => <Guard component={LeadMagnetGenerator} />}</Route>
       <Route path="/story-generator">{() => <Guard component={InstagramStoryGenerator} />}</Route>
       <Route path="/brand-kit-builder">{() => <Guard component={BrandKitBuilder} />}</Route>
       <Route path="/icp-builder">{() => <Guard component={ICPBuilder} />}</Route>
       <Route path="/audience-psychology-map">{() => <Guard component={AudiencePsychologyMap} />}</Route>
       <Route path="/sop-generator">{() => <Guard component={SOPGenerator} />}</Route>
-      <Route path="/ai-content-planner">{() => <Guard component={AIContentPlanner} />}</Route>
+      <Route path="/ai-content-planner">{() => <Guard component={V_AIContentPlanner} />}</Route>
       <Route path="/ai-coach">{() => <Guard component={AIContentCoach} />}</Route>
-      <Route path="/content-analyser/youtube">{() => <Guard component={ContentAnalyserYouTube} />}</Route>
-      <Route path="/content-analyser/instagram">{() => <Guard component={ContentAnalyserInstagram} />}</Route>
-      <Route path="/content-analyser">{() => <Guard component={ContentAnalyser} />}</Route>
-      <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={InstagramScheduler} />}</Route>
+      <Route path="/content-analyser/youtube">{() => <Guard component={V_ContentAnalyserYouTube} />}</Route>
+      <Route path="/content-analyser/instagram">{() => <Guard component={V_ContentAnalyserInstagram} />}</Route>
+      <Route path="/content-analyser">{() => <Guard component={V_ContentAnalyser} />}</Route>
+      <Route path="/tracking/content/instagram/scheduler">{() => <Guard component={V_InstagramScheduler} />}</Route>
       <Route path="/tracking/content/instagram/insights">{() => <Guard component={InstagramUnified} />}</Route>
-      <Route path="/tracking/content/instagram">{() => <Guard component={InstagramTracking} />}</Route>
-      <Route path="/tracking/content/youtube">{() => <Guard component={YouTubeTracking} />}</Route>
-      <Route path="/tracking/content/calendar">{() => <Guard component={ContentCalendar} />}</Route>
-      <Route path="/tracking/content">{() => <Guard component={ContentTrackingIndex} />}</Route>
-      <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
+      <Route path="/tracking/content/instagram">{() => <Guard component={V_InstagramTracking} />}</Route>
+      <Route path="/tracking/content/youtube">{() => <Guard component={V_YouTubeTracking} />}</Route>
+      <Route path="/tracking/content/calendar">{() => <Guard component={V_ContentCalendar} />}</Route>
+      <Route path="/tracking/content">{() => <Guard component={V_ContentTrackingIndex} />}</Route>
+      <Route path="/tracking/competitor">{() => <Guard component={V_CompetitorStudy} />}</Route>
       <Route path="/tracking/ads">{() => <Guard component={MetaAdsTracking} />}</Route>
-      <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
-      <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
-      <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
-      <Route path="/pages-hub">{() => <Guard component={PagesHub} />}</Route>
+      <Route path="/tracking">{() => <Guard component={V_TrackingHome} />}</Route>
+      <Route path="/content-tracking">{() => <Guard component={V_TrackingHome} />}</Route>
+      <Route path="/dm-automation">{() => <Guard component={V_DMAutomation} />}</Route>
+      <Route path="/pages-hub">{() => <Guard component={V_PagesHub} />}</Route>
       <Route path="/landing-pages">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/landing-pages/:id/edit">{() => <Guard component={LandingPageBuilder} />}</Route>
       <Route path="/funnels">{() => <Redirect to="/pages-hub" />}</Route>
@@ -410,47 +460,47 @@ function AppRoutes() {
       <Route path="/pages/:funnelId/step/:stepId">{() => <Guard component={FunnelStepBuilder} />}</Route>
       <Route path="/domains">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>
-      <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
-      <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
-      <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
-      <Route path="/video-editor">{() => <Guard component={VideoClipEditor} />}</Route>
-      <Route path="/ai-video-planner">{() => <Guard component={AIVideoEditor} />}</Route>
-      <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
-      <Route path="/video-clip-editor">{() => <Guard component={VideoClipEditor} />}</Route>
-      <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
-      <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
-      <Route path="/recordings">{() => <Guard component={Recordings} />}</Route>
-      <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
-      <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
+      <Route path="/dm-tracker">{() => <Guard component={V_DMTracker} />}</Route>
+      <Route path="/dm-hub">{() => <Guard component={V_DMHub} />}</Route>
+      <Route path="/send-dm">{() => <Guard component={V_SendDM} />}</Route>
+      <Route path="/video-editor">{() => <Guard component={V_VideoClipEditor} />}</Route>
+      <Route path="/ai-video-planner">{() => <Guard component={V_AIVideoEditor} />}</Route>
+      <Route path="/video-studio">{() => <Guard component={V_VideoEditorStudio} />}</Route>
+      <Route path="/video-clip-editor">{() => <Guard component={V_VideoClipEditor} />}</Route>
+      <Route path="/screen-recorder">{() => <Guard component={V_ScreenRecorder} />}</Route>
+      <Route path="/oravini-recorder">{() => <Guard component={V_ScreenRecorder} />}</Route>
+      <Route path="/recordings">{() => <Guard component={V_Recordings} />}</Route>
+      <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={V_WebinarAnalytics} id={p.id} />}</Route>
+      <Route path="/webinar-studio/:id">{(p) => <Guard component={V_WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
       <Route path="/ig-tracker">{() => { window.location.replace("/tracking/content/instagram"); return null; }}</Route>
       <Route path="/ig-growth-tracker">{() => <Guard component={IgGrowthTracker} />}</Route>
       <Route path="/sessions">{() => <Guard component={Sessions} />}</Route>
-      <Route path="/twitter-scheduler">{() => <Guard component={TwitterScheduler} />}</Route>
-      <Route path="/linkedin-scheduler">{() => <Guard component={LinkedInScheduler} />}</Route>
-      <Route path="/youtube-scheduler">{() => <Guard component={YouTubeScheduler} />}</Route>
+      <Route path="/twitter-scheduler">{() => <Guard component={V_TwitterScheduler} />}</Route>
+      <Route path="/linkedin-scheduler">{() => <Guard component={V_LinkedInScheduler} />}</Route>
+      <Route path="/youtube-scheduler">{() => <Guard component={V_YouTubeScheduler} />}</Route>
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/settings/connections">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/payments">{() => <Guard component={Payments} />}</Route>
       <Route path="/get-paid">{() => <Guard component={GetPaid} />}</Route>
-      <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
+      <Route path="/video-marketing">{() => <Guard component={V_ClientVideoMarketing} />}</Route>
       {/* Top-level "Video Hosting" sidebar entry: same studio, opened on its hosting section. */}
-      <Route path="/video-hosting">{() => <Guard component={ClientVideoMarketing} section="video-hosting" />}</Route>
+      <Route path="/video-hosting">{() => <Guard component={V_ClientVideoMarketing} section="video-hosting" />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
-      <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
+      <Route path="/tools/forms/crm">{() => <Guard component={V_FormsCRM} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
-      <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
-      <Route path="/tools/webinars/assistant">{() => <Guard component={WebinarAssistantPage}/>}</Route>
-      <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={WebinarFunnelRegistrations} id={p.id} />}</Route>
-      <Route path="/tools/webinars/new">{() => <Guard component={WebinarFunnelNew} />}</Route>
+      <Route path="/tools/forms">{() => <Guard component={V_FormsHub} />}</Route>
+      <Route path="/tools/webinars/assistant">{() => <Guard component={V_WebinarAssistantPage}/>}</Route>
+      <Route path="/tools/webinars/:id/registrations">{(p) => <Guard component={V_WebinarFunnelRegistrations} id={p.id} />}</Route>
+      <Route path="/tools/webinars/new">{() => <Guard component={V_WebinarFunnelNew} />}</Route>
       <Route path="/tools/webinars/:id/setup">{(p) => <Guard component={WebinarSetupWizard} id={p.id} />}</Route>
       <Route path="/tools/webinars/:id">{(p) => <Guard component={WebinarFunnelEditor} id={p.id} />}</Route>
-      <Route path="/tools/webinars">{() => <Guard component={WebinarFunnels} />}</Route>
-      <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
-      <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
-      <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
+      <Route path="/tools/webinars">{() => <Guard component={V_WebinarFunnels} />}</Route>
+      <Route path="/tools">{() => <Guard component={V_ToolsHub} />}</Route>
+      <Route path="/project-tracker">{() => <Guard component={V_ClientProjectTracker} />}</Route>
+      <Route path="/crm">{() => <Guard component={V_ClientCRM} />}</Route>
       <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
